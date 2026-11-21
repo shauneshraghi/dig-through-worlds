@@ -66,6 +66,24 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #lockBoard .dots { display:flex; gap:6px; justify-content:center; margin-top:10px; }
 #lockBoard .dots i { width:12px; height:12px; border-radius:50%; background:#0005; border:2px solid #8a7fa8; }
 #lockBoard .dots i.on { background:var(--gold); border-color:var(--gold); }
+#lockBoard .slide { display:grid; gap:6px; margin:0 auto; max-width:300px; }
+#lockBoard .slide.s3 { grid-template-columns:repeat(3,1fr); } #lockBoard .slide.s4 { grid-template-columns:repeat(4,1fr); max-width:320px; }
+#lockBoard .tile, #lockBoard .gap { aspect-ratio:1; border-radius:10px; }
+#lockBoard .tile { border:none; cursor:pointer; touch-action:manipulation; background:#fff7e8; color:#2a2140; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 3px 0 #0008; padding:0; }
+#lockBoard .tile b { font-size:28px; line-height:1; font-weight:400; } #lockBoard .tile small { font-size:15px; font-weight:700; }
+#lockBoard .slide.s4 .tile b { font-size:24px; }
+#lockBoard .gap { background:#0004; }
+#lockBoard .pipes { display:grid; gap:3px; margin:0 auto; }
+#lockBoard .pipe { aspect-ratio:1; min-width:0; padding:0; border:2px solid #4a3d6e; border-radius:8px; background:#1a1426; cursor:pointer; touch-action:manipulation; }
+#lockBoard .pipe svg { width:100%; height:100%; display:block; }
+#lockBoard .odd { display:grid; gap:8px; margin:0 auto; }
+#lockBoard .oc { aspect-ratio:1; max-height:76px; border:none; border-radius:12px; font-size:36px; background:#fff7e8; cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #0008; padding:0; }
+#lockBoard .oc.bad { background:#ffd0cc; animation:shake .3s; }
+@keyframes shake { 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); } }
+#lockBoard .gems { display:grid; gap:8px; margin:0 auto; }
+#lockBoard .gem { aspect-ratio:1; max-height:76px; border:none; border-radius:50%; font-size:30px; cursor:pointer; touch-action:manipulation; background:radial-gradient(circle at 35% 30%,#bff0ff,#3f9fe0 60%,#2a68b0); color:#fff; box-shadow:0 3px 0 #0008; padding:0; }
+#lockBoard .gem b { font-size:30px; text-shadow:0 2px 0 #0008; }
+#lockBoard .gem.got { opacity:.35; }
 #lockBoard .col { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1 1 0; max-width:52px; min-width:0; }
 #lockBoard .tooth, #lockBoard .pin { width:100%; height:78px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:10px; }
 #lockBoard .tooth { background:#0003; }

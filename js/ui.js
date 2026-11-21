@@ -278,14 +278,64 @@
   var LOCK_TEXT = {
     pins: ['🔒 A locked chest!'],
     pairs: ['🃏 A memory chest!', 'Flip two cards at a time and find every matching pair.'],
-    simon: ['🎵 A singing chest!', 'Watch the gems light up…', 'Your turn: tap the gems in the same order.']
+    simon: ['🎵 A singing chest!', 'Watch the gems light up…', 'Your turn: tap the gems in the same order.'],
+    slide: ['🧩 A puzzle chest!', 'Tap a tile next to the gap to slide it. Put the numbers in order, 1 first.'],
+    pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!'],
+    odd: ['🔎 An odd-one-out chest!', 'Find the one that is different.'],
+    path: ['💎 A gem-trail chest!', 'Tap the gems in order, 1, 2, 3…', 'Remember the numbers! Look…', 'The numbers are hidden. Tap the gems in order!']
   };
+  var SLIDE_ICONS = ['🍎', '🍊', '🍋', '🍐', '🍇', '🍓', '🍒', '🥝', '🍑', '🍍', '🥥', '🍉', '🥕', '🌽', '🍄'];
+  // one pipe tile as inline SVG: an arm from the middle to each open side; wet pipes are blue
+  function pipeSvg(L, k, wet) {
+    var tl = L.tiles[k], sd = D.pipeSides(tl.t, tl.r), col = wet ? '#46c2ff' : '#b9b2cf', ends = [[20, 0], [40, 20], [20, 40], [0, 20]];
+    var s = '<svg viewBox="0 0 40 40" aria-hidden="true">';
+    for (var d = 0; d < 4; d++) if (sd[d]) s += '<line x1="20" y1="20" x2="' + ends[d][0] + '" y2="' + ends[d][1] + '" stroke="' + col + '" stroke-width="10"/>';
+    s += '<circle cx="20" cy="20" r="7" fill="' + col + '"/>';
+    if (k === L.inlet * L.n) s += '<circle cx="2" cy="20" r="6" fill="#46c2ff"/>';
+    if (k === L.outlet * L.n + L.n - 1) s += '<circle cx="38" cy="20" r="6" fill="#4fd36b"/>';
+    return s + '</svg>';
+  }
   function renderLock() {
     var L = S.mode === 'dig' && S.run && S.run.lock, el = $('lock');
     el.classList.toggle('show', !!L);
     if (!L) { lockKey = ''; simonStep = -1; if (smashT) smashStop(); return; }
     var kind = L.kind || 'pins', T0 = LOCK_TEXT[kind], html = '', key, hint;
-    if (kind === 'simon') {
+    if (kind === 'slide') {
+      key = 'sl|' + L.i + '|' + L.tiles.join();
+      if (key === lockKey) return;
+      hint = T0[1];
+      html = '<div class="slide s' + L.n + '">';
+      L.tiles.forEach(function (v, j) {
+        html += v ? '<button class="tile" data-k="' + j + '"><b>' + SLIDE_ICONS[v - 1] + '</b><small>' + v + '</small></button>' : '<div class="gap"></div>';
+      });
+      html += '</div>';
+    } else if (kind === 'pipes') {
+      var wet = D.pipeWet(L);
+      key = 'pi|' + L.i + '|' + L.tiles.map(function (x) { return x.r; }).join('') + '|' + wet.join();
+      if (key === lockKey) return;
+      hint = T0[1];
+      html = '<div class="pipes" style="max-width:' + L.n * 64 + 'px;grid-template-columns:repeat(' + L.n + ',minmax(0,1fr))">';
+      L.tiles.forEach(function (_, j) { html += '<button class="pipe" data-k="' + j + '" aria-label="Pipe ' + (j + 1) + '">' + pipeSvg(L, j, wet.indexOf(j) >= 0) + '</button>'; });
+      html += '</div>';
+    } else if (kind === 'odd') {
+      key = 'od|' + L.i + '|' + L.round + '|' + L.cards.join('') + '|' + L.bad;
+      if (key === lockKey) return;
+      hint = T0[1];
+      var cols = L.cards.length <= 4 ? 2 : L.cards.length <= 9 ? 3 : 4;
+      html = '<div class="odd" style="max-width:' + cols * 80 + 'px;grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">';
+      L.cards.forEach(function (c, j) { html += '<button class="oc' + (j === L.bad ? ' bad' : '') + '" data-k="' + j + '">' + c + '</button>'; });
+      html += '</div><div class="dots">' + Array.apply(null, Array(L.rounds)).map(function (_, j) { return '<i' + (j < L.round ? ' class="on"' : '') + '></i>'; }).join('') + '</div>';
+    } else if (kind === 'path') {
+      var seen = !L.hide || L.show > 0;
+      key = 'pa|' + L.i + '|' + L.next + '|' + seen;
+      if (key === lockKey) return;
+      hint = !L.hide ? T0[1] : seen ? T0[2] : T0[3];
+      html = '<div class="gems" style="max-width:' + L.g * 80 + 'px;grid-template-columns:repeat(' + L.g + ',minmax(0,1fr))">';
+      L.cells.forEach(function (c, j) {
+        html += c ? '<button class="gem' + (c < L.next ? ' got' : '') + '" data-k="' + j + '"' + (L.hide && L.show > 0 ? ' disabled' : '') + '>' + (seen || c < L.next ? '<b>' + c + '</b>' : '💎') + '</button>' : '<div class="gap"></div>';
+      });
+      html += '</div>';
+    } else if (kind === 'simon') {
       var total = D.SIMON_LEAD + L.seq.length * D.SIMON_STEP, el2 = total - L.show - D.SIMON_LEAD, n = Math.floor(el2 / D.SIMON_STEP);
       var lit = L.show > 0 && el2 >= 0 && n < L.seq.length && el2 - n * D.SIMON_STEP < D.SIMON_STEP * 0.7 ? L.seq[n] : -1;
       if (lit >= 0 && n !== simonStep) { simonStep = n; A.sfx('pad' + lit); } // each gem sings as it lights

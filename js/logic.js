@@ -101,8 +101,26 @@ var DTW = (function () {
   // a match stays up and a miss turns back over after PAIR_MISS seconds; 'simon' lights SIMON_PADS gems in a sequence
   // (SIMON_STEP seconds each) for the player to tap back in order, and a wrong tap plays it again. Each chest picks
   // a kind other than the last one.
-  var LOCK_KINDS = ['pins', 'pairs', 'simon'], PAIRS = [4, 6, 6, 8, 8], PAIR_MISS = 0.9;
+  var LOCK_KINDS = ['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path'], PAIRS = [4, 6, 6, 8, 8], PAIR_MISS = 0.9;
   var SIMON_PADS = 4, SIMON_LEN = [4, 5, 5, 6, 7], SIMON_STEP = 0.7, SIMON_LEAD = 0.6;
+  // More puzzles, each harder in later worlds (one entry per world). 'slide': sliding tiles on a SLIDE_N x SLIDE_N board
+  // (3 in worlds 1-3, 4 after), scrambled by SLIDE_K random legal moves from solved. 'pipes': turn tiles (a tap is a quarter
+  // turn clockwise) so water runs from the left edge to the right edge of a PIPE_N x PIPE_N board. 'odd': ODD_ROUNDS rounds
+  // of ODD_CARDS cards that are all one symbol but one (ODD_SETS[w] are the look-alike pairs to draw from, closer-looking in
+  // later worlds); a wrong tap waits ODD_WAIT s. 'path': PATH_N numbered gems on a PATH_GRID x PATH_GRID board, tapped
+  // 1, 2, 3...; from world 3 on the numbers show for PATH_PREVIEW s and then hide, and a miss shows them for PATH_RECALL s
+  // and starts over.
+  var SLIDE_N = [3, 3, 3, 4, 4], SLIDE_K = [8, 14, 20, 24, 32];
+  var PIPE_N = [3, 4, 4, 5, 5];
+  var ODD_ROUNDS = [3, 3, 4, 4, 5], ODD_CARDS = [4, 6, 9, 12, 16], ODD_WAIT = 0.8;
+  var ODD_SETS = [
+    [['🍎', '🐟'], ['🐸', '🚗'], ['⭐', '🌳']],
+    [['🍎', '🍅'], ['🐱', '🐯'], ['🐶', '🐺']],
+    [['🐶', '🐕'], ['🍎', '🍏'], ['🐱', '😺']],
+    [['🌕', '🌝'], ['😀', '😃'], ['🕐', '🕑']],
+    [['🌕', '🌝'], ['🌑', '🌚'], ['😀', '😃'], ['🔺', '🔻']]
+  ];
+  var PATH_N = [4, 5, 6, 7, 8], PATH_GRID = [3, 3, 4, 4, 4], PATH_PREVIEW = [0, 0, 3, 3.5, 4], PATH_RECALL = 1.5;
   var forceKind = null;
   WORLDS.forEach(function (w) {
     w.fossils = [];
@@ -582,8 +600,8 @@ var DTW = (function () {
   function setAuto(s, on) { s.auto = !!on; if (s.run) s.run.manual = 0; }
   // ---------- chest locks ----------
   function openLock(s, i) {
-    var r = s.run, w = s.world, last = LOCK_KINDS.indexOf(r.lastLock), kind = forceKind;
-    if (!kind) kind = last < 0 ? LOCK_KINDS[Math.floor(rand(s) * 3)] : LOCK_KINDS[(last + 1 + Math.floor(rand(s) * 2)) % 3];
+    var r = s.run, w = s.world, last = LOCK_KINDS.indexOf(r.lastLock), kind = forceKind, nk = LOCK_KINDS.length;
+    if (!kind) kind = last < 0 ? LOCK_KINDS[Math.floor(rand(s) * nk)] : LOCK_KINDS[(last + 1 + Math.floor(rand(s) * (nk - 1))) % nk];
     r.lastLock = kind;
     if (kind === 'pairs') {
       var cards = [];
@@ -594,9 +612,98 @@ var DTW = (function () {
       var seq = [];
       for (var m = 0; m < SIMON_LEN[w]; m++) seq.push(Math.floor(rand(s) * SIMON_PADS));
       r.lock = { i: i, kind: kind, seq: seq, pos: 0, show: simonShow(seq), taps: 0 };
-    } else openPins(s, i);
+    } else if (kind === 'slide') openSlide(s, i);
+    else if (kind === 'pipes') openPipes(s, i);
+    else if (kind === 'odd') { r.lock = { i: i, kind: kind, round: 0, rounds: ODD_ROUNDS[w], wait: 0, bad: -1, taps: 0 }; dealOdd(s, r.lock); }
+    else if (kind === 'path') openPath(s, i);
+    else openPins(s, i);
     r.target = -1; r.state = 'idle'; r.taps = 0; r.steer = 0; r.path = null;
     emit(s, { type: 'lock', i: i, kind: kind });
+  }
+  // ---- sliding tiles: tiles[i] is the tile number at cell i, 0 the blank; solved is 1, 2, 3... with the blank last
+  function slideSolved(tiles) { for (var i = 0; i < tiles.length - 1; i++) if (tiles[i] !== i + 1) return false; return true; }
+  function slideNear(n, b) { var o = []; if (b >= n) o.push(b - n); if (b < n * n - n) o.push(b + n); if (b % n) o.push(b - 1); if (b % n < n - 1) o.push(b + 1); return o; }
+  function openSlide(s, i) {
+    var w = s.world, n = SLIDE_N[w], tiles = [], b = n * n - 1, prev = -1;
+    for (var k = 0; k < b; k++) tiles.push(k + 1);
+    tiles.push(0);
+    // scramble with legal moves from solved (never straight back), so it can always be solved in at most SLIDE_K moves
+    for (var m = 0; m < SLIDE_K[w] || slideSolved(tiles); m++) {
+      var near = slideNear(n, b).filter(function (j) { return j !== prev; }), j = near[Math.floor(rand(s) * near.length)];
+      tiles[b] = tiles[j]; tiles[j] = 0; prev = b; b = j;
+    }
+    s.run.lock = { i: i, kind: 'slide', n: n, tiles: tiles, taps: 0 };
+  }
+  // ---- pipes: a tile has a shape t (0 straight, 1 corner, 2 tee, 3 cross) turned r quarter turns clockwise
+  var PIPE_BASE = [[1, 0, 1, 0], [1, 1, 0, 0], [1, 1, 0, 1], [1, 1, 1, 1]]; // open sides N E S W at r = 0
+  var PIPE_DX = [0, 1, 0, -1], PIPE_DZ = [-1, 0, 1, 0];
+  function pipeSides(t, r) { var o = []; for (var d = 0; d < 4; d++) o.push(!!PIPE_BASE[t][(d + 4 - r) % 4]); return o; }
+  // cells (row * n + col) the water reaches from the left edge of the inlet row
+  function pipeWet(L) {
+    var n = L.n, wet = {}, out = [], q = [];
+    if (pipeSides(L.tiles[L.inlet * n].t, L.tiles[L.inlet * n].r)[3]) { q.push(L.inlet * n); wet[L.inlet * n] = true; }
+    while (q.length) {
+      var k = q.shift(), sd = pipeSides(L.tiles[k].t, L.tiles[k].r), row = Math.floor(k / n), col = k % n;
+      out.push(k);
+      for (var d = 0; d < 4; d++) {
+        if (!sd[d]) continue;
+        var nr = row + PIPE_DZ[d], nc = col + PIPE_DX[d], j = nr * n + nc;
+        if (nr < 0 || nr >= n || nc < 0 || nc >= n || wet[j]) continue;
+        var t = L.tiles[j];
+        if (pipeSides(t.t, t.r)[(d + 2) % 4]) { wet[j] = true; q.push(j); }
+      }
+    }
+    return out;
+  }
+  function pipeDone(L) {
+    var k = L.outlet * L.n + L.n - 1;
+    return pipeWet(L).indexOf(k) >= 0 && pipeSides(L.tiles[k].t, L.tiles[k].r)[1];
+  }
+  function openPipes(s, i) {
+    var w = s.world, n = PIPE_N[w], inlet = Math.floor(rand(s) * n), outlet = Math.floor(rand(s) * n), tiles = [];
+    for (var k = 0; k < n * n; k++) tiles.push({ t: Math.floor(rand(s) * 4), r: 0 });
+    // a random self-avoiding path from the inlet tile to the outlet tile, found by a randomly ordered depth-first walk
+    var seen = {}, path = [];
+    function go(row, col) {
+      seen[row * n + col] = true; path.push([row, col]);
+      if (row === outlet && col === n - 1) return true;
+      var order = [0, 1, 2, 3];
+      for (var a = 3; a > 0; a--) { var b = Math.floor(rand(s) * (a + 1)), x = order[a]; order[a] = order[b]; order[b] = x; }
+      for (var o = 0; o < 4; o++) {
+        var d = order[o], nr = row + PIPE_DZ[d], nc = col + PIPE_DX[d];
+        if (nr < 0 || nr >= n || nc < 0 || nc >= n || seen[nr * n + nc]) continue;
+        if (go(nr, nc)) return true;
+      }
+      path.pop(); return false;
+    }
+    go(inlet, 0);
+    for (var p = 0; p < path.length; p++) { // straight or corner pieces along the path, turned so the water gets through
+      var prev = p ? path[p - 1] : [inlet, -1], next = p < path.length - 1 ? path[p + 1] : [outlet, n];
+      var din = pipeFace(path[p], prev), dout = pipeFace(path[p], next), tt = (din + 2) % 4 === dout ? 0 : 1;
+      tiles[path[p][0] * n + path[p][1]] = { t: tt, r: 0 };
+    }
+    var L = { i: i, kind: 'pipes', n: n, inlet: inlet, outlet: outlet, tiles: tiles, taps: 0 };
+    // turn every tile at random, and again until the water does not already flow
+    do { for (var q = 0; q < n * n; q++) tiles[q].r = Math.floor(rand(s) * 4); } while (pipeDone(L));
+    s.run.lock = L;
+  }
+  function pipeFace(a, b) { // side of cell a that faces cell b (b may lie off the board: the inlet to the left, the outlet to the right)
+    var dr = b[0] - a[0], dc = b[1] - a[1];
+    return dr < 0 ? 0 : dc > 0 ? 1 : dr > 0 ? 2 : 3;
+  }
+  // ---- odd one out: ODD_CARDS cards of one symbol and a look-alike hiding among them; the next round deals again
+  function dealOdd(s, L) {
+    var set = ODD_SETS[s.world][Math.floor(rand(s) * ODD_SETS[s.world].length)], flip = rand(s) < 0.5 ? 1 : 0;
+    L.odd = Math.floor(rand(s) * ODD_CARDS[s.world]); L.bad = -1;
+    L.cards = []; for (var k = 0; k < ODD_CARDS[s.world]; k++) L.cards.push(set[k === L.odd ? 1 - flip : flip]);
+  }
+  // ---- numbered gems: cells[k] is the number of the gem at cell k, 0 where there is none
+  function openPath(s, i) {
+    var w = s.world, g = PATH_GRID[w], cells = [], order = [], n = PATH_N[w];
+    for (var k = 0; k < g * g; k++) { cells.push(0); order.push(k); }
+    for (var j = order.length - 1; j > 0; j--) { var q = Math.floor(rand(s) * (j + 1)), t = order[j]; order[j] = order[q]; order[q] = t; }
+    for (var m = 0; m < n; m++) cells[order[m]] = m + 1;
+    s.run.lock = { i: i, kind: 'path', n: n, g: g, cells: cells, next: 1, show: PATH_PREVIEW[w], hide: PATH_PREVIEW[w] > 0, taps: 0 };
   }
   function simonShow(seq) { return SIMON_LEAD + seq.length * SIMON_STEP; }
   function openPins(s, i) {
@@ -611,7 +718,7 @@ var DTW = (function () {
   }
   // the timers of an open puzzle: a missed pair turning back over, the simon sequence playing
   function tickLock(L, dt) {
-    if (L.wait > 0 && (L.wait -= dt) <= 0) { L.wait = 0; L.up = []; }
+    if (L.wait > 0 && (L.wait -= dt) <= 0) { L.wait = 0; if (L.up) L.up = []; L.bad = -1; }
     if (L.show > 0) L.show = Math.max(0, L.show - dt);
   }
   function bumpPins(pins, k, link, by) {
@@ -638,6 +745,33 @@ var DTW = (function () {
       if (L.seq[L.pos] === k) { L.pos++; emit(s, { type: 'pin', k: k }); }
       else { L.pos = 0; L.show = simonShow(L.seq); emit(s, { type: 'miss' }); }
       solved = L.pos === L.seq.length;
+    } else if (L.kind === 'slide') {
+      var b = L.tiles.indexOf(0);
+      if (k >= L.tiles.length || slideNear(L.n, b).indexOf(k) < 0) return false;
+      L.tiles[b] = L.tiles[k]; L.tiles[k] = 0; L.taps++;
+      emit(s, { type: 'pin', k: k });
+      solved = slideSolved(L.tiles);
+    } else if (L.kind === 'pipes') {
+      if (k >= L.tiles.length) return false;
+      L.tiles[k].r = (L.tiles[k].r + 1) % 4; L.taps++;
+      emit(s, { type: 'pin', k: k });
+      solved = pipeDone(L);
+    } else if (L.kind === 'odd') {
+      if (k >= L.cards.length || L.wait > 0) return false;
+      L.taps++;
+      if (k === L.odd) {
+        L.round++; emit(s, { type: 'match' });
+        if (L.round < L.rounds) dealOdd(s, L); else solved = true;
+      } else { L.wait = ODD_WAIT; L.bad = k; emit(s, { type: 'miss' }); }
+    } else if (L.kind === 'path') {
+      if (k >= L.cells.length || !L.cells[k] || L.cells[k] < L.next || L.show > 0) return false;
+      L.taps++;
+      if (L.cells[k] === L.next) { L.next++; emit(s, { type: 'pin', k: k }); }
+      else {
+        emit(s, { type: 'miss' });
+        if (L.hide) { L.next = 1; L.show = PATH_RECALL; } // memory worlds: look again and start over
+      }
+      solved = L.next > L.n;
     } else {
       if (k >= L.pins.length) return false;
       bumpPins(L.pins, k, L.link, 1); L.taps++;
@@ -1023,6 +1157,7 @@ var DTW = (function () {
 
   return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
+    SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
