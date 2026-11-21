@@ -4,7 +4,7 @@ var DTW = (function () {
   'use strict';
   // The world is an N×N column of ground, DEPTH layers deep (relic layer at DEPTH, bedrock below).
   // x and z run across a layer, y is the depth; cell index is (y*N + z)*N + x.
-  var N = 7, NN = N * N, DEPTH = 100;
+  var N = 7, NN = N * N, DEPTH = 50;
   function idx(x, y, z) { return (y * N + z) * N + x; }
   // compass steering: n/s move along z, e/w along x. -1 / +1 are kept as aliases for w / e.
   var DIRS = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] };
@@ -78,7 +78,7 @@ var DTW = (function () {
   // museum[w].pieces holds a count per index. The shallow creature comes first, the deepest last,
   // and a creature's share of the world's exhibit income grows with its depth.
   var CREATURES = 3, PIECES = 5, FOSSILS = CREATURES * PIECES, CREATURE_INCOME = [0.5, 0.75, 1];
-  var BAND = [[1, 24], [26, 64], [62, 98]]; // depths where each creature's pieces are buried
+  var BAND = [[1, 12], [13, 32], [31, 49]]; // depths where each creature's pieces are buried
   // Big fossils: the two largest pieces of each creature (by the size of their exhibit shape in sprites.js) are
   // buried as one fossil spanning several cells of a layer: '2' two in a row, '3' three in a row, '4' a 2×2 square,
   // '.' a single cell. One string per world, one character per fossil index.
@@ -858,14 +858,14 @@ var DTW = (function () {
       r.manual = Math.max(0, (r.manual || 0) - dt); r.hintT = Math.max(0, (r.hintT || 0) - dt); r.stepCD = Math.max(0, (r.stepCD || 0) - dt);
       if (r.steer) {
         var sd = DIRS[r.steer], sx = r.x + sd[0], sz = r.z + sd[1];
-        var st = sx < 0 || sx >= N || sz < 0 || sz >= N ? TILE.BEDROCK : g.t[idx(sx, y, sz)];
+        var inPit = sx >= 0 && sx < N && sz >= 0 && sz < N, st = inPit ? g.t[idx(sx, y, sz)] : TILE.BEDROCK;
         r.face = r.steer;
         if (r.steer === 'w' && sx < 0 && r.z === LADDER_Z) { r.steer = 0; goHome(s, 'ladder'); return; } // onto the ladder: climb home
         if (passable(st)) { // one cell at a time, at walking pace
           if (r.stepCD <= 0) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; r.stepCD = 1 / WALK; }
           moved = true;
         }
-        else if (canDig(s, g, idx(sx, y, sz))) { tgt = idx(sx, y, sz); steered = true; }
+        else if (inPit && canDig(s, g, idx(sx, y, sz))) { tgt = idx(sx, y, sz); steered = true; } // off the edge, idx() would wrap onto another cell
         else { if (diggable(st)) boneHint(s); r.steer = 0; }
       }
       // a block the player tapped: walk next to it at full pace, then dig it

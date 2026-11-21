@@ -90,9 +90,9 @@ test('new game: only the first world is open', () => {
   assert.throws(() => D.startDig(s, 1));
 });
 
-test('the world is a 7×7 column of ground, 100 layers deep, indexed (y*N + z)*N + x', () => {
+test('the world is a 7×7 column of ground, 50 layers deep, indexed (y*N + z)*N + x', () => {
   assert.equal(D.N, 7);
-  assert.equal(D.DEPTH, 100);
+  assert.equal(D.DEPTH, 50);
   assert.equal(D.idx(0, 0, 0), 0);
   assert.equal(D.idx(1, 0, 0), 1);
   assert.equal(D.idx(0, 0, 1), 7);
@@ -160,6 +160,7 @@ test('the miner clears every block of a layer before the layer below opens', () 
   const s = D.newState(3); s.upgrades.drill = 6; s.upgrades.speed = 4; D.startDig(s, 0);
   let checked = 0;
   for (let i = 0; i < 4000 && s.run.y < 5; i++) {
+    s.carry = []; // as if each bone were handed in at once, so fossils never hold up the layer
     D.tap(s); if (s.run.lock) D.lockSmash(s); D.step(s, 0.05);
     for (const e of breaks(s)) {
       for (let y = 1; y < e.y; y++) assert.equal(layerLeft(s.run.grid, y), 0, `layer ${y} was clear before a block in layer ${e.y} broke`);
@@ -262,11 +263,11 @@ test('left alone the miner walks and digs slower than when the player steers it'
   assert.ok(autoCells <= Math.ceil(D.WALK * D.AUTO_PACE) + 1, `auto-walk went ${autoCells} cells in 1 s`);
   // digging: the same stone block, once on its own and once steered into
   const timeToBreak = steerIt => {
-    const s = digAt(0, 3, 60, 3);
-    D._setTile(s, 4, 60, 3, T.STONE);
+    const s = digAt(0, 3, 30, 3);
+    D._setTile(s, 4, 30, 3, T.STONE);
     let t = 0;
     if (steerIt) D.steer(s, 'e');
-    while (at(s.run.grid, 4, 60, 3) === T.STONE && t < 120) { D.step(s, 0.05); t += 0.05; }
+    while (at(s.run.grid, 4, 30, 3) === T.STONE && t < 120) { D.step(s, 0.05); t += 0.05; }
     return t;
   };
   const auto = timeToBreak(false), steered = timeToBreak(true);
@@ -462,12 +463,12 @@ test('jungle: breaking a trap stuns for about two seconds', () => {
 });
 
 test('alien: goo grows back while you drill it, so idle digging is slower and tapping wins', () => {
-  const i = D.idx(3, 11, 3);
+  const i = D.idx(3, 6, 3);
   const timeToBreak = (tile, taps) => {
-    const s = digAt(4, 3, 10, 3, { drill: 3, speed: 2 });
-    D._setTile(s, 3, 11, 3, T.GOO);
+    const s = digAt(4, 3, 5, 3, { drill: 3, speed: 2 });
+    D._setTile(s, 3, 6, 3, T.GOO);
     const goo = s.run.grid.hp[i];
-    D._setTile(s, 3, 11, 3, tile); s.run.grid.hp[i] = goo;
+    D._setTile(s, 3, 6, 3, tile); s.run.grid.hp[i] = goo;
     let t = 0, acc = 0;
     while (s.run.grid.t[i] === tile && t < 600) { acc += taps * 0.05; while (acc >= 1) { D.tap(s); acc--; } D.step(s, 0.05); t += 0.05; }
     return t;
@@ -623,6 +624,27 @@ test('a save from the old flat 11-wide world keeps progress and starts a fresh 3
   assert.equal(g.deepest, 0);
 });
 
+test('a save from the 100-layer pits keeps progress, banks its bag and digs fresh 50-layer sites', () => {
+  const deep = 100, cells = 7 * 7 * (deep + 2);
+  const old = JSON.stringify({ v: 3, seed: 5, rng: 1, coins: 777, unlocked: [true, true, false, false, false], relics: [true, false, false, false, false],
+    upgrades: { drill: 4, speed: 3, bag: 2, magnet: 1, crewDrill: 1, crewSpeed: 0 }, workers: { diggers: 2, staff: 1 },
+    museum: [0, 1, 2, 3, 4].map(w => ({ pieces: w ? new Array(15).fill(0) : [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] })), world: 1,
+    stats: { trapsSprung: 0, timePlayed: 10, digs: 5 }, auto: true, carry: [{ kind: 'fossil', world: 0, idx: 2 }], pile: 12.5,
+    bag: [{ kind: 'treasure', world: 1, value: 40 }],
+    sites: [{ t: new Array(cells).fill(1), v: new Array(cells).fill(0), deepest: 70, deepestX: 3, deepestZ: 3, gen: 0 }, null, null, null, null] });
+  const s = D.deserialize(old);
+  assert.ok(s);
+  assert.equal(s.coins, 777 + 40);
+  assert.equal(s.upgrades.drill, 4);
+  assert.equal(s.workers.diggers, 2);
+  assert.equal(s.museum[0].pieces[1], 1);
+  assert.equal(s.carry.length, 1);
+  assert.equal(s.pile, 12.5);
+  const g = D.site(s, 0);
+  assert.equal(g.t.length, D.N * D.N * (D.DEPTH + 2));
+  assert.equal(g.deepest, 0);
+});
+
 // A simple bot standing in for a kid: steers toward the nearest block in its layer (the miner
 // walks and digs at full pace only while steered), taps 3 times a second, heads home when the bag is full or every 2.5 minutes,
 // and spends on the cheapest upgrade (bag and magnet weighted down).
@@ -688,7 +710,7 @@ test('the first upgrade is affordable after one trip', () => {
   assert.ok(s.coins >= cheapest, `earned ${s.coins} vs cheapest ${cheapest}`);
 });
 
-test('playthrough: each world takes a kid-sized 15–35 minutes, all five finish, and a full bag sends the miner home', () => {
+test('playthrough: each world takes a kid-sized 8–20 minutes, all five finish, and a full bag sends the miner home', () => {
   const s = D.newState(2024);
   const mins = [], stats = { fullBag: 0 };
   for (let w = 0; w < 5; w++) {
@@ -697,7 +719,7 @@ test('playthrough: each world takes a kid-sized 15–35 minutes, all five finish
     assert.ok(s.relics[w], `world ${w} relic`);
   }
   console.log('bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| trips home with a full bag:', stats.fullBag);
-  for (const m of mins) assert.ok(m >= 15 && m <= 35, `world took ${m.toFixed(1)} min`);
+  for (const m of mins) assert.ok(m >= 8 && m <= 20, `world took ${m.toFixed(1)} min`);
   assert.ok(stats.fullBag >= 10, `${stats.fullBag} trips home with a full bag`);
 });
 
