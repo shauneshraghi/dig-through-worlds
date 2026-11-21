@@ -131,9 +131,9 @@ var DTWPost = (function () {
     upload(tex.scene, scene); upload(tex.emit, emit);
     // depth-of-field sources: half- and quarter-size blurs of the scene
     pass(prog.copy, fb.h1, { t: tex.scene });
-    blur(fb.h1, fb.h2, 1.0 * k);
+    blur(fb.h1, fb.h2, 1.25 * k);
     pass(prog.copy, fb.q1, { t: fb.h1.t });
-    blur(fb.q1, fb.q2, 1.6 * k);
+    blur(fb.q1, fb.q2, 2.0 * k);
     // bloom: bright parts, blurred twice at quarter size
     pass(prog.bright, fb.b1, { s: fb.h1.t, e: tex.emit }, function (u) { gl.uniform1f(u.thr, p.thr); });
     blur(fb.b1, fb.b2, 1.5 * k); blur(fb.b1, fb.b2, 3.5 * k);

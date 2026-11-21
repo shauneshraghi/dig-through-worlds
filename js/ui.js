@@ -264,36 +264,22 @@
     var k = Object.keys(held), h = k.length ? held[k[k.length - 1]] : null;
     return h && performance.now() - h.t > REPEAT * 1000 ? GRID[h.dir] || h.dir : null;
   }
-  // the pit: a tap on a block of the layer being cleared walks there and digs it; a tap elsewhere digs faster.
-  // The plaza: a tap walks to that spot, and dragging keeps walking toward the finger.
-  cv.addEventListener('pointerdown', function (e) {
-    audio(); down = { x: e.clientX, y: e.clientY, id: e.pointerId };
-    if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
-    else if (S.mode === 'dig') {
-      var c = R.cellAt(e.clientX, e.clientY, S.run.y);
-      if (D.digAt(S, c[0], c[1])) { A.sfx('step'); down.picked = true; } else doTap();
-    }
-    else doTap();
-  });
-  cv.addEventListener('pointermove', function (e) {
-    if (!down || down.id !== e.pointerId || S.mode !== 'surface' || splash) return;
-    var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]);
-  });
-  cv.addEventListener('pointerup', function (e) {
-    if (down && S.mode === 'dig' && !down.picked) {
-      var dx = e.clientX - down.x, dy = e.clientY - down.y;
-      if (dx * dx + dy * dy > 30 * 30) steer(R.screenDir(dx, dy));
-    }
-    down = null;
-  });
-  cv.addEventListener('pointercancel', function () { down = null; });
-  // The joystick: hold it and drag. The knob follows the finger out to the rim. Outside a small dead zone
-  // the pit takes the screen quadrant, which is one of the four ways the grid runs on screen
+  // A tap on the pit: on a block of the layer being cleared it walks there and digs it; elsewhere it digs faster.
+  // A tap on the plaza walks to that spot. Holding (or dragging) anywhere on the screen brings up a joystick
+  // rooted where the finger went down; it is hidden again when the finger lifts. Outside a small dead zone
+  // the pit takes the screen quadrant of the drag, which is one of the four ways the grid runs on screen
   // (↗ north, ↘ east, ↙ south, ↖ west); the plaza takes the nearest of eight screen directions.
-  var stick = $('stick'), knob = $('knob'), stickId = null;
+  var HOLD = 0.18, DRAG = 12; // seconds held, or pixels dragged, before the joystick shows
+  var stick = $('stick'), knob = $('knob'), stickId = null, stickO = null;
   var EIGHT = [['n', 'e'], ['e'], ['s', 'e'], ['s'], ['s', 'w'], ['w'], ['n', 'w'], ['n']]; // right, down-right, down, ... (screen y down)
+  function stickShow(x, y) {
+    var rc = $('stage').getBoundingClientRect();
+    stickO = { x: x, y: y }; stick.style.left = (x - rc.left) + 'px'; stick.style.top = (y - rc.top) + 'px';
+    stick.classList.add('show'); knob.style.transform = '';
+    if (S.mode === 'surface') S.hub.path = null; // the joystick takes over from a tap's walk
+  }
   function stickMove(e) {
-    var rc = stick.getBoundingClientRect(), r = rc.width / 2, dx = e.clientX - rc.left - r, dy = e.clientY - rc.top - r;
+    var r = stick.offsetWidth / 2, dx = e.clientX - stickO.x, dy = e.clientY - stickO.y;
     var len = Math.sqrt(dx * dx + dy * dy), lim = r * 0.62, k = len > lim ? lim / len : 1;
     knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)';
     if (len < r * 0.22) { delete held.pad; return; }
@@ -302,13 +288,30 @@
     if (held.pad && held.pad.dir === quad) { held.pad.dirs = dirs; return; }
     press('pad', quad, dirs); steer(quad);
   }
-  function stickRelease() { stickId = null; delete held.pad; knob.style.transform = ''; stick.classList.remove('held'); }
-  stick.addEventListener('pointerdown', function (e) {
-    audio(); stickId = e.pointerId; try { stick.setPointerCapture(e.pointerId); } catch (er) {}
-    stick.classList.add('held'); stickMove(e); e.preventDefault();
+  function stickRelease() { stickId = null; stickO = null; down = null; delete held.pad; knob.style.transform = ''; stick.classList.remove('show'); }
+  function stickStart(e) { stickId = e.pointerId; stickShow(down.x, down.y); stickMove(e); }
+  cv.addEventListener('pointerdown', function (e) {
+    audio();
+    if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
+    else if (S.mode === 'dig') {
+      var c = R.cellAt(e.clientX, e.clientY, S.run.y);
+      if (D.digAt(S, c[0], c[1])) A.sfx('step'); else doTap();
+    }
+    else doTap();
+    if (stickId !== null || splash) return; // a second finger only taps
+    down = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+    var d0 = down;
+    setTimeout(function () { if (down === d0 && stickId === null) stickStart({ pointerId: d0.id, clientX: d0.x, clientY: d0.y }); }, HOLD * 1000);
   });
-  stick.addEventListener('pointermove', function (e) { if (stickId === e.pointerId) stickMove(e); });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { stick.addEventListener(ev, function (e) { if (stickId === e.pointerId) stickRelease(); }); });
+  cv.addEventListener('pointermove', function (e) {
+    if (!down || down.id !== e.pointerId) return;
+    if (stickId === null) { var dx = e.clientX - down.x, dy = e.clientY - down.y; if (dx * dx + dy * dy > DRAG * DRAG) stickStart(e); }
+    else stickMove(e);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) {
+    cv.addEventListener(ev, function (e) { if (down && down.id === e.pointerId) stickRelease(); });
+  });
   // auto-mining on or off
   function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };

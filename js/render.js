@@ -507,16 +507,20 @@ var DTWRender = (function () {
     else { box(x + 0.85, z + 0.85, 0.3, 0.3, 1, 2.6, '#7b1fa2'); var q = P(x + 1, -1.8, z + 1), pa = 0.7 + 0.3 * Math.sin(time * 1.7);
       ctx.fillStyle = 'rgba(93,255,122,' + pa + ')'; ctx.beginPath(); ctx.arc(q[0], q[1], TW * 0.3, 0, 7); ctx.fill(); glow(q[0], q[1], TW, '#5dff7a', pa); light(q[0], q[1], TW * 3, 0.5 * pa, '#5dff7a'); }
   }
-  function shopStall(b) { // shelves at the back, counter facing the pad on the +x side, striped awning
+  // shelves at the back, the shopkeeper, a counter facing the pad on the +x side, and a striped awning
+  // high enough (AWN) that the keeper stands under it and shows below its front edge
+  var AWN = 2.7;
+  function shopStall(b) {
     var x = b.x0, z = b.z0;
     blob(x + 1.5, z + 1.5, 1.7, 0.2);
     box(x, z, 3, 3, 1, 0.08, '#7a5232');
     box(x + 0.1, z + 0.1, 0.5, 2.8, 0.92, 1.3, '#8a5a32');
     for (var r = 0; r < 3; r++) for (var c = 0; c < 4; c++) { var gq = P(x + 0.6, 0.92 - 0.3 - r * 0.4, z + 0.45 + c * 0.65); ctx.fillStyle = ['#ffd23f', '#5dd8ff', '#ff6f8a', '#9dff8a'][(r + c) % 4]; ctx.fillRect(gq[0] - TW * 0.05, gq[1] - TW * 0.07, TW * 0.1, TW * 0.1); }
-    box(x + 2.75, z + 0.1, 0.12, 0.12, 0.92, 1.6, '#5a3a24'); box(x + 2.75, z + 2.78, 0.12, 0.12, 0.92, 1.6, '#5a3a24');
-    box(x + 2.15, z + 0.25, 0.7, 2.5, 0.92, 0.55, '#b5773e'); box(x + 2.1, z + 0.2, 0.8, 2.6, 0.37, 0.08, '#e0a868');
-    for (var i = 0; i < 6; i++) box(x - 0.05, z + i * 0.5, 3.1, 0.5, 1 - 1.62 - 0.05 * Math.sin(i), 0.1, i % 2 ? '#fff7e8' : '#e74c3c');
-    ctx.fillStyle = '#ffd23f'; label(x + 2.9, -0.95, z + 1.5, '$', TW * 0.45);
+    box(x + 2.65, z + 0.1, 0.12, 0.12, 0.92, AWN, '#5a3a24'); box(x + 2.65, z + 2.78, 0.12, 0.12, 0.92, AWN, '#5a3a24');
+    drawPerson('keeper', 1, x + 2.15, z + 1.5, 'e', false, 0);
+    box(x + 2.45, z + 0.25, 0.5, 2.5, 0.92, 0.55, '#b5773e'); box(x + 2.4, z + 0.2, 0.6, 2.6, 0.37, 0.08, '#e0a868');
+    for (var i = 0; i < 6; i++) box(x - 0.05, z + i * 0.5, 2.85, 0.5, 1 - AWN - 0.05 * Math.sin(i), 0.1, i % 2 ? '#fff7e8' : '#e74c3c');
+    ctx.fillStyle = '#ffd23f'; label(x + 2.8, -AWN + 0.6, z + 1.5, '$', TW * 0.45);
   }
   function helperHut(b) { // a little house; its door faces the pad on the +z side
     var x = b.x0, z = b.z0;
@@ -693,8 +697,6 @@ var DTWRender = (function () {
     ctx.restore();
   }
   function hubPeople(S, items) {
-    var sb = hubBlocks().filter(function (bb) { return bb.c === 's'; })[0];
-    if (sb) items.push(feet(sb.x0 + 1.5, sb.z0 + 1.5, function () { drawPerson('keeper', 1, sb.x0 + 1.5, sb.z0 + 1.5, 'e', false, 0); }, 0.2));
     for (var g = 0; g < Math.min(S.workers.staff, GUIDE_SPOTS.length); g++) (function (sp, g) {
       items.push(feet(sp[0], sp[1], function () { drawPerson('guide', g, sp[0], sp[1], g % 2 ? 's' : 'e', false, 0); }));
     })(GUIDE_SPOTS[g], g);
@@ -1169,9 +1171,9 @@ var DTWRender = (function () {
     var focus;
     if (S.mode === 'dig') { // keep the whole working layer and the miner sharp
       var top = P(0, viewTop, 0)[1] - TW * 1.1, bot = P(N, viewTop + 1, N)[1] + TW * 0.2;
-      focus = [top, bot, TW * 3.5, 1];
+      focus = [top, bot, TW * 2.8, 1];
     } else if (surfaceView && lastMiner) {
-      focus = [lastMiner[1] - TW * 4.5, lastMiner[1] + TW * 2.5, TW * 5, 0.85];
+      focus = [lastMiner[1] - TW * 4, lastMiner[1] + TW * 2.2, TW * 4, 1];
     } else if (lastMiner) focus = [lastMiner[1] - TW * 2, lastMiner[1] + TW, TW * 3, 1];
     else focus = [0, vh, 1, 0];
     // brightest lights first, nearest the miner
