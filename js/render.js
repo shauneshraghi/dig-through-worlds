@@ -67,7 +67,7 @@ var DTWRender = (function () {
     for (var L = 0; L < 3; L++) (function (L) {
       t['dirt' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 40); if (id === 'moon') for (var i = 0; i < 2; i++) { var x = r() * 12 | 0, y = r() * 12 | 0; px(c, x, y, shade(P_.dirt[L], -0.25), 3, 1); px(c, x, y + 1, shade(P_.dirt[L], 0.15), 3, 1); } });
       t['stone' + L] = mk(function (c) { noiseFill(c, shade(P_.stone, -0.1 * L), r, 30); px(c, 2, 4, shade(P_.stone, 0.25), 5, 1); px(c, 9, 10, shade(P_.stone, 0.25), 4, 1); px(c, 3, 12, shade(P_.stone, -0.35), 6, 1); });
-      for (var k = 0; k < 4; k++) (function (k) { t['ore' + L + '_' + k] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); gem(c, W.ores[k].color, r, 2 + (k > 1 ? 1 : 0)); }); })(k);
+      for (var k = 0; k < 6; k++) (function (k) { t['ore' + L + '_' + k] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); gem(c, W.ores[k].color, r, 2 + (k > 2 ? 1 : 0)); }); })(k);
       t['fossil' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); if (id === 'moon') { px(c, 4, 4, '#cfd8dc', 8, 8); px(c, 5, 5, '#78909c', 6, 6); px(c, 7, 2, '#cfd8dc', 2, 12); px(c, 2, 7, '#cfd8dc', 12, 2); px(c, 7, 7, '#ffd23f', 2, 2); } else bone(c); px(c, 0, 0, '#ffe9a8'); px(c, 15, 15, '#ffe9a8'); });
       t['goo' + L] = mk(function (c) { noiseFill(c, '#3fbf5a', r, 30); px(c, 0, 0, '#9dff8a', 16, 2); px(c, 3, 2, '#9dff8a', 2, 3); px(c, 10, 2, '#9dff8a', 2, 5); px(c, 5, 7, '#cfffc4', 2, 2); px(c, 11, 11, '#1f7a33', 3, 2); });
     })(L);
@@ -235,7 +235,7 @@ var DTWRender = (function () {
   function findSprite(it) { return it.kind === 'treasure' ? coinCanvas() : itemIcon(it); }
   function findScale() { return TW / 26; }
   function findGlow(it, x, y, a, sc) {
-    var col = it.kind === 'ore' ? (it.idx >= 2 ? itemColor(it) : null) : it.kind === 'relic' ? itemColor(it) : it.kind === 'treasure' ? '#ffd23f' : '#ffe9a8';
+    var col = it.kind === 'ore' ? (it.idx >= 3 ? itemColor(it) : null) : it.kind === 'relic' ? itemColor(it) : it.kind === 'treasure' ? '#ffd23f' : '#ffe9a8';
     if (!col) return;
     var big = it.kind === 'relic' ? 1.6 : 1;
     glow(x, y, TW * 0.7 * big * sc, col, 0.65 * a); light(x, y, TW * 2.2 * big, 0.4 * a, col);
@@ -1357,7 +1357,7 @@ var DTWRender = (function () {
     }
     if (post && y <= Math.floor(disp.y) + 3) {
       var cq = P(x + 0.5, y + 0.15, z + 0.5);
-      if (tt === T.ORE) { var oc = D.WORLDS[w].ores[g.v[i]].color, k = 0.25 + 0.2 * g.v[i]; glow(cq[0], cq[1], TW * (0.4 + 0.1 * g.v[i]), oc, k * (0.8 + 0.2 * Math.sin(time * 2 + x + z))); if (g.v[i] >= 2) light(cq[0], cq[1], TW * 1.5, 0.35, oc); }
+      if (tt === T.ORE) { var oc = D.WORLDS[w].ores[g.v[i]].color, k = 0.25 + 0.14 * g.v[i]; glow(cq[0], cq[1], TW * (0.4 + 0.06 * g.v[i]), oc, k * (0.8 + 0.2 * Math.sin(time * 2 + x + z))); if (g.v[i] >= 3) light(cq[0], cq[1], TW * 1.5, 0.35, oc); }
       else if (tt === T.GOO) { glow(cq[0], cq[1], TW * 0.45, '#5dff7a', 0.16); light(cq[0], cq[1], TW * 1.3, 0.12, '#5dff7a'); }
       else if (tt === T.RELIC) { glow(cq[0], cq[1], TW * 1.2, D.WORLDS[w].relic.color, 0.8); light(cq[0], cq[1], TW * 3, 0.9, D.WORLDS[w].relic.color); }
       else if (tt === T.FOSSIL) glow(cq[0], cq[1], TW * 0.35, '#ffe9a8', 0.3);

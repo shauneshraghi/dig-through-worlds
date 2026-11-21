@@ -736,7 +736,7 @@ var DTWSprites = (function () {
   function item(kind, idx, col, moon) {
     var key = kind + idx + col + (moon ? 'm' : '');
     if (iconCache[key]) return iconCache[key];
-    var shape = kind === 'ore' ? (idx >= 2 ? 'gem' : 'lump') : kind === 'fossil' ? (moon ? 'wheel' : 'bone') : kind === 'relic' ? 'star' : 'chest';
+    var shape = kind === 'ore' ? (idx >= 3 ? 'gem' : 'lump') : kind === 'fossil' ? (moon ? 'wheel' : 'bone') : kind === 'relic' ? 'star' : 'chest';
     var P = { o: OUT, H: hexShade(col, 0.35), h: col, d: hexShade(col, -0.35), w: '#ffffff', W: '#f4ecd6', G: '#ffd23f', Y: '#fff3b0',
       B: '#b8692a', b: '#8a4b1c' };
     if (moon && kind === 'fossil') { P.W = '#cfd8dc'; P.d = '#546e7a'; }

@@ -148,3 +148,20 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
   .chip { padding:3px 8px; border-radius:12px; }
   #bMenu { width:50px; height:48px; font-size:30px; }
 }
+
+/* ---------- materials: price chips, the stash and the exchange in the shop ---------- */
+.dot { display:inline-block; width:14px; height:14px; border-radius:4px; margin-right:4px; vertical-align:-1px; border:2px solid #fff6; box-sizing:border-box; }
+.price { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+.chip { font-size:16px; padding:2px 8px; border-radius:9px; background:#1a1430; color:var(--ink); white-space:nowrap; }
+.chip.lack { background:#4a2a30; color:#ff9a9a; }
+.toast .chip { display:inline-block; margin:2px 2px 0 4px; }
+.xhead { display:flex; align-items:center; justify-content:space-between; margin:14px 0 4px; font-size:21px; }
+.xhead .btn.small { min-height:44px; min-width:64px; font-size:20px; }
+.xrow { gap:8px; padding:8px; }
+.xrow .txt b { font-size:19px; }
+.xdot { width:28px; height:28px; border-radius:9px; flex:none; border:3px solid #fff6; box-sizing:border-box; }
+.xrow .have { color:var(--gold); margin-left:6px; }
+.xbtn { min-height:56px; min-width:0; width:84px; font-size:18px; line-height:1.15; padding:6px 4px; }
+.xbtn small { font-size:15px; color:inherit; opacity:.9; }
+.row .btn.xbtn.sell { background:#3a5f8f; }
+.row .btn.xbtn.buy { background:#2f6f4a; }
