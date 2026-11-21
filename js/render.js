@@ -6,7 +6,8 @@ var DTWRender = (function () {
   'use strict';
   var D = DTW, T = D.TILE, N = D.N;
   var RIM = 8, VIEW_LAYERS = 12;
-  var LADDER_Z = 3; // the ladder hangs on the back-left pit wall (the x = 0 face), centred on this z
+  var LADDER_Z = D.LADDER_Z; // the ladder hangs on the back-left pit wall (the x = 0 face), centred on this z
+  var HUB = D.HUB, HX0 = HUB.x0, HZ0 = HUB.z0, HX1 = HUB.x0 + HUB.rows[0].length, HZ1 = HUB.z0 + HUB.rows.length;
   var cv, ctx, vw = 1, vh = 1, cssW = 1;
   // HD-2D path: the scene is drawn into scv, glowing things into the half-size ecv, and DTWPost composites
   // both onto the visible WebGL canvas. Text goes on the overlay canvas so the blur never touches it.
@@ -76,6 +77,15 @@ var DTWRender = (function () {
     t.chest = mk(function (c) { noiseFill(c, '#8a8268', r, 10); px(c, 2, 4, '#8a4b1c', 12, 10); px(c, 2, 4, '#b8692a', 12, 3); px(c, 2, 8, '#ffd23f', 12, 1); px(c, 7, 7, '#ffd23f', 2, 4); px(c, 2, 4, '#5a2e10', 1, 10); px(c, 13, 4, '#5a2e10', 1, 10); });
     t.relic = mk(function (c) { noiseFill(c, '#3a2c5a', r, 20); px(c, 0, 0, '#ffd23f', 16, 1); px(c, 0, 15, '#ffd23f', 16, 1); px(c, 7, 3, W.relic.color, 2, 10); px(c, 3, 7, W.relic.color, 10, 2); px(c, 6, 6, '#fff', 4, 4); });
     t.bed = mk(function (c) { noiseFill(c, P_.bed, r, 25); });
+    t.path = mk(function (c) { // cobbles
+      noiseFill(c, shade(P_.stone, 0.15), r, 20);
+      [[0, 0, 7, 5], [8, 0, 8, 6], [0, 6, 5, 5], [6, 7, 6, 4], [13, 7, 3, 5], [0, 12, 8, 4], [9, 12, 7, 4]].forEach(function (b, i) {
+        px(c, b[0], b[1], shade(P_.stone, 0.05 + 0.08 * (i % 3)), b[2] - 1, b[3] - 1); px(c, b[0], b[1], shade(P_.stone, 0.3), b[2] - 1, 1);
+      });
+    });
+    ['#efe6d2', '#d9ccb0'].forEach(function (base, k) { // museum floor: polished tiles with faint veins
+      t['floor' + k] = mk(function (c) { noiseFill(c, base, r, 12); for (var i = 0; i < 3; i++) { var vx = r() * 14 | 0, vy = r() * 14 | 0; px(c, vx, vy, shade(base, -0.12), 3, 1); px(c, vx + 2, vy + 1, shade(base, -0.12), 2, 1); } px(c, 0, 0, shade(base, 0.25), 16, 1); });
+    });
     t.stoneRim = mk(function (c) { noiseFill(c, shade(P_.stone, 0.1), r, 30); px(c, 0, 15, shade(P_.stone, -0.3), 16, 1); px(c, 15, 0, shade(P_.stone, -0.3), 1, 16); });
     Object.keys(t).forEach(function (k) {
       if (k === 'grass' || k === 'stoneRim') return;
@@ -155,94 +165,10 @@ var DTWRender = (function () {
   }
 
   // ---------- the miner: a kid with a hard hat, headlamp and pickaxe, pixel art drawn in code ----------
-  var MW = 44, MH = 44, FX = 22, FY = 41; // sprite canvas size and the feet point
-  var mcv = null, mctx = null;
-  var PICK = [ // pickaxe head and handle colours by Drill Power tier
-    { head: '#9a6a3a', hi: '#c08a52', handle: '#7a4f2a' },   // wood
-    { head: '#8d8d96', hi: '#b8b8c2', handle: '#8a5a2b' },   // stone
-    { head: '#cfd6de', hi: '#ffffff', handle: '#8a5a2b' },   // iron
-    { head: '#ffcf3f', hi: '#fff3b0', handle: '#6b3f1d' },   // gold
-    { head: '#6ff0ff', hi: '#e8ffff', handle: '#b45cff' }    // crystal
-  ];
+  // The sprites themselves are in js/sprites.js (DTWSprites); this file poses and places them.
   function pickTier(drill) { return Math.min(4, Math.floor(drill / 6)); }
-  function mp(x, y, col, w, h) { mctx.fillStyle = col; mctx.fillRect(x, y, w || 1, h || 1); }
-  function mline(x0, y0, x1, y1, col) { // Bresenham, so the pick stays crisp at any angle
-    x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
-    var dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx + dy;
-    for (var n = 0; n < 64; n++) { mp(x0, y0, col); if (x0 === x1 && y0 === y1) break; var e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
-  }
-  function drawPick(sx, sy, ang, tier) {
-    var C = PICK[tier], ca = Math.cos(ang), sa = Math.sin(ang);
-    var hx = sx + ca * 4, hy = sy + sa * 4; // hand
-    mline(sx, sy, hx, hy, '#e05a3a'); // sleeve / arm
-    var ex = hx + ca * 9, ey = hy + sa * 9;
-    mline(hx - ca, hy - sa, ex, ey, C.handle);
-    var nx = -sa, ny = ca; // head runs across the handle end, pointed on the striking side
-    mline(ex - nx * 4, ey - ny * 4, ex + nx * 5, ey + ny * 5, C.head);
-    mline(ex - nx * 3 - ca, ey - ny * 3 - sa, ex + nx * 3 - ca, ey + ny * 3 - sa, C.head);
-    mp(Math.round(ex + nx * 5 + ca), Math.round(ey + ny * 5 + sa), C.hi);
-    mp(Math.round(ex - nx * 4 + ca), Math.round(ey - ny * 4 + sa), C.hi);
-    mp(Math.round(hx), Math.round(hy), '#f2c59b', 2, 2); // fist
-    if (tier === 4 && Math.sin(time * 8) > 0.6) mp(Math.round(ex), Math.round(ey) - 2, '#ffffff');
-  }
-  // Draw the miner facing screen-right; back = facing away from the camera. Mirrored for left.
-  // pose: { bob (whole body, px), body (upper body drop, px), lean (upper body forward, px),
-  //         stride (-1..1 walk cycle), air (0..1 arms up, legs apart), blink }
-  function minerSprite(back, ang, tier, pose, lampOn, climb) {
-    if (!mcv) { mcv = document.createElement('canvas'); mcv.width = MW; mcv.height = MH; mctx = mcv.getContext('2d'); }
-    mctx.clearRect(0, 0, MW, MH);
-    var X0 = FX - 8, Y0 = FY - 27 + pose.bob; // body box origin
-    var skin = '#f2c59b', hat = '#ffc61a', hatD = '#d99a00', blue = '#3d7bd9', blueD = '#2a5aa8', red = '#e05a3a', boot = '#5a3a24', hair = '#6b3f1d';
-    var behind = back; // pick arm is drawn behind the body when facing away
-    if (climb != null) return climber(X0, Y0, climb, tier);
-    // legs: the stride swings them apart and lifts the one moving forward; in the air they spread
-    var st = pose.stride, sw = Math.round(st * 2), lift = Math.round(Math.abs(st) * 1.5), ap = Math.round(pose.air * 1.5);
-    var l1x = X0 + 3 + sw - ap, l1y = st > 0 ? -lift : 0, l2x = X0 + 9 - sw + ap, l2y = st < 0 ? -lift : 0;
-    var X = X0 + Math.round(pose.lean), Y = Y0 + Math.round(pose.body); // upper body
-    if (behind) drawPick(X + 9, Y + 15, ang, tier);
-    mp(l1x, Y0 + 24 + l1y, boot, 4, 3); mp(l2x, Y0 + 24 + l2y, boot, 4, 3);
-    mp(l1x, Y + 19, blue, 4, Y0 - Y + 5 + l1y); mp(l2x, Y + 19, blue, 4, Y0 - Y + 5 + l2y); mp(X + 7, Y + 19, blueD, 2, 3);
-    if (pose.air > 0.3) { // arms flung up while falling
-      mp(X + 0, Y + 6, red, 2, 8); mp(X + 14, Y + 6, red, 2, 8); mp(X + 0, Y + 4, skin, 2, 2); mp(X + 14, Y + 4, skin, 2, 2);
-    }
-    // torso: red shirt, blue bib with straps
-    mp(X + 2, Y + 13, red, 12, 7); mp(X + 4, Y + 15, blue, 8, 5); mp(X + 4, Y + 13, blueD, 1, 2); mp(X + 11, Y + 13, blueD, 1, 2);
-    if (!back) { mp(X + 7, Y + 16, '#ffd23f', 2, 1); } // bib button
-    mp(X + 2, Y + 19, blueD, 12, 1); // belt line
-    // head
-    mp(X + 2, Y + 5, skin, 12, 8); mp(X + 3, Y + 12, skin, 10, 1);
-    if (back) { mp(X + 2, Y + 6, hair, 12, 6); mp(X + 3, Y + 12, hair, 10, 1); }
-    else {
-      mp(X + 2, Y + 6, hair, 3, 5); // hair at the back of the head
-      if (pose.blink) mp(X + 10, Y + 9, '#2a1a10', 2, 1); // eye, shut
-      else { mp(X + 10, Y + 8, '#2a1a10', 2, 2); mp(X + 10, Y + 8, '#ffffff'); } // eye
-      mp(X + 12, Y + 10, '#f29b8b', 2, 1); // cheek
-      mp(X + 9, Y + 11, '#a0523d', 3, 1); // smile
-      mp(X + 13, Y + 8, '#e8b088', 1, 2); // nose
-    }
-    // hard hat: dome, brim and headlamp
-    mp(X + 3, Y + 1, hat, 10, 1); mp(X + 2, Y + 2, hat, 12, 3); mp(X + 1, Y + 5, hatD, 15, 1);
-    mp(X + 4, Y + 1, '#ffe27a', 4, 1); mp(X + 7, Y, hatD, 2, 2); // ridge
-    if (!back) { mp(X + 13, Y + 2, '#555', 2, 3); mp(X + 14, Y + 2, lampOn ? '#fff6b0' : '#cfc58a', 2, 2); }
-    else mp(X + 1, Y + 3, '#333', 14, 1); // lamp strap
-    if (!behind) drawPick(X + 8, Y + 15, ang, tier);
-    if (pose.air > 0.3) { mp(X + 0, Y + 6, red, 2, 8); mp(X + 0, Y + 4, skin, 2, 2); } // near arm over the pick
-    return mcv;
-  }
-  // seen from behind, hands on the rungs; the pick hangs on the back. step alternates 0 / 1.
-  function climber(X, Y, step, tier) {
-    var skin = '#f2c59b', hat = '#ffc61a', hatD = '#d99a00', blue = '#3d7bd9', blueD = '#2a5aa8', red = '#e05a3a', boot = '#5a3a24', hair = '#6b3f1d';
-    var a = step ? 0 : 2, b = step ? 2 : 0;
-    mp(X + 3, Y + 22 - a, boot, 4, 3); mp(X + 9, Y + 22 - b, boot, 4, 3);
-    mp(X + 3, Y + 19 - a, blue, 4, 4); mp(X + 9, Y + 19 - b, blue, 4, 4);
-    mp(X + 2, Y + 13, red, 12, 7); mp(X + 4, Y + 13, blueD, 1, 7); mp(X + 11, Y + 13, blueD, 1, 7); mp(X + 2, Y + 19, blueD, 12, 1);
-    mline(X + 13, Y + 18, X + 3, Y + 10, PICK[tier].handle); mp(X + 1, Y + 9, PICK[tier].head, 4, 2); // pick on the back
-    mp(X + 0, Y + 6 + b, red, 2, 8 - b); mp(X + 14, Y + 6 + a, red, 2, 8 - a); // arms up
-    mp(X + 0, Y + 5 + b, skin, 2, 2); mp(X + 14, Y + 5 + a, skin, 2, 2); // hands
-    mp(X + 2, Y + 5, skin, 12, 8); mp(X + 2, Y + 6, hair, 12, 6); mp(X + 3, Y + 12, hair, 10, 1);
-    mp(X + 3, Y + 1, hat, 10, 1); mp(X + 2, Y + 2, hat, 12, 3); mp(X + 1, Y + 5, hatD, 15, 1); mp(X + 7, Y, hatD, 2, 2); mp(X + 1, Y + 3, '#333', 14, 1);
-    return mcv;
-  }
+  // screen pixels per sprite pixel: a character stands a little over one block tall
+  function charScale() { return TW / 32; }
   var FACE = { e: { back: false, flip: false }, s: { back: false, flip: true }, n: { back: true, flip: false }, w: { back: true, flip: true } };
   function swingAngle(phase, digging, side) {
     var rest = -1.0, raised = -2.3, strike = side ? 0.1 : 0.95;
@@ -269,10 +195,10 @@ var DTWRender = (function () {
       stride: stride, air: disp.air, blink: disp.blink < 0
     };
     if (digging && f >= 0.72 && f < 0.85) pose.body = 1; // knees give on the impact
-    var spr = minerSprite(climbing ? true : fc.back, ang, pickTier(S.upgrades.drill), pose, S.mode !== 'surface',
-      climbing ? (Math.floor(disp.y * 3) & 1) : null);
+    var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: ang, tier: pickTier(S.upgrades.drill), pose: pose,
+      lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
-    var p = Math.max(1, Math.round(TW / 30));
+    var p = charScale();
     // squash and stretch about the feet: squash on landing and on each strike, stretch while falling
     var sq = disp.land * 0.22 + disp.hit * 0.06 - disp.air * 0.08;
     var scy = 1 - sq, scx = 1 + sq * 0.7;
@@ -283,11 +209,11 @@ var DTWRender = (function () {
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.45 * sh, hh * 0.45 * sh, 0, 0, 7); ctx.fill();
     if (r && r.stun > 0) ctx.rotate(Math.sin(time * 14) * 0.1); // dazed wobble
     ctx.scale(fc.flip ? -scx : scx, scy);
-    ctx.drawImage(spr, -FX * p, -FY * p, MW * p, MH * p);
+    ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
     if (r && r.stun > 0) {
       octx.font = 'bold ' + Math.round(TW * 0.22) + 'px sans-serif'; octx.textAlign = 'center'; octx.fillStyle = '#ffeb3b';
-      for (var i = 0; i < 3; i++) { var a = time * 6 + i * 2.1; octx.fillText('★', sx + Math.cos(a) * TW * 0.3, sy - 30 * p + Math.sin(a) * TW * 0.08); }
+      for (var i = 0; i < 3; i++) { var a = time * 6 + i * 2.1; octx.fillText('★', sx + Math.cos(a) * TW * 0.3, sy - 36 * p + Math.sin(a) * TW * 0.08); }
     }
     return p;
   }
@@ -310,12 +236,66 @@ var DTWRender = (function () {
     var q = P(x, y, z); ctx.font = Math.round(size) + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(text, q[0], q[1]); ctx.textBaseline = 'alphabetic';
   }
-  function hut(x, z, wall, roofCol, sign) {
-    blob(x + 1, z + 1, 2.1, 0.18);
-    box(x, z, 2, 2, 1, 1.1, wall);
-    box(x + 2, z + 0.7, 0.04, 0.6, 1, 0.7, '#5a3a24'); // door on the +x face
-    roof(x - 0.15, z - 0.15, 2.3, 2.3, -0.1, 1.0, roofCol);
-    ctx.fillStyle = '#333'; label(x + 2.02, 0.3, z + 1, sign, TW * 0.32);
+  // ---------- the plaza: props placed from the hub map ----------
+  // A prop that covers a block of cells (a stall, a plinth) is built once from its lowest-x, lowest-z cell.
+  // Each item carries its footprint (x0..x1, z0..z1) so depthSort can order it against the characters.
+  var FLOOR_CH = 'm#p12345abcdeDM', INSIDE_CH = 'mp12345abcdeDM';
+  var PADS = { L: ['⛏', 'Dig'], S: ['🛒', 'Shop'], H: ['👷', 'Helpers'], W: ['🗺️', 'Worlds'], M: ['🏛️', 'Museum'] };
+  var padLabels = [];
+  function groundTex(c, x, z) {
+    if (c === 'M') return (x + z) & 1 ? 'floor1' : 'floor0';
+    if (c === '=' || PADS[c]) return 'path';
+    if (c && FLOOR_CH.indexOf(c) >= 0) return (x + z) & 1 ? 'floor1' : 'floor0';
+    return 'grass';
+  }
+  function hash2(x, z) { return (((x + 40) * 7349 ^ (z + 40) * 9157) * 2654435761 >>> 0) / 4294967296; }
+  var HUB_BLOCKS = null;
+  function hubBlocks() {
+    if (HUB_BLOCKS) return HUB_BLOCKS;
+    HUB_BLOCKS = [];
+    for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) {
+      var c = D.hubCell(x, z), single = c === '#' || c === 't' || c === 'p' || c === 'w';
+      if ('tTshwp#12345abcdeD'.indexOf(c) < 0) continue;
+      if (!single && (D.hubCell(x - 1, z) === c || D.hubCell(x, z - 1) === c)) continue;
+      var x1 = x + 1, z1 = z + 1;
+      if (!single) { while (D.hubCell(x1, z) === c) x1++; while (D.hubCell(x, z1) === c) z1++; }
+      HUB_BLOCKS.push({ c: c, x0: x, z0: z, x1: x1, z1: z1 });
+    }
+    return HUB_BLOCKS;
+  }
+  function feet(x, z, fn, r) { r = r || 0.3; return { x0: x - r, x1: x + r, z0: z - r, z1: z + r, fn: fn }; }
+  // painter's order for things standing on the ground: a footprint wholly at lower x, or wholly at
+  // lower z, is behind. Overlapping footprints keep the order of their centres.
+  function depthSort(items) {
+    items.sort(function (a, b) { return (a.x0 + a.x1 + a.z0 + a.z1) - (b.x0 + b.x1 + b.z0 + b.z1); });
+    var n = items.length, out = [], seen = new Uint8Array(n);
+    function behind(a, b) { return a.x1 <= b.x0 + 1e-6 || a.z1 <= b.z0 + 1e-6; }
+    function visit(i) {
+      seen[i] = 1;
+      for (var j = 0; j < n; j++) if (!seen[j] && behind(items[j], items[i]) && !behind(items[i], items[j])) visit(j);
+      out.push(items[i]);
+    }
+    for (var i = 0; i < n; i++) if (!seen[i]) visit(i);
+    return out;
+  }
+  function hubProps(S, items, all) {
+    var w = S.world, id = D.WORLDS[w].id;
+    hubBlocks().forEach(function (b) {
+      // below the surface only the back rim is left: the rest is cut away with the layers above
+      if (!all && !((b.x1 <= 0 || b.z1 <= 0) && b.x1 <= N + RIM && b.z1 <= N + RIM)) return;
+      var fn, c = b.c, k;
+      if (c === 't') fn = function () { worldProp(id, b.x0, b.z0); };
+      else if (c === 'T') fn = function () { landmark(id, b); };
+      else if (c === 's') fn = function () { shopStall(b); };
+      else if (c === 'h') fn = function () { helperHut(b); };
+      else if (c === 'w') fn = function () { signpost(b.x0, b.z0, S); };
+      else if (c === 'p') fn = function () { plant(b.x0, b.z0); };
+      else if (c === '#') fn = function () { wall(b.x0, b.z0, S); };
+      else if (c === 'D') fn = function () { desk(b); };
+      else if ((k = '12345'.indexOf(c)) >= 0) fn = function () { plinth(k, b, S); };
+      else if ((k = 'abcde'.indexOf(c)) >= 0) fn = function () { relicCase(k, b, S); };
+      items.push({ x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, fn: fn });
+    });
   }
   function blob(x, z, rx, a) { var q = P(x, 1, z); ctx.fillStyle = 'rgba(0,0,0,' + a + ')'; ctx.beginPath(); ctx.ellipse(q[0] + hw * 0.25, q[1] + hh * 0.15, hw * rx, hh * rx, 0, 0, 7); ctx.fill(); }
   function tree(x, z, s, k) {
@@ -324,54 +304,218 @@ var DTWRender = (function () {
     box(x + 0.05, z + 0.05, 0.9, 0.9, 1 - 0.8 * s, 0.7 * s, k % 2 ? '#2e7d32' : '#388e3c');
     box(x + 0.2, z + 0.2, 0.6, 0.6, 1 - 1.5 * s, 0.45 * s, '#43a047');
   }
-  var EXTRA = {};
-  function extras(w) { // [x, z, scale] scattered on the outer rim, clear of the pit and the huts
-    if (EXTRA[w]) return EXTRA[w];
-    var r = prng(w * 31 + 5), out = [];
-    for (var n = 0; n < 400 && out.length < 22; n++) {
-      var x = Math.floor(-RIM + 1 + r() * (N + 2 * RIM - 3)), z = Math.floor(-RIM + 1 + r() * (N + 2 * RIM - 3));
-      if (x >= -2 && x <= N + 1 && z >= -2 && z <= N + 1) continue;
-      if (x >= -4 && x <= 0 && z >= 0 && z <= 3 || z >= -4 && z <= 0 && x >= 0 && x <= 3) continue;
-      if (out.some(function (o) { return Math.abs(o[0] - x) < 2 && Math.abs(o[1] - z) < 2; })) continue;
-      out.push([x, z, 0.85 + r() * 0.5]);
-    }
-    return (EXTRA[w] = out);
-  }
-  // items: {k, x, z, draw()} sorted with the miner by depth order. Below the surface only things on the
-  // back rim stay: the rest of the surface is cut away with the layers above the miner.
-  function scenery(w, items, all) {
-    var id = D.WORLDS[w].id, ex = extras(w);
-    var add = function (x, z, fn) { if (all || x < 0 || z < 0) items.push({ k: x + z, fn: fn }); };
-    add(-3, 1, function () { hut(-3, 1, '#f5e6c8', '#c0392b', '$'); });
-    add(1, -3, function () { hut(1, -3, '#efe4ff', '#6c5ce7', '🏛'); });
-    if (id === 'forest') {
-      [[-2, -2, 1], [-4, -1, 1.2], [-1, -4, 1.1], [4, -2, 0.9], [-2, 4, 1], [-4, 3, 1.3], [6, -4, 1.1], [-3, 6, 0.9]].concat(ex).forEach(function (t, i) {
-        add(t[0], t[1], function () { tree(t[0], t[1], t[2], i); });
-      });
-    } else if (id === 'ocean') {
-      [[-2, -2], [-1, -3], [4, -2], [-2, 4], [-4, -1], [6, -3]].concat(ex).forEach(function (t, i) {
-        add(t[0], t[1], function () {
-          for (var sg = 0; sg < 5; sg++) { var sw = Math.sin(time * 2 + sg * 0.6 + i) * 0.06 * sg; box(t[0] + 0.4 + sw, t[1] + 0.4, 0.18, 0.18, 1 - sg * 0.35, 0.36, i % 2 ? '#2e8b57' : '#3cb371'); }
-        });
-      });
-      [[-1, -1], [3, -2], [-3, 3]].forEach(function (t) { add(t[0], t[1], function () { box(t[0] + 0.2, t[1] + 0.2, 0.6, 0.6, 1, 0.35, '#ff6f8a'); box(t[0] + 0.35, t[1] + 0.35, 0.3, 0.3, 0.65, 0.3, '#ff9fb0'); }); });
+  // one tree, kelp, palm, rock or spire per 't' cell, varied by position
+  function worldProp(id, x, z) {
+    var h = hash2(x, z), s = 0.85 + h * 0.5, i = Math.floor(h * 97);
+    if (id === 'forest') tree(x, z, s, i);
+    else if (id === 'ocean') {
+      blob(x + 0.5, z + 0.5, 0.5, 0.18);
+      if (i % 3) for (var sg = 0; sg < 5; sg++) { var sw = Math.sin(time * 2 + sg * 0.6 + i) * 0.06 * sg; box(x + 0.4 + sw, z + 0.4, 0.18, 0.18, 1 - sg * 0.35 * s, 0.36 * s, i % 2 ? '#2e8b57' : '#3cb371'); }
+      else { box(x + 0.2, z + 0.2, 0.6, 0.6, 1, 0.35, '#ff6f8a'); box(x + 0.35, z + 0.35, 0.3, 0.3, 0.65, 0.3, '#ff9fb0'); }
     } else if (id === 'jungle') {
-      add(-4, -4, function () { box(-4, -4, 3, 3, 1, 0.6, '#9a9070'); box(-3.6, -3.6, 2.2, 2.2, 0.4, 0.6, '#a89e7c'); box(-3.2, -3.2, 1.4, 1.4, -0.2, 0.6, '#b8ae8a'); box(-2.85, -2.85, 0.7, 0.7, -0.8, 0.45, '#3a3428'); });
-      [[-2, -1], [3, -3], [-3, 4], [5, -2], [-1, -2]].concat(ex.filter(function (e) { return e[0] > -2 || e[1] > -2; })).forEach(function (t, i) { add(t[0], t[1], function () { box(t[0] + 0.3, t[1] + 0.3, 0.25, 0.25, 1, 1.4, '#6b4a2b'); box(t[0] - 0.2, t[1] - 0.2, 1.2, 1.2, -0.3, 0.3, i % 2 ? '#1f6e33' : '#2e8f3e'); }); });
+      blob(x + 0.5, z + 0.5, 0.8, 0.2);
+      box(x + 0.4, z + 0.4, 0.2, 0.2, 1, 1.4 * s, '#6b4a2b');
+      box(x - 0.15, z - 0.15, 1.3, 1.3, 1 - 1.4 * s, 0.3, i % 2 ? '#1f6e33' : '#2e8f3e');
+      box(x + 0.15, z + 0.15, 0.7, 0.7, 1 - 1.7 * s, 0.25, '#3aa34a');
     } else if (id === 'moon') {
-      add(-2, -2, function () { box(-1.55, -1.55, 0.08, 0.08, 1, 2.2, '#dddddd'); var wv = Math.sin(time * 1.5) * 0.04; box(-1.47, -1.55, 0.04, 0.8 + wv, -1.2, 0.5, '#ff5252'); });
-      [[-1, -3], [3, -2], [-3, 2], [5, -3], [-4, -1]].concat(ex).forEach(function (t, i) { add(t[0], t[1], function () { box(t[0] + 0.2, t[1] + 0.3, 0.5 + 0.1 * (i % 5), 0.4, 1, 0.25 + 0.05 * (i % 5), '#a8a8b4'); }); });
-    } else if (id === 'alien') {
-      [[-2, -2, 1.6], [-1, -3, 1.1], [4, -2, 1.4], [-3, 3, 1.9], [-4, -1, 1.2], [6, -4, 1.5], [-2, 5, 1.0]].concat(ex.map(function (e) { return [e[0], e[1], e[2] * 1.3]; })).forEach(function (t, i) {
-        add(t[0], t[1], function () {
-          box(t[0] + 0.42, t[1] + 0.42, 0.16, 0.16, 1, t[2], '#9c27b0');
-          var q = P(t[0] + 0.5, 1 - t[2] - 0.15, t[1] + 0.5);
-          var pa = 0.6 + 0.4 * Math.sin(time * 2 + i);
-          ctx.fillStyle = 'rgba(93,255,122,' + pa + ')'; ctx.beginPath(); ctx.arc(q[0], q[1], TW * 0.16, 0, 7); ctx.fill();
-          glow(q[0], q[1], TW * 0.6, '#5dff7a', 0.7 * pa); light(q[0], q[1], TW * 2, 0.35 * pa, '#5dff7a');
-        });
-      });
+      box(x + 0.15, z + 0.25, 0.5 + 0.2 * h, 0.45, 1, 0.25 + 0.2 * h, '#a8a8b4');
+    } else {
+      var ht = 1.2 + h * 1.2;
+      box(x + 0.42, z + 0.42, 0.16, 0.16, 1, ht, '#9c27b0');
+      var q = P(x + 0.5, 1 - ht - 0.15, z + 0.5), pa = 0.6 + 0.4 * Math.sin(time * 2 + i);
+      ctx.fillStyle = 'rgba(93,255,122,' + pa + ')'; ctx.beginPath(); ctx.arc(q[0], q[1], TW * 0.16, 0, 7); ctx.fill();
+      glow(q[0], q[1], TW * 0.6, '#5dff7a', 0.7 * pa); light(q[0], q[1], TW * 2, 0.35 * pa, '#5dff7a');
     }
+  }
+  function landmark(id, b) {
+    var x = b.x0, z = b.z0;
+    if (id === 'forest') tree(x + 0.5, z + 0.5, 1.9, 1);
+    else if (id === 'ocean') { blob(x + 1, z + 1, 1.2, 0.2); box(x + 0.3, z + 0.3, 1.4, 1.4, 1, 0.5, '#ff6f8a'); box(x + 0.6, z + 0.6, 0.8, 0.8, 0.5, 0.6, '#ff9fb0'); box(x + 0.85, z + 0.85, 0.3, 0.3, -0.1, 0.5, '#ffc0cb'); }
+    else if (id === 'jungle') { box(x, z, 2, 2, 1, 0.5, '#9a9070'); box(x + 0.3, z + 0.3, 1.4, 1.4, 0.5, 0.5, '#a89e7c'); box(x + 0.6, z + 0.6, 0.8, 0.8, 0, 0.5, '#b8ae8a'); box(x + 0.8, z + 0.8, 0.4, 0.4, -0.5, 0.35, '#3a3428'); }
+    else if (id === 'moon') { box(x + 0.95, z + 0.95, 0.08, 0.08, 1, 2.2, '#dddddd'); var wv = Math.sin(time * 1.5) * 0.04; box(x + 1.03, z + 0.95, 0.04, 0.8 + wv, -1.2, 0.5, '#ff5252'); }
+    else { box(x + 0.85, z + 0.85, 0.3, 0.3, 1, 2.6, '#7b1fa2'); var q = P(x + 1, -1.8, z + 1), pa = 0.7 + 0.3 * Math.sin(time * 1.7);
+      ctx.fillStyle = 'rgba(93,255,122,' + pa + ')'; ctx.beginPath(); ctx.arc(q[0], q[1], TW * 0.3, 0, 7); ctx.fill(); glow(q[0], q[1], TW, '#5dff7a', pa); light(q[0], q[1], TW * 3, 0.5 * pa, '#5dff7a'); }
+  }
+  function shopStall(b) { // shelves at the back, counter facing the pad on the +x side, striped awning
+    var x = b.x0, z = b.z0;
+    blob(x + 1.5, z + 1.5, 1.7, 0.2);
+    box(x, z, 3, 3, 1, 0.08, '#7a5232');
+    box(x + 0.1, z + 0.1, 0.5, 2.8, 0.92, 1.3, '#8a5a32');
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 4; c++) { var gq = P(x + 0.6, 0.92 - 0.3 - r * 0.4, z + 0.45 + c * 0.65); ctx.fillStyle = ['#ffd23f', '#5dd8ff', '#ff6f8a', '#9dff8a'][(r + c) % 4]; ctx.fillRect(gq[0] - TW * 0.05, gq[1] - TW * 0.07, TW * 0.1, TW * 0.1); }
+    box(x + 2.75, z + 0.1, 0.12, 0.12, 0.92, 1.6, '#5a3a24'); box(x + 2.75, z + 2.78, 0.12, 0.12, 0.92, 1.6, '#5a3a24');
+    box(x + 2.15, z + 0.25, 0.7, 2.5, 0.92, 0.55, '#b5773e'); box(x + 2.1, z + 0.2, 0.8, 2.6, 0.37, 0.08, '#e0a868');
+    for (var i = 0; i < 6; i++) box(x - 0.05, z + i * 0.5, 3.1, 0.5, 1 - 1.62 - 0.05 * Math.sin(i), 0.1, i % 2 ? '#fff7e8' : '#e74c3c');
+    ctx.fillStyle = '#ffd23f'; label(x + 2.9, -0.95, z + 1.5, '$', TW * 0.45);
+  }
+  function helperHut(b) { // a little house; its door faces the pad on the +z side
+    var x = b.x0, z = b.z0;
+    blob(x + 1.5, z + 1.5, 1.8, 0.2);
+    box(x + 0.2, z + 0.2, 2.6, 2.6, 1, 1.2, '#efe4ff');
+    box(x + 0.2, z + 0.2, 2.6, 2.6, 1, 0.2, '#b9a9d6');
+    box(x + 1.2, z + 2.8, 0.6, 0.04, 1, 0.8, '#5a3a24');
+    box(x + 0.5, z + 2.8, 0.45, 0.04, 0.45, 0.4, '#8fd3ff'); box(x + 2.05, z + 2.8, 0.45, 0.04, 0.45, 0.4, '#8fd3ff');
+    roof(x - 0.05, z - 0.05, 3.1, 3.1, -0.2, 1.1, '#6c5ce7');
+  }
+  function signpost(x, z, S) { // one board per world, pointing alternately along x and z
+    blob(x + 0.5, z + 0.5, 0.4, 0.2);
+    box(x + 0.45, z + 0.45, 0.1, 0.1, 1, 1.9, '#7a4f2a');
+    D.WORLDS.forEach(function (wd, k) {
+      var yb = 0.75 - k * 0.32, col = S.unlocked[k] ? wd.pal.top : '#6a6470';
+      if (k % 2) box(x + 0.5, z + 0.4, 0.75, 0.06, yb, 0.22, col); else box(x + 0.4, z + 0.5, 0.06, 0.75, yb, 0.22, col);
+    });
+  }
+  function plant(x, z) {
+    blob(x + 0.5, z + 0.5, 0.4, 0.2);
+    box(x + 0.3, z + 0.3, 0.4, 0.4, 1, 0.35, '#b5653e');
+    box(x + 0.2, z + 0.2, 0.6, 0.6, 0.65, 0.35, '#2e8f3e'); box(x + 0.32, z + 0.32, 0.36, 0.36, 0.3, 0.3, '#43a047');
+  }
+  function desk(b) {
+    box(b.x0 + 0.15, b.z0 + 0.1, b.x1 - b.x0 - 0.3, b.z1 - b.z0 - 0.2, 1, 0.55, '#8a5a32');
+    box(b.x0 + 0.1, b.z0 + 0.05, b.x1 - b.x0 - 0.2, b.z1 - b.z0 - 0.1, 0.45, 0.08, '#c9a46a');
+    var q = P(b.x0 + 0.6, 0.37, b.z0 + 0.5); ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.arc(q[0], q[1] - TW * 0.04, TW * 0.06, Math.PI, 0); ctx.fill();
+  }
+  // museum walls: the back walls stand tall, the front walls are cut low so the hall stays in view.
+  // A tall wall in front of the miner turns see-through.
+  function wall(x, z, S) {
+    var tall = INSIDE_CH.indexOf(D.hubCell(x + 1, z) || '-') >= 0 || INSIDE_CH.indexOf(D.hubCell(x, z + 1) || '-') >= 0 || INSIDE_CH.indexOf(D.hubCell(x + 1, z + 1) || '-') >= 0;
+    var pillar = x === HUB_DOOR[0] && (z === HUB_DOOR[1] - 1 || D.hubCell(x, z - 1) === 'm' && D.hubCell(x - 1, z - 1) === '=');
+    var h = pillar ? 1.9 : tall ? 1.5 : 0.3, a = 1;
+    if (tall && S.mode === 'surface') {
+      var mx = S.hub.x, mz = S.hub.z, d = (x + z + 1) - (mx + mz), side = Math.abs((x - z) - (mx - mz));
+      if (d > 0 && d < 3.2 && side < 1.6) a = 0.35;
+    }
+    ctx.globalAlpha = a;
+    box(x, z, 1, 1, 1, h, '#e6d7b8');
+    if (pillar) { box(x - 0.05, z - 0.05, 1.1, 1.1, 1, 0.3, '#c9a46a'); box(x - 0.08, z - 0.08, 1.16, 1.16, 1 - h, 0.16, '#c9a46a'); }
+    else if (tall) { box(x, z, 1, 1, 1, 0.28, '#8a5a3a'); box(x, z, 1, 1, 1 - h, 0.12, '#c9a46a'); }
+    else box(x, z, 1, 1, 1 - h, 0.07, '#c9a46a');
+    ctx.globalAlpha = 1;
+  }
+  var HUB_DOOR = (function () { // the first open cell in the museum's outer wall
+    for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) if (D.hubCell(x, z) === 'm' && D.hubCell(x - 1, z) === '=') return [x, z];
+    return [0, 0];
+  })();
+  // a plinth per world: a stone step and a slab in the world's colour, the exhibit standing on top
+  function plinth(k, b, S) {
+    var wd = D.WORLDS[k], open = S.unlocked[k], sx = b.x1 - b.x0, sz = b.z1 - b.z0;
+    blob(b.x0 + sx / 2, b.z0 + sz / 2, sx * 0.6, 0.18);
+    box(b.x0 + 0.05, b.z0 + 0.05, sx - 0.1, sz - 0.1, 1, 0.12, '#8a7f6a');
+    box(b.x0 + 0.18, b.z0 + 0.18, sx - 0.36, sz - 0.36, 0.88, 0.3, open ? DTWSprites.hexShade(wd.pal.top, -0.3) : '#5a5462');
+    var q = P(b.x0 + sx / 2, 0.58, b.z0 + sz / 2);
+    DTWSprites.exhibit(ctx, k, S.museum[k].pieces, open, q[0], q[1], TW / 15);
+    if (!open) { // roped off
+      ctx.strokeStyle = '#c0392b'; ctx.lineWidth = Math.max(2, TW / 18);
+      [[b.x1 + 0.1, b.z0 + 0.2], [b.x1 + 0.1, b.z1 - 0.2]].forEach(function (pp) { box(pp[0] - 0.05, pp[1] - 0.05, 0.1, 0.1, 1, 0.55, '#c9a46a'); });
+      seg(b.x1 + 0.1, 0.5, b.z0 + 0.2, b.x1 + 0.1, 0.62, b.z0 + sz / 2); seg(b.x1 + 0.1, 0.62, b.z0 + sz / 2, b.x1 + 0.1, 0.5, b.z1 - 0.2);
+    }
+  }
+  function relicCase(k, b, S) {
+    var x = b.x0, z = b.z0, wd = D.WORLDS[k];
+    blob(x + 0.5, z + 0.5, 0.45, 0.2);
+    box(x + 0.2, z + 0.2, 0.6, 0.6, 1, 0.6, '#5a3a24'); box(x + 0.15, z + 0.15, 0.7, 0.7, 0.4, 0.06, '#c9a46a');
+    if (S.relics[k]) {
+      var q = P(x + 0.5, 0.05, z + 0.5), bob = Math.sin(time * 2 + k) * TW * 0.04;
+      drawItem(ctx, { kind: 'relic', world: k }, q[0], q[1] + bob, TW * 0.36);
+      glow(q[0], q[1] + bob, TW * 0.7, wd.relic.color, 0.8); light(q[0], q[1], TW * 2.4, 0.6, wd.relic.color);
+    }
+    ctx.globalAlpha = 0.22; box(x + 0.2, z + 0.2, 0.6, 0.6, 0.34, 0.6, '#cfefff'); ctx.globalAlpha = 1; // glass
+  }
+  // ---------- people on the plaza: the shopkeeper, museum guides and visitors (visual only) ----------
+  // Visitors walk in through the museum door, stop at a few exhibits and leave again. They use
+  // Math.random, never the game's rng, so what is on screen cannot change a dig.
+  var visitors = [], visitT = 0, coinT = 0, VSPEED = 1.3;
+  var GUIDE_SPOTS = [[13.5, 0.5], [18.5, 2.5], [14.5, 6.5], [18.5, 10.5], [20.5, 4.5]];
+  function faceOf(dx, dz) { return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'e' : 'w') : (dz > 0 ? 's' : 'n'); }
+  function museumSpots(S) { // open floor cells beside an exhibit that has at least one piece, else anywhere inside
+    var out = [];
+    for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) {
+      if (D.hubCell(x, z) !== 'm') continue;
+      for (var k = 0; k < 5; k++) {
+        if (!S.unlocked[k]) continue;
+        var ch = String(k + 1), near = D.hubCell(x + 1, z) === ch || D.hubCell(x - 1, z) === ch || D.hubCell(x, z + 1) === ch || D.hubCell(x, z - 1) === ch;
+        if (near && S.museum[k].pieces.some(function (c) { return c > 0; })) out.push([x + 0.5, z + 0.5, k]);
+      }
+    }
+    if (!out.length) for (var zz = 0; zz < 10; zz++) for (var xx = 12; xx < 22; xx++) if (D.hubCell(xx, zz) === 'm') out.push([xx + 0.5, zz + 0.5, -1]);
+    return out;
+  }
+  function wantVisitors(S) {
+    var found = 0, done = 0;
+    for (var k = 0; k < 5; k++) { var n = S.museum[k].pieces.filter(function (c) { return c > 0; }).length; found += n; if (n === 5) done++; }
+    return Math.min(12, (found ? 1 : 0) + Math.floor(found / 2) + 2 * done);
+  }
+  function stepPeople(dt, S) {
+    if (S.mode !== 'surface') return;
+    var want = wantVisitors(S), door = [HUB_DOOR[0] + 0.5, HUB_DOOR[1] + 0.5];
+    visitT -= dt;
+    if (visitors.length < want && visitT <= 0) {
+      visitors.push({ x: door[0], z: door[1], path: null, wait: 0, visits: 2 + Math.floor(Math.random() * 3), seed: Math.floor(Math.random() * 4096), face: 'e', walk: 0, moving: false, leaving: false, look: -1 });
+      visitT = 1.5 + Math.random() * 2.5;
+    }
+    for (var i = visitors.length - 1; i >= 0; i--) {
+      var v = visitors[i];
+      if (v.path) {
+        var d = VSPEED * dt; v.moving = true;
+        while (v.path && d > 0) {
+          var p = v.path[0], ex = p[0] - v.x, ez = p[1] - v.z, l = Math.sqrt(ex * ex + ez * ez);
+          if (l > 0.01) v.face = faceOf(ex, ez);
+          if (l <= d) { v.x = p[0]; v.z = p[1]; d -= l; v.path.shift(); if (!v.path.length) v.path = null; }
+          else { v.x += ex / l * d; v.z += ez / l * d; d = 0; }
+          v.walk += VSPEED * dt * 2;
+        }
+        if (!v.path) {
+          if (v.leaving) { visitors.splice(i, 1); continue; }
+          v.wait = 2 + Math.random() * 4; v.moving = false;
+          if (v.look >= 0) { var b = plinthBlock(v.look); v.face = faceOf((b.x0 + b.x1) / 2 - v.x, (b.z0 + b.z1) / 2 - v.z); }
+          if (Math.random() < 0.5) floatText(v.x, -0.3, v.z, ['♥', '!', '✨', 'Wow!', 'Ooh!'][Math.floor(Math.random() * 5)], '#ffe9a8');
+        }
+      } else if ((v.wait -= dt) <= 0) {
+        v.visits--;
+        if (v.visits < 0 || want < visitors.length) { v.leaving = true; v.path = D.hubPath(v.x, v.z, door[0], door[1]); }
+        else { // a free spot: nobody standing or headed there
+          var sp = museumSpots(S).filter(function (c) { return !visitors.some(function (o) { var e = o.path ? o.path[o.path.length - 1] : [o.x, o.z]; return o !== v && Math.abs(e[0] - c[0]) + Math.abs(e[1] - c[1]) < 0.9; }); });
+          if (!sp.length) sp = museumSpots(S);
+          var t = sp[Math.floor(Math.random() * sp.length)]; v.look = t[2]; v.path = D.hubPath(v.x, v.z, t[0], t[1]);
+        }
+        if (!v.path) visitors.splice(i, 1);
+      }
+    }
+    // visitors pay: a coin pops up over someone now and then (the coins themselves come from museumIncome)
+    coinT -= dt;
+    if (coinT <= 0 && visitors.length) {
+      var who = visitors[Math.floor(Math.random() * visitors.length)];
+      floatText(who.x, -0.5, who.z, '+🪙', '#ffd23f');
+      coinT = 2 + 6 / (1 + visitors.length);
+    }
+  }
+  function plinthBlock(k) { return hubBlocks().filter(function (bb) { return bb.c === String(k + 1); })[0]; }
+  function drawPerson(kind, seed, x, z, face, moving, walk) {
+    var fc = FACE[face] || FACE.e, frame = moving ? Math.floor(walk) & 3 : Math.floor(time * 1.5 + seed) & 3;
+    var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time), q = P(x, 1, z), p = charScale();
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.4, hh * 0.4, 0, 0, 7); ctx.fill();
+    if (fc.flip) ctx.scale(-1, 1);
+    ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
+    ctx.restore();
+  }
+  function hubPeople(S, items) {
+    var sb = hubBlocks().filter(function (bb) { return bb.c === 's'; })[0];
+    if (sb) items.push(feet(sb.x0 + 1.5, sb.z0 + 1.5, function () { drawPerson('keeper', 1, sb.x0 + 1.5, sb.z0 + 1.5, 'e', false, 0); }, 0.2));
+    for (var g = 0; g < Math.min(S.workers.staff, GUIDE_SPOTS.length); g++) (function (sp, g) {
+      items.push(feet(sp[0], sp[1], function () { drawPerson('guide', g, sp[0], sp[1], g % 2 ? 's' : 'e', false, 0); }));
+    })(GUIDE_SPOTS[g], g);
+    visitors.forEach(function (v) { items.push(feet(v.x, v.z, function () { drawPerson('visitor', v.seed, v.x, v.z, v.face, v.moving, v.walk); })); });
+  }
+  // a stone disc on each station pad; the miner standing on it lights it up
+  function pad(x, z, c, S) {
+    var q = P(x + 0.5, 1, z + 0.5), on = S.mode === 'surface' && Math.floor(S.hub.x) === x && Math.floor(S.hub.z) === z;
+    var pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    ctx.save(); ctx.lineWidth = Math.max(2, TW / 16);
+    ctx.strokeStyle = on ? '#ffffff' : 'rgba(255,210,63,' + (0.55 + 0.45 * pulse) + ')';
+    ctx.fillStyle = on ? 'rgba(255,210,63,0.45)' : 'rgba(255,210,63,0.16)';
+    ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * 0.78, hh * 0.78, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.restore();
+    glow(q[0], q[1], TW * 0.6, '#ffd23f', 0.2 + 0.2 * pulse);
+    padLabels.push([x + 0.5, z + 0.5, c, on]);
   }
   var stars = []; for (var si = 0; si < 70; si++) stars.push([Math.random(), Math.random(), Math.random()]);
   // distant hills behind the ground: two silhouette bands with a little parallax
@@ -435,13 +579,14 @@ var DTWRender = (function () {
   }
   function targets(S) {
     var g = D.site(S, S.world), r = S.run;
-    if (S.mode === 'surface' || !r) return [-1, 0, LADDER_Z];       // on the rim beside the ladder top
+    if (S.mode === 'surface' || !r) return [S.hub.x - 0.5, 0, S.hub.z - 0.5]; // walking about the plaza
     if (S.mode === 'up') return [-0.3, 0, LADDER_Z];                 // climb up the ladder, close to the wall
     if (S.mode === 'down') return [-0.3, g.deepest, LADDER_Z];       // climb down to the current layer
     return [r.x, r.y, r.z];
   }
   function update(dt, S) {
     time += dt; shakeT = Math.max(0, shakeT - dt);
+    stepPeople(dt, S);
     var r = S.run, tg = targets(S);
     if (disp.world !== S.world) { disp.world = S.world; disp.x = tg[0]; disp.y = tg[1]; disp.z = tg[2]; cam.init = false; }
     if (S.mode === 'up' || S.mode === 'down') {
@@ -478,8 +623,8 @@ var DTWRender = (function () {
     // camera: follows the miner down; horizontally it follows halfway so the whole pit stays on screen
     var surf = S.mode === 'surface';
     var fx = 3.5 + (disp.x + 0.5 - 3.5) * 0.5, fz = 3.5 + (disp.z + 0.5 - 3.5) * 0.5, fy = disp.y + 1;
-    var zoom = surf ? (view.sheet ? 0.62 : 0.92) : 1, anchor = surf ? (view.sheet ? 0.2 : 0.4) : 0.3;
-    if (surf) { fx = 3.5; fz = 3.5; fy = 1; }
+    var zoom = surf ? (view.sheet ? 1.15 : 1.05) : 1, anchor = surf ? (view.sheet && view.open ? 0.2 : 0.5) : 0.3;
+    if (surf) { fx = disp.x + 0.5; fz = disp.z + 0.5; fy = 1; } // on the plaza the camera follows the miner
     var k = cam.init ? Math.min(1, dt * 6) : 1; cam.init = true;
     cam.fx += (fx - cam.fx) * k; cam.fz += (fz - cam.fz) * k; cam.fy += (fy - cam.fy) * k;
     if (Math.abs(fy - cam.fy) > 12) cam.fy = fy;
@@ -501,19 +646,21 @@ var DTWRender = (function () {
     ox = 0; oy = 0; var f0 = P(cam.fx, cam.fy, cam.fz);
     ox = Math.round((vw - view.right * vw / cssW) / 2 - f0[0] + (shakeT > 0 ? (Math.random() - 0.5) * TW * 0.08 : 0)); oy = Math.round(vh * cam.anchor - f0[1]);
     var viewTop = Math.max(0, Math.floor(disp.y + 0.001)), yBot = Math.min(D.DEPTH + 1, viewTop + VIEW_LAYERS);
-    var surfaceView = viewTop <= 1;
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
-    lights = [];
+    lights = []; padLabels = [];
     if (post) { ectx.setTransform(1, 0, 0, 1, 0, 0); ectx.globalCompositeOperation = 'source-over'; ectx.fillStyle = '#000'; ectx.fillRect(0, 0, ecv.width, ecv.height); ectx.setTransform(0.5, 0, 0, 0.5, 0, 0); ectx.globalCompositeOperation = 'lighter'; }
     if (octx !== ctx) { octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, vw, vh); }
-    var backY = P(-RIM, 1, -RIM)[1];
-    background(w, P(N + RIM, 1, N + RIM)[1] + TW, viewTop <= 1 ? backY + (P(-RIM, 1, N + RIM)[1] - backY) * 0.3 : null);
+    var surfaceView = viewTop <= 1;
+    // the ground drawn: the whole plaza at the surface, the rim around the pit below it
+    var xlo = surfaceView ? HX0 : -RIM, xhi = surfaceView ? HX1 : N + RIM, zlo = surfaceView ? HZ0 : -RIM, zhi = surfaceView ? HZ1 : N + RIM;
+    var backY = P(xlo, 1, zlo)[1];
+    background(w, P(xhi, 1, zhi)[1] + TW, surfaceView ? backY + (Math.min(P(xlo, 1, zhi)[1], P(xhi, 1, zlo)[1]) - backY) * 0.3 : null);
     var hx = hex();
     function inPit(x, z) { return x >= 0 && x < N && z >= 0 && z < N; }
     // ground behind and beside the pit: on screen it never overlaps the pit, so it stays solid below the rim
     function backRegion(x, z) { return x < 0 || z < 0; }
     function solid(x, y, z) { // is there a drawn block here?
-      if (y < 1 || y > yBot || x < -RIM || z < -RIM || x >= N + RIM || z >= N + RIM) return false;
+      if (y < 1 || y > yBot || x < xlo || z < zlo || x >= xhi || z >= zhi) return false;
       if (inPit(x, z)) return y >= viewTop && !D.passable(g.t[D.idx(x, y, z)]);
       return backRegion(x, z) || surfaceView;
     }
@@ -526,24 +673,23 @@ var DTWRender = (function () {
       lastMiner = [q[0], q[1]];
       drawMiner(q[0], q[1], S, r);
     }
-    var lo = -RIM, hi = N + RIM;
     // the ladder reaches from above the rim down to the floor of the layer being worked
     var ladderBot = r && S.mode === 'dig' ? r.y : Math.max(g.deepest, Math.ceil(disp.y));
     // Draw order: deeper layers, the back half of the miner's layer, the layers above it (only the back
     // rim walls, ladder, torches and rim scenery are left there, all behind the miner), then the miner,
     // then the front half of its layer. The sprite stands about two layers tall, so drawing it before
     // the layers above would let the rim walls cover its head.
-    var sMid = mcx + mcz, sEnd = 2 * (hi - 1);
+    var sMid = mcx + mcz, sEnd = xhi - 1 + zhi - 1;
     function layer(y, s0, s1, last) {
       // a layer whose front-most cube is still above the top of the screen draws nothing
-      if (y !== minerLayer && y !== 1 && oy + 2 * (hi - 1) * hh + y * bh + TW < 0) return;
+      if (y !== minerLayer && y !== 1 && oy + sEnd * hh + y * bh + TW < 0) return;
       var dark = y > viewTop ? Math.min(0.8, (y - viewTop) * 0.065) : 0;
       // walk diagonals back to front: s = x + z
       for (var s = s0; s <= s1; s++) {
         if (s === LADDER_Z && y <= ladderBot) ladder(y);
         if (s === 5 && y % 6 === 3) torch(0.03, y, 5.5, 'x', y >= viewTop && D.passable(g.t[D.idx(0, y, 5)]) || y < viewTop);
         if (s === 2 && y % 6 === 0 && y > 0) torch(2.5, y, 0.03, 'z', y >= viewTop && D.passable(g.t[D.idx(2, y, 0)]) || y < viewTop);
-        for (var x = Math.max(lo, s - (hi - 1)); x <= Math.min(hi - 1, s - lo); x++) {
+        for (var x = Math.max(xlo, s - (zhi - 1)); x <= Math.min(xhi - 1, s - zlo); x++) {
           var z = s - x;
           if (!solid(x, y, z)) {
             if (inPit(x, z) && y >= viewTop && g.t[D.idx(x, y, z)] === T.BUBBLE) bubble(x, y, z);
@@ -555,7 +701,8 @@ var DTWRender = (function () {
           var spr, pit = inPit(x, z), i = pit ? D.idx(x, y, z) : -1, tt = pit ? g.t[i] : T.DIRT;
           var side = texKey(tt, pit ? g.v[i] : 0, y);
           if (!pit && y > 1) side = 'dirt' + layerOf(y);
-          var top = y === 1 && (tt === T.DIRT || !pit) ? 'grass' : side;
+          var hc = y === 1 && !pit ? D.hubCell(x, z) : '';
+          var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : side;
           spr = cube(w, top, side === 'grass' ? 'dirt0' : side);
           var gh = pit && y === viewTop && S.mode !== 'surface' && ghost[x + ',' + z];
           if (gh) ctx.globalAlpha = 0.32;
@@ -567,20 +714,22 @@ var DTWRender = (function () {
             if (solid(x - 1, y - 1, z)) ao(x, y, z, 1, 0);
             if (solid(x, y - 1, z - 1)) ao(x, y, z, 0, 1);
           }
-          if (y === 1 && !pit && surfaceView && !solid(x, 0, z)) decor(x, z, id);
+          if (y === 1 && !pit && surfaceView && hc === '.') decor(x, z, id);
+          if (y === 1 && PADS[hc] && surfaceView) pad(x, z, hc, S);
           if (pit) decorate(x, y, z, tt, i, q, w, S, g, i === tgt);
         }
       }
       if (last && y === 1) { // things standing on the surface: scenery and (at the surface) the miner
         var items = [];
-        if (P(lo, 0, lo)[1] < vh && P(hi, 1, hi)[1] > -TW * 3) scenery(w, items, surfaceView);
-        if (viewTop === 0 && !minerDrawn) items.push({ k: disp.x + disp.z + 1, fn: drawMinerNow });
-        items.sort(function (a, b) { return a.k - b.k; }).forEach(function (it) { it.fn(); });
+        if (P(xlo, 0, zlo)[1] < vh && P(xhi, 1, zhi)[1] > -TW * 3) hubProps(S, items, surfaceView);
+        if (surfaceView) hubPeople(S, items);
+        if (viewTop === 0 && !minerDrawn) items.push(feet(disp.x + 0.5, disp.z + 0.5, drawMinerNow));
+        depthSort(items).forEach(function (it) { it.fn(); });
         if (surfaceView) shafts(id);
       }
     }
     var split = minerLayer >= 1 && minerLayer <= yBot;
-    for (var y = yBot; y >= 1; y--) layer(y, 2 * lo, split && y === minerLayer ? sMid : sEnd, !(split && y === minerLayer));
+    for (var y = yBot; y >= 1; y--) layer(y, xlo + zlo, split && y === minerLayer ? sMid : sEnd, !(split && y === minerLayer));
     if (split) { drawMinerNow(); layer(minerLayer, sMid + 1, sEnd, true); }
     drawMinerNow();
     // moon loot, particles and floating text on top
@@ -609,6 +758,7 @@ var DTWRender = (function () {
       for (var b = 0; b < 12; b++) { var bx2 = ((b * 0.61) % 1) * vw, by2 = vh - ((time * (14 + b * 2) * TW / 32 + b * 71) % (vh + 20)); ctx.fillStyle = '#9dff8a66'; ctx.fillRect(bx2, by2, TW * 0.06, TW * 0.06); }
     }
     motes(id, viewTop);
+    if (surfaceView) hubLabels(S);
     octx.font = 'bold ' + Math.round(TW * 0.3) + 'px Fredoka, sans-serif'; octx.textAlign = 'center';
     for (var fi = 0; fi < floaters.length; fi++) {
       var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z);
@@ -616,6 +766,29 @@ var DTWRender = (function () {
       octx.fillStyle = fl.c; octx.fillText(fl.text, fq[0], fq[1]); octx.globalAlpha = 1;
     }
     if (post) composite(S, w, viewTop, surfaceView);
+  }
+  // station names over the pads, the museum's name over its door, and a plaque by the nearest exhibit
+  function tagText(x, y, text, size, fill, bg) {
+    octx.font = 'bold ' + Math.round(size) + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    if (bg) { var wd = octx.measureText(text).width + size * 0.9, hgt = size * 1.5; octx.fillStyle = bg; roundRect(octx, x - wd / 2, y - hgt / 2, wd, hgt, hgt * 0.35); octx.fill(); }
+    octx.fillStyle = '#0008'; octx.fillText(text, x + 1, y + 2); octx.fillStyle = fill; octx.fillText(text, x, y); octx.textBaseline = 'alphabetic';
+  }
+  function roundRect(c, x, y, w, h, r) { c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath(); }
+  function hubLabels(S) {
+    var sz = Math.max(11, TW * 0.24);
+    padLabels.forEach(function (l) {
+      var q = P(l[0], 1, l[1]), bob = Math.sin(time * 3 + l[0]) * TW * 0.05, info = PADS[l[2]];
+      tagText(q[0], q[1] - TW * 1.25 + bob, info[0] + ' ' + info[1], sz, l[3] ? '#ffd23f' : '#fff7e8', 'rgba(26,19,40,0.72)');
+    });
+    var dq = P(HUB_DOOR[0], -1.2, HUB_DOOR[1] + 1);
+    tagText(dq[0], dq[1], '🏛️ MUSEUM', sz * 1.25, '#ffe9a8', 'rgba(90,58,36,0.85)');
+    if (S.mode !== 'surface') return;
+    var k = D.hubNearExhibit(S); if (k < 0) return;
+    var wd = D.WORLDS[k], have = S.museum[k].pieces.filter(function (c) { return c > 0; }).length;
+    var b = hubBlocks().filter(function (bb) { return bb.c === String(k + 1); })[0], pq = P((b.x0 + b.x1) / 2, -0.9, (b.z0 + b.z1) / 2);
+    var t1 = S.unlocked[k] ? wd.exhibit.name : '🔒 ' + 'Wing ' + (k + 1), t2 = S.unlocked[k] ? (have === 5 ? '✓ Complete' : have + ' / 5 bones') + (S.relics[k] ? ' · ✨ ' + wd.relic.name : '') : 'Bring home the relic from world ' + k;
+    tagText(pq[0], pq[1] - sz * 1.1, t1, sz * 1.05, '#ffe9a8', 'rgba(26,19,40,0.85)');
+    tagText(pq[0], pq[1] + sz * 0.6, t2, sz * 0.85, '#b9a9d6', null);
   }
   // ---------- HD-2D extras ----------
   var GRADE = { // ambient tint, shadow tint, highlight tint per world
@@ -651,8 +824,8 @@ var DTWRender = (function () {
     if (S.mode === 'dig') { // keep the whole working layer and the miner sharp
       var top = P(0, viewTop, 0)[1] - TW * 1.1, bot = P(N, viewTop + 1, N)[1] + TW * 0.2;
       focus = [top, bot, TW * 3.5, 1];
-    } else if (surfaceView) {
-      focus = [P(-1.5, 0, -1.5)[1] - TW, P(N + 1.5, 1, N + 1.5)[1], TW * 4, 0.85];
+    } else if (surfaceView && lastMiner) {
+      focus = [lastMiner[1] - TW * 4.5, lastMiner[1] + TW * 2.5, TW * 5, 0.85];
     } else if (lastMiner) focus = [lastMiner[1] - TW * 2, lastMiner[1] + TW, TW * 3, 1];
     else focus = [0, vh, 1, 0];
     // brightest lights first, nearest the miner
@@ -807,6 +980,12 @@ var DTWRender = (function () {
     setView: function (v) { view = v; },
     spawnBreak: spawnBreak, floatText: floatText, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
+    // the point on the ground (y = 1) under a pointer, in plaza cells
+    groundAt: function (cx, cy) {
+      var rc = cv.getBoundingClientRect(), k = vw / Math.max(1, rc.width);
+      var sx = (cx - rc.left) * k, sy = (cy - rc.top) * k, a = (sx - ox) / hw, b = (sy - oy - bh) / hh;
+      return [(a + b) / 2, (b - a) / 2];
+    },
     drawItem: drawItem, itemColor: itemColor, layerOf: layerOf, screenDir: screenDir, pickTier: pickTier,
     get dispY() { return disp.y; }
   };

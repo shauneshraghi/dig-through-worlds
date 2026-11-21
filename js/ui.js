@@ -39,7 +39,9 @@
     $('toast').appendChild(el); setTimeout(function () { el.remove(); }, ms || 2600);
     while ($('toast').children.length > 3) $('toast').firstChild.remove();
   }
-  var tab = 'up', lastPanelKey = '';
+  var station = null, lastPanelKey = '';
+  var STATION_TITLE = { shop: '🛒 Shop', helpers: '👷 Helpers', museum: '🏛️ Museum', worlds: '🗺️ Worlds' };
+  var STATION_TAB = { shop: 'up', helpers: 'he', museum: 'mu', worlds: 'wo', dig: '' };
   var WIDE = window.matchMedia('(min-aspect-ratio: 1/1) and (min-width: 700px)');
   function updateHud() {
     $('hCoins').textContent = '🪙 ' + fmt(S.coins);
@@ -51,30 +53,38 @@
     var o2 = $('o2'), isO = D.WORLDS[S.world].rule === 'oxygen' && S.mode === 'dig';
     o2.style.display = isO ? 'block' : 'none';
     if (isO) { var f = r.oxygen / D.O2_MAX; o2.firstChild.style.width = (f * 100) + '%'; o2.firstChild.style.background = f < 0.25 ? '#ff6b6b' : ''; }
-    $('controls').style.visibility = S.mode === 'dig' && !splash ? 'visible' : 'hidden';
-    var showPanel = S.mode === 'surface' && !splash;
+    var surf = S.mode === 'surface';
+    $('controls').style.visibility = (S.mode === 'dig' || surf) && !splash ? 'visible' : 'hidden';
+    var bh = $('bHome'), label = surf ? '⛏ Dig!' : '⬆ Home';
+    if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); }
+    // on the plaza the menu opens while the miner stands on a station pad
+    var st = surf && !splash ? D.hubStation(S) : null;
+    if (st !== station) { station = st; lastPanelKey = ''; }
+    var showPanel = !!station;
     $('surface').classList.toggle('show', showPanel);
     var wide = WIDE.matches;
     $('app').classList.toggle('panel', wide && showPanel);
-    R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide });
+    R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide, open: showPanel });
   }
   var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫' };
   var PICK_NAMES = ['Wooden', 'Stone', 'Iron', 'Golden', 'Crystal'];
   function panelKey() {
     var afford = Object.keys(D.UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return S.coins >= D.hireCost(S, k) ? 1 : 0; })).join('');
-    return [tab, S.world, afford, tab === 'mu' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
+    return [station, S.world, afford, station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), resetArm, wipeArm].join(';');
   }
   var resetArm = 0, wipeArm = 0;
   function renderPanel() {
+    if (!station) return;
     var k = panelKey(); if (k === lastPanelKey) return; lastPanelKey = k;
-    var wd = D.WORLDS[S.world], g = D.site(S, S.world);
-    $('sTitle').textContent = wd.name + (S.relics[S.world] ? ' ✓' : '');
-    $('sRule').textContent = wd.ruleText;
+    var wd = D.WORLDS[S.world], g = D.site(S, S.world), tab = STATION_TAB[station], dig = station === 'dig';
+    $('sTitle').textContent = dig ? wd.name + (S.relics[S.world] ? ' ✓' : '') : STATION_TITLE[station];
+    $('sRule').textContent = dig ? wd.ruleText : '';
+    $('sRule').style.display = dig ? '' : 'none';
     var top = D.topLayer(g);
     $('bDig').textContent = top > 1 ? '⛏ Dig! (back to ' + top + ' m)' : '⛏ Dig!';
-    document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === tab); });
-    var body = $('tabBody'); body.innerHTML = '';
+    $('bDig').style.display = dig ? '' : 'none';
+    var body = $('tabBody'); body.innerHTML = ''; body.style.display = dig ? 'none' : '';
     function row(ic, title, sub, btnText, enabled, onClick) {
       var d = document.createElement('div'); d.className = 'row';
       var i = document.createElement('div'); i.className = 'ic'; i.style.cssText = 'font-size:30px;display:flex;align-items:center;justify-content:center;background:#1a1430;border-radius:10px';
@@ -136,7 +146,6 @@
       body.appendChild(wipe);
     }
   }
-  document.querySelectorAll('#tabs button').forEach(function (b) { b.onclick = function () { tab = b.dataset.tab; lastPanelKey = ''; }; });
   $('bDig').onclick = function () { audio(); D.startDig(S, S.world); };
   $('mute').onclick = function () { audio(); setMute(!A.isMuted()); };
 
@@ -168,8 +177,7 @@
         if (msg.length) { toast(msg.join('<br>'), 3500); A.sfx('coin'); }
         if (e.relic !== null) {
           var nx = e.relic + 1;
-          setTimeout(function () { A.sfx('relic'); toast(nx < 5 ? '🌍 <b>' + D.WORLDS[nx].name + '</b> unlocked! Open the Worlds tab to travel.' : '🏆 You found all five relics! You are a Master Digger!', 5000); }, 600);
-          if (nx < 5) tab = 'wo';
+          setTimeout(function () { A.sfx('relic'); toast(nx < 5 ? '🌍 <b>' + D.WORLDS[nx].name + '</b> unlocked! Walk to the 🗺️ Worlds signpost to travel.' : '🏆 You found all five relics! You are a Master Digger!', 5000); }, 600);
         }
         lastPanelKey = ''; save();
       }
@@ -188,7 +196,14 @@
   }
   function steer(dir) { audio(); if (S.mode === 'dig') { D.steer(S, dir); A.sfx('step'); } }
   var cv = $('cv'), down = null;
-  cv.addEventListener('pointerdown', function (e) { audio(); down = { x: e.clientX, y: e.clientY }; doTap(); });
+  // directions held down (keys and d-pad buttons) walk the miner about the plaza
+  var held = {};
+  function heldDirs() { return Object.keys(held).map(function (k) { return held[k]; }); }
+  cv.addEventListener('pointerdown', function (e) {
+    audio(); down = { x: e.clientX, y: e.clientY };
+    if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
+    else doTap();
+  });
   cv.addEventListener('pointerup', function (e) {
     if (down && S.mode === 'dig') {
       var dx = e.clientX - down.x, dy = e.clientY - down.y;
@@ -197,19 +212,26 @@
     down = null;
   });
   // the d-pad's four diagonal buttons match the four ways the grid runs on screen
-  document.querySelectorAll('#dpad button').forEach(function (b) { b.onclick = function () { steer(b.dataset.dir); }; });
-  $('bHome').onclick = function () { audio(); D.goHome(S); };
+  document.querySelectorAll('#dpad button').forEach(function (b) {
+    b.onclick = function () { steer(b.dataset.dir); };
+    var key = 'pad' + b.dataset.dir;
+    b.addEventListener('pointerdown', function (e) { audio(); held[key] = b.dataset.dir; try { b.setPointerCapture(e.pointerId); } catch (er) {} });
+    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { b.addEventListener(ev, function () { delete held[key]; }); });
+  });
+  $('bHome').onclick = function () { audio(); if (S.mode === 'surface') D.startDig(S, S.world); else D.goHome(S); };
   var KEYS = { arrowup: 'n', w: 'n', arrowright: 'e', d: 'e', arrowdown: 's', s: 's', arrowleft: 'w', a: 'w' };
   window.addEventListener('keydown', function (e) {
     if (splash) { startGame(); return; }
     var k = e.key.toLowerCase();
-    if (KEYS[k]) { steer(KEYS[k]); e.preventDefault(); }
+    if (KEYS[k]) { held[k] = KEYS[k]; steer(KEYS[k]); e.preventDefault(); }
     else if (k === ' ') { if (!e.repeat) doTap(); e.preventDefault(); }
     else if (k === 'h') D.goHome(S);
     else if (k === 'enter' && S.mode === 'surface') { audio(); D.startDig(S, S.world); }
     else if (k === 'm') setMute(!A.isMuted());
   });
 
+  window.addEventListener('keyup', function (e) { delete held[e.key.toLowerCase()]; });
+  window.addEventListener('blur', function () { held = {}; });
   var splash = true;
   function startGame(gesture) { if (!splash) return; splash = false; $('splash').style.display = 'none'; if (gesture !== false) audio(); }
   $('splash').addEventListener('pointerdown', startGame);
@@ -217,9 +239,10 @@
 
   // ---------- main loop ----------
   function advance(dt, noDraw) {
+    if (S.mode === 'surface') D.hubInput(S, heldDirs());
     var left = dt; while (left > 0) { var h = Math.min(0.05, left); D.step(S, h); left -= h; }
     drain(); R.update(dt, S);
-    if (!noDraw) { R.draw(S); updateHud(); if (S.mode === 'surface') renderPanel(); }
+    if (!noDraw) { R.draw(S); updateHud(); renderPanel(); }
   }
   var last = performance.now();
   function frame(now) {
