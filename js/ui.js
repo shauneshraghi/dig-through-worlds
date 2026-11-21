@@ -283,7 +283,7 @@
   function renderLock() {
     var L = S.mode === 'dig' && S.run && S.run.lock, el = $('lock');
     el.classList.toggle('show', !!L);
-    if (!L) { lockKey = ''; simonStep = -1; return; }
+    if (!L) { lockKey = ''; simonStep = -1; if (smashT) smashStop(); return; }
     var kind = L.kind || 'pins', T0 = LOCK_TEXT[kind], html = '', key, hint;
     if (kind === 'simon') {
       var total = D.SIMON_LEAD + L.seq.length * D.SIMON_STEP, el2 = total - L.show - D.SIMON_LEAD, n = Math.floor(el2 / D.SIMON_STEP);
@@ -330,7 +330,16 @@
     if (L && L.kind === 'simon') { padFlash = { k: k, t: performance.now() }; A.sfx('pad' + k); }
     D.lockTap(S, k); e.preventDefault();
   });
-  $('bSmash').onclick = function () { audio(); D.lockSmash(S); };
+  // Smashing needs a held press (SMASH_HOLD s) so a stray tap on the puzzle never breaks the chest open.
+  var SMASH_HOLD = 1.0, smashT = null;
+  function smashStop() { if (smashT) { clearTimeout(smashT); smashT = null; } $('bSmash').classList.remove('holding'); }
+  $('bSmash').addEventListener('pointerdown', function (e) {
+    audio(); smashStop(); e.preventDefault();
+    $('bSmash').classList.add('holding');
+    smashT = setTimeout(function () { smashT = null; $('bSmash').classList.remove('holding'); D.lockSmash(S); }, SMASH_HOLD * 1000);
+  });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(function (ev) { $('bSmash').addEventListener(ev, smashStop); });
+  $('bSmash').addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // ---------- input ----------
   var lastTap = 0;
