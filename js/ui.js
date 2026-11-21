@@ -30,7 +30,8 @@
     while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
     return (n < 10 ? n.toFixed(1) : Math.floor(n)) + u[i];
   }
-  function audio() { A.init(function () { return { world: S.world, mode: S.mode, depth: S.run ? S.run.y : 0 }; }); }
+  // a browser that cannot start audio must not stop the touch handler that called this
+  function audio() { try { A.init(function () { return { world: S.world, mode: S.mode, depth: S.run ? S.run.y : 0 }; }); } catch (e) {} }
   function setMute(m) { A.setMute(m); $('mute').textContent = m ? '🔇' : '🔊'; }
 
   // ---------- UI: toasts, HUD, surface panel ----------
