@@ -154,6 +154,14 @@ var DTWSprites = (function () {
       T: '#5a4a5a', t: '#3a2e3a', v: '#221a22' });
   }
   var GUIDE = pal({ H: '#3a2a5a', h: '#22183a', R: '#fff7e8', r: '#d8cfc0', q: '#a89e90', B: '#2e8f3e', b: '#1f6e33', n: '#14501f', G: '#ffd23f' });
+  // hired helper diggers: orange hard hats, a different shirt and overalls each
+  var HELPERS = [
+    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#9dff8a', r: '#5ad04a', q: '#3a9a2a', B: '#c8a070', b: '#9a7448', n: '#6a4c2a', G: '#ff8c2a' }),
+    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#c8a0ff', r: '#9a70e0', q: '#6a48b0', B: '#5a6a8a', b: '#3a4a6a', n: '#2a3450', G: '#ff8c2a', S: '#b07850', s: '#94603c', k: '#704428' }),
+    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#ffd23f', r: '#e0a820', q: '#a87a10', B: '#7a5a3a', b: '#5a4028', n: '#3a2818', G: '#ff8c2a', H: '#e8c35a', h: '#b8902a' }),
+    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#8fd3ff', r: '#5aa8e0', q: '#3a78b0', B: '#2e8f3e', b: '#1f6e33', n: '#14501f', G: '#ff8c2a', S: '#7a4e32', s: '#643c24', k: '#4a2a18' }),
+    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#ff9fb0', r: '#e0708a', q: '#b04a64', B: '#6a6a7a', b: '#4a4a5a', n: '#2a2a3a', G: '#ff8c2a', H: '#d0602a', h: '#963a14' })
+  ];
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
 
   // ---------- drawing into a small canvas ----------
@@ -382,6 +390,7 @@ var DTWSprites = (function () {
   return {
     PICK: PICK, hexShade: hexShade,
     miner: function (o) { o.P = BASE; return person(o); },
+    helper: function (k, o) { o.P = HELPERS[k % HELPERS.length]; return person(o); },
     npc: npc, exhibit: exhibit,
     BODY_H: 38 // pixel height of a character, feet to hat
   };

@@ -178,6 +178,46 @@ var DTWRender = (function () {
     if (f < 0.72) return raised + (strike - raised) * ((f - 0.55) / 0.17);         // strike
     return strike;                                                                 // follow through
   }
+  // ---------- helper diggers (visual only: their work is the extra hit rate in the logic) ----------
+  // Each one works an open cell of the miner's layer next to a block, nearest the miner first; with too
+  // few open cells they share, standing at different corners. Positions ease toward their spots.
+  var crewPos = [], crewT = 0, CREW_OFF = [[0, 0], [-0.25, 0.22], [0.22, -0.25], [0.25, 0.25], [-0.25, -0.22]];
+  function helperSpots(S, g, r) {
+    var n = Math.min(S.workers.diggers, 5), y = r.y, mx = Math.round(disp.x), mz = Math.round(disp.z), cells = [];
+    if (!n) return [];
+    for (var z = 0; z < N; z++) for (var x = 0; x < N; x++) {
+      if (!D.passable(g.t[D.idx(x, y, z)]) || (x === mx && z === mz)) continue;
+      var face = null;
+      ['e', 's', 'w', 'n'].some(function (k) { var d = D.DIRS[k], ax = x + d[0], az = z + d[1]; if (ax < 0 || az < 0 || ax >= N || az >= N) return false; var t = g.t[D.idx(ax, y, az)]; if (!D.passable(t) && t !== T.BEDROCK) { face = k; return true; } return false; });
+      cells.push({ x: x, z: z, face: face, d: (x - mx) * (x - mx) + (z - mz) * (z - mz) + (face ? 0 : 100) });
+    }
+    cells.sort(function (a, b) { return a.d - b.d; });
+    if (!cells.length) cells.push({ x: mx, z: mz, face: disp.face, share: 1 });
+    var out = [], dt = Math.min(0.1, Math.max(0, time - crewT)); crewT = time;
+    for (var k = 0; k < n; k++) {
+      var c = cells[k % cells.length], o = CREW_OFF[(Math.floor(k / cells.length) + (c.share ? 1 : 0)) % CREW_OFF.length];
+      var tx = c.x + 0.5 + o[0], tz = c.z + 0.5 + o[1], p = crewPos[k];
+      if (!p || p.y !== y) p = crewPos[k] = { x: tx, z: tz, y: y };
+      var ex = tx - p.x, ez = tz - p.z, l = Math.sqrt(ex * ex + ez * ez), st = D.WALK * dt;
+      if (l <= st) { p.x = tx; p.z = tz; } else { p.x += ex / l * st; p.z += ez / l * st; }
+      out.push({ k: k, x: p.x, z: p.z, y: y, face: c.face || 'e', dig: !!c.face && l <= st, walking: l > st });
+    }
+    return out;
+  }
+  function drawHelper(h, S) {
+    var fc = FACE[h.face] || FACE.e, phase = time * 1.7 + h.k * 0.37, q = P(h.x, h.y + 1, h.z), p = charScale() * 0.85;
+    var st = h.walking ? Math.sin(time * 12 + h.k) : 0;
+    var spr = DTWSprites.helper(h.k, { back: fc.back, ang: h.dig ? swingAngle(phase, true, true) : null, carry: !h.dig, tier: 0,
+      pose: { bob: h.walking ? -Math.round(Math.abs(st)) : 0, body: 0, lean: 0, stride: st, air: 0, blink: false }, lampOn: S.mode !== 'surface', t: time });
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
+    if (fc.flip) ctx.scale(-1, 1);
+    ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
+    ctx.restore();
+    if (h.dig && (phase % 1) > 0.72 && (phase % 1) < 0.76 && Math.random() < 0.5) { // chips fly off the block being hit
+      var d = D.DIRS[h.face]; spawnBreak(h.x - 0.5 + d[0] * 0.5, h.y, h.z - 0.5 + d[1] * 0.5, '#c8a07088', 1);
+    }
+  }
   function drawMiner(sx, sy, S, r) {
     var digging = S.mode === 'dig' && r && r.stun <= 0 && r.state === 'dig';
     var side = !!(r && r.target >= 0 && Math.floor(r.target / (N * N)) === r.y);
@@ -424,6 +464,7 @@ var DTWRender = (function () {
   // Visitors walk in through the museum door, stop at a few exhibits and leave again. They use
   // Math.random, never the game's rng, so what is on screen cannot change a dig.
   var visitors = [], visitT = 0, coinT = 0, VSPEED = 1.3;
+  var HUT_SPOTS = [[4.5, -3.5, 's'], [0.5, -3.5, 'e'], [4.5, -5.5, 'w'], [1.5, -2.5, 's'], [-0.5, -2.5, 'e'], [3.5, -2.5, 'n']];
   var GUIDE_SPOTS = [[13.5, 0.5], [18.5, 2.5], [14.5, 6.5], [18.5, 10.5], [20.5, 4.5]];
   function faceOf(dx, dz) { return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'e' : 'w') : (dz > 0 ? 's' : 'n'); }
   function museumSpots(S) { // open floor cells beside an exhibit that has at least one piece, else anywhere inside
@@ -505,6 +546,10 @@ var DTWRender = (function () {
       items.push(feet(sp[0], sp[1], function () { drawPerson('guide', g, sp[0], sp[1], g % 2 ? 's' : 'e', false, 0); }));
     })(GUIDE_SPOTS[g], g);
     visitors.forEach(function (v) { items.push(feet(v.x, v.z, function () { drawPerson('visitor', v.seed, v.x, v.z, v.face, v.moving, v.walk); })); });
+    // hired helper diggers rest by their hut while the miner is up top
+    HUT_SPOTS.filter(function (sp) { return D.hubWalkable(Math.floor(sp[0]), Math.floor(sp[1])); }).slice(0, Math.min(S.workers.diggers, 5)).forEach(function (sp, k) {
+      items.push(feet(sp[0], sp[1], function () { drawHelper({ k: k, x: sp[0], z: sp[1], y: 0, face: sp[2], dig: false, walking: false }, S); }));
+    });
   }
   // a stone disc on each station pad; the miner standing on it lights it up
   function pad(x, z, c, S) {
@@ -683,17 +728,27 @@ var DTWRender = (function () {
     // then the front half of its layer. The sprite stands about two layers tall, so drawing it before
     // the layers above would let the rim walls cover its head.
     var sMid = mcx + mcz, sEnd = xhi - 1 + zhi - 1;
-    function layer(y, s0, s1, last) {
+    // helper diggers stand in the miner's layer: those on the back diagonals are drawn with the miner,
+    // the others in the front half, each after the cubes on its own diagonal
+    var crew = S.mode === 'dig' && r ? helperSpots(S, g, r) : [];
+    function drawCrew(s0, s1) { crew.forEach(function (h) { var hs = Math.floor(h.x) + Math.floor(h.z); if (hs >= s0 && hs <= s1) drawHelper(h, S); }); }
+    // part: 'back' draws the miner's layer up to its diagonal inside the pit (and all of it outside);
+    // 'front' draws the rest of the pit, which must go over the miner and the walls above
+    function layer(y, s0, s1, last, part) {
       // a layer whose front-most cube is still above the top of the screen draws nothing
       if (y !== minerLayer && y !== 1 && oy + sEnd * hh + y * bh + TW < 0) return;
       var dark = y > viewTop ? Math.min(0.8, (y - viewTop) * 0.065) : 0;
       // walk diagonals back to front: s = x + z
       for (var s = s0; s <= s1; s++) {
-        if (s === LADDER_Z && y <= ladderBot) ladder(y);
-        if (s === 5 && y % 6 === 3) torch(0.03, y, 5.5, 'x', y >= viewTop && D.passable(g.t[D.idx(0, y, 5)]) || y < viewTop);
-        if (s === 2 && y % 6 === 0 && y > 0) torch(2.5, y, 0.03, 'z', y >= viewTop && D.passable(g.t[D.idx(2, y, 0)]) || y < viewTop);
+        var pitHere = part !== 'back' || s <= sMid; // ladder, torches and pit cells on this diagonal
+        if (pitHere) {
+          if (s === LADDER_Z && y <= ladderBot) ladder(y);
+          if (s === 5 && y % 6 === 3) torch(0.03, y, 5.5, 'x', y >= viewTop && D.passable(g.t[D.idx(0, y, 5)]) || y < viewTop);
+          if (s === 2 && y % 6 === 0 && y > 0) torch(2.5, y, 0.03, 'z', y >= viewTop && D.passable(g.t[D.idx(2, y, 0)]) || y < viewTop);
+        }
         for (var x = Math.max(xlo, s - (zhi - 1)); x <= Math.min(xhi - 1, s - zlo); x++) {
           var z = s - x;
+          if (inPit(x, z) ? !pitHere : part === 'front') continue;
           if (!solid(x, y, z)) {
             if (inPit(x, z) && y >= viewTop && g.t[D.idx(x, y, z)] === T.BUBBLE) bubble(x, y, z);
             continue;
@@ -721,6 +776,7 @@ var DTWRender = (function () {
           if (y === 1 && PADS[hc] && surfaceView) pad(x, z, hc, S);
           if (pit) decorate(x, y, z, tt, i, q, w, S, g, i === tgt);
         }
+        if (part === 'front') drawCrew(s, s);
       }
       if (last && y === 1) { // things standing on the surface: scenery and (at the surface) the miner
         var items = [];
@@ -732,8 +788,9 @@ var DTWRender = (function () {
       }
     }
     var split = minerLayer >= 1 && minerLayer <= yBot;
-    for (var y = yBot; y >= 1; y--) layer(y, xlo + zlo, split && y === minerLayer ? sMid : sEnd, !(split && y === minerLayer));
-    if (split) { drawMinerNow(); layer(minerLayer, sMid + 1, sEnd, true); }
+    for (var y = yBot; y >= 1; y--) layer(y, xlo + zlo, sEnd, !(split && y === minerLayer), split && y === minerLayer ? 'back' : null);
+    if (split) { drawMinerNow(); drawCrew(-Infinity, sMid); layer(minerLayer, sMid + 1, sEnd, true, 'front'); }
+    else drawCrew(-Infinity, Infinity);
     drawMinerNow();
     // moon loot, particles and floating text on top
     if (r && r.loot) r.loot.forEach(function (l) { var q = P(l.x, l.y, l.z); drawItem(ctx, l.item, q[0], q[1], TW * 0.28); });

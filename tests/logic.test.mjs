@@ -197,6 +197,24 @@ test('steering onto an open cell walks there, and steering into the pit wall is 
   assert.equal(s.run.z, 0); assert.equal(s.run.steer, 0);
 });
 
+test('after a steer the miner stays where it was put for a moment before auto-walking again', () => {
+  const s = digAt(0, 1, 10, 1);
+  D._setTile(s, 6, 10, 6, T.DIRT); // the only block, far away
+  D.steer(s, 'e'); run(s, 0.05);
+  assert.deepEqual([s.run.x, s.run.z], [2, 1]);
+  run(s, D.MANUAL_HOLD - 0.3);
+  assert.deepEqual([s.run.x, s.run.z], [2, 1], 'auto-walk waits');
+  run(s, 2);
+  assert.notDeepEqual([s.run.x, s.run.z], [2, 1], 'then auto-walk takes over');
+});
+
+test('steering held down walks at walking pace, not a cell per frame', () => {
+  const s = digAt(0, 0, 10, 3);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) D._setTile(s, x, 11, z, T.BEDROCK);
+  for (let t = 0; t < 0.5; t += 0.05) { D.steer(s, 'e'); D.step(s, 0.05); }
+  assert.ok(s.run.x >= 2 && s.run.x <= Math.ceil(D.WALK * 0.5) + 1, `moved ${s.run.x} cells in 0.5 s`);
+});
+
 test('a cleared layer opens the one below: the miner digs down into it and carries on there', () => {
   const s = digAt(0, 3, 10, 3, { drill: 8 });
   s.events = [];

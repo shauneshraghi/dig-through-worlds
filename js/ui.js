@@ -197,8 +197,12 @@
   function steer(dir) { audio(); if (S.mode === 'dig') { D.steer(S, dir); A.sfx('step'); } }
   var cv = $('cv'), down = null;
   // directions held down (keys and d-pad buttons) walk the miner about the plaza
-  var held = {};
-  function heldDirs() { return Object.keys(held).map(function (k) { return held[k]; }); }
+  // Keys are stored as screen directions ('up', 'right', ...) and d-pad buttons as compass ones.
+  // On the plaza a key walks that way on screen; in the pit a key steers along the grid diagonal shown
+  // on the d-pad (Up ↗ north, Right ↘ east, Down ↙ south, Left ↖ west), the only moves a pit cell has.
+  var held = {}, SCREEN = { up: ['n', 'w'], right: ['n', 'e'], down: ['s', 'e'], left: ['s', 'w'] }, GRID = { up: 'n', right: 'e', down: 's', left: 'w' };
+  function heldDirs() { var out = []; Object.keys(held).forEach(function (k) { out = out.concat(SCREEN[held[k]] || held[k]); }); return out; }
+  function heldGrid() { var k = Object.keys(held), d = k.length ? held[k[k.length - 1]] : null; return d ? GRID[d] || d : null; }
   cv.addEventListener('pointerdown', function (e) {
     audio(); down = { x: e.clientX, y: e.clientY };
     if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
@@ -219,11 +223,11 @@
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { b.addEventListener(ev, function () { delete held[key]; }); });
   });
   $('bHome').onclick = function () { audio(); if (S.mode === 'surface') D.startDig(S, S.world); else D.goHome(S); };
-  var KEYS = { arrowup: 'n', w: 'n', arrowright: 'e', d: 'e', arrowdown: 's', s: 's', arrowleft: 'w', a: 'w' };
+  var KEYS = { arrowup: 'up', w: 'up', arrowright: 'right', d: 'right', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left' };
   window.addEventListener('keydown', function (e) {
     if (splash) { startGame(); return; }
     var k = e.key.toLowerCase();
-    if (KEYS[k]) { held[k] = KEYS[k]; steer(KEYS[k]); e.preventDefault(); }
+    if (KEYS[k]) { delete held[k]; held[k] = KEYS[k]; if (!e.repeat) steer(GRID[KEYS[k]]); e.preventDefault(); }
     else if (k === ' ') { if (!e.repeat) doTap(); e.preventDefault(); }
     else if (k === 'h') D.goHome(S);
     else if (k === 'enter' && S.mode === 'surface') { audio(); D.startDig(S, S.world); }
@@ -240,6 +244,7 @@
   // ---------- main loop ----------
   function advance(dt, noDraw) {
     if (S.mode === 'surface') D.hubInput(S, heldDirs());
+    else if (S.mode === 'dig' && S.run.steer === 0) { var hd = heldGrid(); if (hd) D.steer(S, hd); } // held: keep stepping
     var left = dt; while (left > 0) { var h = Math.min(0.05, left); D.step(S, h); left -= h; }
     drain(); R.update(dt, S);
     if (!noDraw) { R.draw(S); updateHud(); renderPanel(); }

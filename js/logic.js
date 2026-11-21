@@ -78,6 +78,7 @@ var DTW = (function () {
   var O2_MAX = 75;
   var ORE_P = 0.11; // chance that a ground block holds ore
   var WALK = 6;      // cells per second the miner walks between blocks
+  var MANUAL_HOLD = 2; // seconds auto-walk waits after the player steers
 
   // ---------- the surface plaza (hub) ----------
   // One character per cell, x across, z down the rows, from (x0, z0). The pit is at x, z in [0, N).
@@ -404,12 +405,13 @@ var DTW = (function () {
     s.world = w;
     var g = site(s, w);
     s.run = { x: g.deepestX, y: g.deepest, z: g.deepestZ, bag: [], loot: [], oxygen: O2_MAX, stun: 0, steer: 0, fallAcc: 0,
-              walkAcc: 0, path: null, state: 'idle', taps: 0, grid: g, elevT: Math.min(2, 0.5 + g.deepest * 0.015), relicTimer: 0, goo: {}, target: -1 };
+              walkAcc: 0, path: null, manual: 0, stepCD: 0, state: 'idle', taps: 0, grid: g, elevT: Math.min(2, 0.5 + g.deepest * 0.015), relicTimer: 0, goo: {}, target: -1 };
     s.mode = 'down';
     emit(s, { type: 'descend' });
   }
   function tap(s) { if (s.mode === 'dig' && s.run.stun <= 0) s.run.taps++; }
-  function steer(s, dir) { if (s.mode === 'dig') s.run.steer = dirKey(dir); }
+  // the player takes over: auto-walk waits MANUAL_HOLD seconds after the last steer
+  function steer(s, dir) { if (s.mode === 'dig') { s.run.steer = dirKey(dir); s.run.manual = MANUAL_HOLD; } }
   function goHome(s, reason) {
     if (s.mode !== 'dig') return;
     var r = s.run;
@@ -516,10 +518,14 @@ var DTW = (function () {
     else {
       var y = r.y, tgt = -1, steered = false, moved = false;
       // steering: walk onto an open cell, or pick that block as the next one to dig
+      r.manual = Math.max(0, (r.manual || 0) - dt); r.stepCD = Math.max(0, (r.stepCD || 0) - dt);
       if (r.steer) {
         var sd = DIRS[r.steer], sx = r.x + sd[0], sz = r.z + sd[1];
         var st = sx < 0 || sx >= N || sz < 0 || sz >= N ? TILE.BEDROCK : g.t[idx(sx, y, sz)];
-        if (passable(st)) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; moved = true; magnetPull(s); }
+        if (passable(st)) { // one cell at a time, at walking pace
+          if (r.stepCD <= 0) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; r.stepCD = 1 / WALK; magnetPull(s); }
+          moved = true;
+        }
         else if (diggable(st)) { tgt = idx(sx, y, sz); steered = true; }
         else r.steer = 0;
       }
@@ -534,7 +540,8 @@ var DTW = (function () {
           if (layerHasBlocks(g, r.y)) r.fallAcc = 0;
         } else if (y + 1 < layers && diggable(g.t[bi])) tgt = bi;
         else { r.state = 'idle'; r.taps = 0; }
-      } else if (tgt < 0 && !moved) {
+      } else if (tgt < 0 && !moved && r.manual > 0) { r.state = 'idle'; r.taps = 0; r.path = null; } // the player has control
+      else if (tgt < 0 && !moved) {
         // auto-walk: follow the shortest path over open cells to the nearest block, then dig it
         r.fallAcc = 0;
         if (!r.path || !diggable(g.t[r.path.target])) r.path = findNearest(g, r.x, y, r.z);
@@ -613,7 +620,7 @@ var DTW = (function () {
     var g = s.run.grid; if (z == null) z = s.run.z;
     s.mode = 'dig'; s.run.x = x; s.run.y = y; s.run.z = z;
     g.t[idx(x, y, z)] = TILE.AIR; g.hp[idx(x, y, z)] = 0;
-    s.run.path = null; s.run.steer = 0; s.run.fallAcc = 0;
+    s.run.path = null; s.run.steer = 0; s.run.fallAcc = 0; s.run.manual = 0; s.run.stepCD = 0;
   }
   function _clearLayer(s, y) { // empty a whole layer (open cells only)
     var g = s.run.grid; for (var i = y * NN; i < (y + 1) * NN; i++) { g.t[i] = TILE.AIR; g.v[i] = 0; g.hp[i] = 0; }
@@ -623,7 +630,7 @@ var DTW = (function () {
     var g = s.run.grid, i = idx(x, y, z); g.t[i] = tt; g.v[i] = vv || 0; g.hp[i] = maxHp(s.world, tt, y);
   }
 
-  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX,
+  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, goHome: goHome,
     bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, itemValue: itemValue, itemName: itemName,
