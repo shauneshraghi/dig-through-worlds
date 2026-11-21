@@ -215,8 +215,12 @@
         lastBreak = null;
         A.sfx(it.kind === 'fossil' ? 'fossil' : it.kind === 'treasure' ? 'coin' : 'ding');
         if (it.kind === 'fossil') toast(it.chest ? '💰 Chest! A fossil bone inside!' : '🦴 You found a fossil!');
-        if (it.kind === 'treasure') toast('💰 Treasure chest!');
-      } else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
+        if (it.kind === 'treasure') toast(it.gem ? '💎 A bonus gem!' : '💰 Treasure!');
+      } else if (e.type === 'lock') { A.sfx('ding'); lockKey = ''; }
+      else if (e.type === 'pin') A.sfx('click');
+      else if (e.type === 'unlocked') { A.sfx('unlock'); toast('🔓 You picked the lock!', 2200); }
+      else if (e.type === 'smashed') { R.shake(0.25); toast('🔨 Smash! Only a few coins fell out.', 2200); }
+      else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
       else if (e.type === 'trap') { A.sfx('trap'); toast('😵 A trap! Dizzy for a moment…', 1800); R.shake(0.4); }
       else if (e.type === 'bubble') { A.sfx('bubble'); R.floatText(e.x + 0.5, e.y, e.z + 0.5, 'O₂ full!', '#bff7ff'); R.spawnBreak(e.x, e.y, e.z, '#bff7ff', 10); }
       else if (e.type === 'relic') { A.sfx('relic'); toast('✨ You found the <b>' + D.WORLDS[e.world].relic.name + '</b>! Heading home…', 3500); R.shake(0.5); }
@@ -238,6 +242,31 @@
       }
     });
   }
+
+  // ---------- the chest lock ----------
+  // Shown while the logic holds a lock open (run.lock); one column per pin: the key's tooth, then the pin to tap.
+  var lockKey = '';
+  function renderLock() {
+    var L = S.mode === 'dig' && S.run && S.run.lock, el = $('lock');
+    el.classList.toggle('show', !!L);
+    if (!L) { lockKey = ''; return; }
+    var key = L.i + '|' + L.pins.join() + '|' + L.key.join();
+    if (key === lockKey) return;
+    lockKey = key;
+    $('lockHint').textContent = L.linked ? 'Match the golden key. Careful: each pin pushes the one to its right!' : 'Tap the pins to match the golden key.';
+    var h = function (v) { return Math.round((v + 1) / D.LOCK_LEVELS * 100) + '%'; }, html = '';
+    for (var k = 0; k < L.pins.length; k++) {
+      if (k && L.linked) html += '<span class="link">➜</span>';
+      html += '<div class="col"><div class="tooth"><i style="height:' + h(L.key[k]) + '"></i></div>' +
+        '<button class="pin' + (L.pins[k] === L.key[k] ? ' ok' : '') + '" data-k="' + k + '" aria-label="Pin ' + (k + 1) + '"><i style="height:' + h(L.pins[k]) + '"></i></button></div>';
+    }
+    $('lockBoard').innerHTML = html;
+  }
+  $('lockBoard').addEventListener('pointerdown', function (e) {
+    var b = e.target.closest('.pin'); if (!b) return;
+    audio(); D.lockTap(S, +b.dataset.k); e.preventDefault();
+  });
+  $('bSmash').onclick = function () { audio(); D.lockSmash(S); };
 
   // ---------- input ----------
   var lastTap = 0;
@@ -326,6 +355,7 @@
   window.addEventListener('keydown', function (e) {
     if (splash) { startGame(); return; }
     var k = e.key.toLowerCase();
+    if (S.mode === 'dig' && S.run.lock && k >= '1' && k <= '9') { D.lockTap(S, +k - 1); e.preventDefault(); return; } // number keys tap pins
     if (KEYS[k]) { if (!e.repeat) { delete held[k]; press(k, KEYS[k]); steer(GRID[KEYS[k]]); } e.preventDefault(); }
     else if (k === 'q' || k === 'tab') { $('bAuto').onclick(); e.preventDefault(); }
     else if (k === ' ') { if (!e.repeat) doTap(); e.preventDefault(); }
@@ -348,7 +378,7 @@
     else if (S.mode === 'dig' && S.run.steer === 0) { var hd = heldGrid(); if (hd) D.steer(S, hd); } // held: keep stepping
     var left = dt; while (left > 0) { var h = Math.min(0.05, left); D.step(S, h); left -= h; }
     drain(); R.update(dt, S);
-    if (!noDraw) { R.draw(S); updateHud(); renderPanel(); }
+    if (!noDraw) { R.draw(S); updateHud(); renderPanel(); renderLock(); }
   }
   var last = performance.now();
   function frame(now) {

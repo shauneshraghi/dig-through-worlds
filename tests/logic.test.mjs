@@ -16,7 +16,7 @@ const run = (s, secs) => { for (let t = 0; t < secs; t += 0.05) D.step(s, 0.05);
 // taps deterministically at a steady rate
 const runTapping = (s, secs, tps) => {
   const dt = 0.05; let acc = 0;
-  for (let t = 0; t < secs; t += dt) { acc += tps * dt; while (acc >= 1) { D.tap(s); acc--; } D.step(s, dt); }
+  for (let t = 0; t < secs; t += dt) { acc += tps * dt; while (acc >= 1) { D.tap(s); acc--; } if (s.run && s.run.lock) D.lockSmash(s); D.step(s, dt); }
 };
 const at = (g, x, y, z) => g.t[D.idx(x, y, z)];
 const diggable = tt => !D.passable(tt) && tt !== T.BEDROCK;
@@ -30,6 +30,13 @@ function digAt(w, x, y, z, up = {}) {
   return s;
 }
 const breaks = s => s.events.filter(e => e.type === 'break');
+// pick a chest lock the way a kid can: left to right, tap each pin until it matches the key
+// (a linked pin also bumps the one to its right, so the pins already done stay done)
+const solveLock = s => {
+  const L = s.run.lock; let taps = 0;
+  for (let k = 0; k < L.pins.length && s.run.lock; k++) while (s.run.lock && s.run.lock.pins[k] !== L.key[k]) { D.lockTap(s, k); taps++; }
+  return taps;
+};
 
 test('five worlds with distinct biomes and distinct rules', () => {
   assert.equal(D.WORLDS.length, 5);
@@ -125,7 +132,7 @@ test('the miner clears every block of a layer before the layer below opens', () 
   const s = D.newState(3); s.upgrades.drill = 6; s.upgrades.speed = 4; D.startDig(s, 0);
   let checked = 0;
   for (let i = 0; i < 4000 && s.run.y < 5; i++) {
-    D.tap(s); D.step(s, 0.05);
+    D.tap(s); if (s.run.lock) D.lockSmash(s); D.step(s, 0.05);
     for (const e of breaks(s)) {
       for (let y = 1; y < e.y; y++) assert.equal(layerLeft(s.run.grid, y), 0, `layer ${y} was clear before a block in layer ${e.y} broke`);
       checked++;
@@ -566,6 +573,7 @@ function botPlay(s, w, stats) {
   while (!s.relics[w] && t < 3 * 3600) {
     if (s.mode === 'dig') {
       acc += 3 * dt; while (acc >= 1) { D.tap(s); acc--; }
+      if (s.run.lock) { solveLock(s); t += 5; } // about five seconds to pick a lock
       botSteer(s);
       if (s.run.bag.length >= D.bagCap(s)) { D.goHome(s); stats.fullBag++; }
       else if (t - lastHome > 150) D.goHome(s);
@@ -620,7 +628,7 @@ test('every world has treasure chests, and a chest can hold a missing fossil pie
   let fossils = 0, coins = 0;
   for (let k = 0; k < 40; k++) {
     const s = digAt(0, 3, 10, 3); s.rng = k * 977;
-    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 20);
+    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2); solveLock(s); run(s, 5);
     const got = s.run.bag.concat(s.carry).filter(b => b.kind === 'fossil' && b.chest).length; fossils += got; if (!got) coins++;
   }
   assert.ok(fossils > 5 && coins > 5, `${fossils} fossil chests, ${coins} coin chests`);
@@ -720,4 +728,61 @@ test('a new bone is carried on its own; while it is carried fossil blocks stay i
   D.setAuto(s, true); run(s, 10);
   assert.equal(at(s.run.grid, 2, 20, 3), T.FOSSIL, 'auto-mining leaves it too');
   assert.equal(s.run.y, 20, 'the layer is not finished while a fossil is left');
+});
+
+test('reaching a chest opens a lock instead of breaking it, and the dig waits for the player', () => {
+  const s = digAt(0, 3, 10, 3); D.setAuto(s, false); s.events = [];
+  D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
+  assert.ok(s.run.lock, 'a lock is open');
+  assert.equal(s.run.lock.i, D.idx(4, 10, 3));
+  assert.equal(at(s.run.grid, 4, 10, 3), T.CHEST, 'the chest is still shut');
+  assert.ok(s.events.some(e => e.type === 'lock'));
+  const before = JSON.stringify([s.run.x, s.run.z, s.run.oxygen]); run(s, 5);
+  assert.equal(JSON.stringify([s.run.x, s.run.z, s.run.oxygen]), before, 'nothing moves while the lock is open');
+  assert.equal(at(s.run.grid, 4, 10, 3), T.CHEST);
+});
+
+test('locks are always solvable left to right; they grow from 3 to 5 pins and pins link from world 3', () => {
+  for (let w = 0; w < 5; w++) for (let k = 0; k < 30; k++) {
+    const s = digAt(w, 3, 10, 3); s.rng = k * 131 + 7; D.setAuto(s, false);
+    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
+    const L = s.run.lock;
+    assert.equal(L.pins.length, [3, 3, 4, 4, 5][w]);
+    assert.equal(L.linked, w >= 2);
+    assert.notDeepEqual([...L.pins], [...L.key], 'it starts locked');
+    solveLock(s);
+    assert.equal(s.run.lock, null, `world ${w} lock ${k} solved`);
+    assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
+  }
+});
+
+test('picking a lock gives the contents and a bonus gem; smashing gives a few coins and no fossil', () => {
+  let picked = 0, smashed = 0, smashFossils = 0;
+  for (let k = 0; k < 30; k++) for (const pick of [true, false]) {
+    const s = digAt(0, 3, 10, 3); s.rng = k * 977; D.setAuto(s, false); s.events = [];
+    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
+    if (pick) solveLock(s); else D.lockSmash(s);
+    assert.equal(s.run.lock, null);
+    assert.ok(s.events.some(e => e.type === (pick ? 'unlocked' : 'smashed')));
+    run(s, 5);
+    const items = s.run.bag.concat(s.carry), coins = items.filter(b => b.kind === 'treasure').reduce((a, b) => a + b.value, 0);
+    if (pick) { picked += coins; assert.ok(items.some(b => b.kind === 'treasure' && b.gem), 'a bonus gem'); }
+    else { smashed += coins; smashFossils += items.filter(b => b.kind === 'fossil').length; }
+  }
+  assert.equal(smashFossils, 0, 'a smashed chest gives no fossil');
+  assert.ok(picked > smashed * 3, `picked ${picked} vs smashed ${smashed}`);
+});
+
+test('helpers leave chests for the miner', () => {
+  const s = digAt(0, 0, 20, 0); s.workers.diggers = 2; D.setAuto(s, false);
+  D._clearLayer(s, 20); D._setTile(s, 5, 20, 5, T.CHEST); D._setTile(s, 6, 20, 6, T.CHEST);
+  run(s, 30);
+  assert.equal(at(s.run.grid, 5, 20, 5), T.CHEST); assert.equal(at(s.run.grid, 6, 20, 6), T.CHEST);
+});
+
+test('going home closes an open lock and leaves the chest in the ground', () => {
+  const s = digAt(0, 3, 10, 3); D.setAuto(s, false);
+  D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
+  D.goHome(s);
+  assert.equal(s.run.lock, null); assert.equal(at(s.run.grid, 4, 10, 3), T.CHEST);
 });

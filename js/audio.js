@@ -51,6 +51,8 @@ var DTWAudio = (function () {
     up: function () { tone(200, 0.6, 'triangle', 0.12, 0, 4); },
     down: function () { tone(500, 0.5, 'triangle', 0.1, 0, 0.3); },
     step: function () { tone(220, 0.06, 'triangle', 0.06); },
+    click: function () { tone(1200, 0.04, 'square', 0.06); tone(700, 0.05, 'triangle', 0.05, AC.currentTime + 0.03); },
+    unlock: function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, 0.12, 'square', 0.08, AC.currentTime + i * 0.07); }); },
     no: function () { tone(160, 0.15, 'square', 0.1); }
   };
   function sfx(n) { if (AC && !muted && SFX[n]) SFX[n](); }

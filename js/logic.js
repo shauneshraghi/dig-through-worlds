@@ -81,6 +81,11 @@ var DTW = (function () {
   var BAND = [[1, 24], [26, 64], [62, 98]]; // depths where each creature's pieces are buried
   var CHEST_EVERY = 3;  // layers between treasure chests
   var CHEST_FOSSIL = 0.6; // chance a chest holds a missing fossil piece of the creature buried at that depth
+  // A chest is locked. The miner reaching one opens the lock puzzle (run.lock) and the dig waits: pins sit at one
+  // of LOCK_LEVELS heights and must match the key's teeth; a tap moves a pin up one (wrapping round), and from world 3
+  // on it bumps the pin to its right as well, so the lock is solved left to right. Picking it gives the contents and a
+  // bonus gem worth LOCK_GEM coins (times the world's ore value); smashing it gives SMASH_COINS and never a fossil.
+  var LOCK_LEVELS = 3, LOCK_PINS = [3, 3, 4, 4, 5], LOCK_GEM = 30, SMASH_COINS = 8;
   WORLDS.forEach(function (w) {
     w.fossils = [];
     w.creatures.forEach(function (c, ci) {
@@ -517,9 +522,47 @@ var DTW = (function () {
   }
   // auto-mining on (the miner finds blocks itself) or off (it only moves and digs when told)
   function setAuto(s, on) { s.auto = !!on; if (s.run) s.run.manual = 0; }
+  // ---------- chest locks ----------
+  function openLock(s, i) {
+    var r = s.run, w = s.world, n = LOCK_PINS[w], linked = w >= 2, key = [], pins = [];
+    for (var k = 0; k < n; k++) { key.push(Math.floor(rand(s) * LOCK_LEVELS)); pins.push(key[k]); }
+    // scramble from the key with backward taps, so the lock can always be picked
+    while (pins.join() === key.join()) for (var m = 0; m < n; m++) {
+      var back = Math.floor(rand(s) * LOCK_LEVELS);
+      for (var b = 0; b < back; b++) bumpPins(pins, m, linked, LOCK_LEVELS - 1);
+    }
+    r.lock = { i: i, key: key, pins: pins, linked: linked, taps: 0 };
+    r.target = -1; r.state = 'idle'; r.taps = 0; r.steer = 0; r.path = null;
+    emit(s, { type: 'lock', i: i });
+  }
+  function bumpPins(pins, k, linked, by) {
+    pins[k] = (pins[k] + by) % LOCK_LEVELS;
+    if (linked && k + 1 < pins.length) pins[k + 1] = (pins[k + 1] + by) % LOCK_LEVELS;
+  }
+  function lockTap(s, k) {
+    var L = s.mode === 'dig' && s.run.lock;
+    if (!L || k < 0 || k >= L.pins.length) return false;
+    bumpPins(L.pins, k, L.linked, 1); L.taps++;
+    emit(s, { type: 'pin', k: k });
+    if (L.pins.join() === L.key.join()) {
+      s.run.lock = null; breakTile(s, L.i);
+      var g = s.run.grid, it = { kind: 'treasure', world: s.world, value: Math.round(LOCK_GEM * WORLDS[s.world].oreMult), gem: true };
+      s.run.loot.push({ x: L.i % N + 0.5, y: FLOOR_Y + Math.floor(L.i / NN), z: Math.floor(L.i / N) % N + 0.5, layer: Math.floor(L.i / NN), rest: true, item: it, age: 0, delay: 0.8, vx: 0, vy: 0, vz: 0 });
+      emit(s, { type: 'unlocked', i: L.i, taps: L.taps });
+    }
+    return true;
+  }
+  function lockSmash(s) {
+    var L = s.mode === 'dig' && s.run.lock;
+    if (!L) return false;
+    s.run.lock = null; breakTile(s, L.i, null, true);
+    emit(s, { type: 'smashed', i: L.i });
+    return true;
+  }
   function goHome(s, reason) {
     if (s.mode !== 'dig') return;
     var r = s.run;
+    r.lock = null;
     r.loot.forEach(function (l) { r.bag.push(l.item); }); r.loot = [];
     s.mode = 'up'; r.elevT = Math.min(3, 1 + r.y * 0.02);
     emit(s, { type: 'ascend', reason: reason || 'button' });
@@ -549,7 +592,8 @@ var DTW = (function () {
     if (it.kind === 'relic') { r.relicTimer = 1.5; emit(s, { type: 'relic', world: it.world }); }
   }
   // a chest holds a fossil piece still missing from the creature buried at this depth, or coins
-  function chestLoot(s, w, y) {
+  function chestLoot(s, w, y, smashed) {
+    if (smashed) return { kind: 'treasure', world: w, value: Math.round(SMASH_COINS * WORLDS[w].oreMult) };
     var c = 0; while (c < CREATURES - 1 && y >= BAND[c + 1][0]) c++;
     var have = s.museum[w].pieces, inBag = {}, miss = [];
     s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })).forEach(function (b) { if (b.kind === 'fossil' && b.world === w) inBag[b.idx] = 1; });
@@ -557,12 +601,12 @@ var DTW = (function () {
     if (miss.length && !handsFull(s) && rand(s) < CHEST_FOSSIL) return { kind: 'fossil', world: w, idx: miss[Math.floor(rand(s) * miss.length)], chest: true };
     return { kind: 'treasure', world: w, value: Math.round(25 * WORLDS[w].oreMult) };
   }
-  function breakTile(s, i, helper) {
+  function breakTile(s, i, helper, smashed) {
     var r = s.run, g = r.grid, w = s.world, tt = g.t[i], vv = g.v[i], it = null;
     var bx = i % N, bz = Math.floor(i / N) % N, by = Math.floor(i / NN);
     if (tt === TILE.ORE) it = { kind: 'ore', world: w, idx: vv };
     else if (tt === TILE.FOSSIL) it = { kind: 'fossil', world: w, idx: vv };
-    else if (tt === TILE.CHEST) it = chestLoot(s, w, by);
+    else if (tt === TILE.CHEST) it = chestLoot(s, w, by, smashed);
     else if (tt === TILE.TRAP && helper) { helper.stun = 2; emit(s, { type: 'trap', helper: true }); }
     else if (tt === TILE.TRAP) { r.stun = 2; s.stats.trapsSprung++; emit(s, { type: 'trap' }); }
     else if (tt === TILE.RELIC) {
@@ -667,7 +711,7 @@ var DTW = (function () {
         var others = crewTargets(r), stand = {}, best = -1, bd = Infinity;
         r.crew.forEach(function (o) { if (o !== c && o.target >= 0) stand[o.x + ',' + o.z] = 1; });
         for (var i = y * NN; i < (y + 1) * NN; i++) {
-          if (!canDig(s, g, i) || others[i] || mine[i]) continue;
+          if (!canDig(s, g, i) || g.t[i] === TILE.CHEST || others[i] || mine[i]) continue; // chests are the miner's to open
           var bx = i % N, bz = Math.floor(i / N) % N, near = Math.max(Math.abs(bx - r.x), Math.abs(bz - r.z)) < 2;
           var d = Math.abs(bx - c.x) + Math.abs(bz - c.z) + (near ? 20 : 0) + (stand[bx + ',' + bz] ? 40 : 0);
           if (d < bd) { bd = d; best = i; }
@@ -685,6 +729,7 @@ var DTW = (function () {
   function stepDig(s, dt) {
     var r = s.run, g = r.grid, w = s.world, rule = WORLDS[w].rule;
     var hit = {}, layers = DEPTH + 2;
+    if (r.lock) { r.target = -1; r.state = 'idle'; r.taps = 0; return; } // the dig waits while a chest lock is open
     if (rule === 'oxygen' && r.y > 0) {
       r.oxygen -= dt;
       if (r.oxygen <= 0) { r.oxygen = 0; goHome(s, 'oxygen'); return; }
@@ -763,6 +808,7 @@ var DTW = (function () {
         else { r.state = 'idle'; r.taps = 0; }
       }
       if (moved) { r.state = 'walk'; r.taps = 0; }
+      if (tgt >= 0 && g.t[tgt] === TILE.CHEST) { r.face = faceTo(r.x, r.z, tgt % N, Math.floor(tgt / N) % N); openLock(s, tgt); return; }
       if (tgt >= 0) {
         r.walkAcc = 0; r.fallAcc = 0; r.state = 'dig';
         var wf = weightFactor(s, r.bag.length);
@@ -857,7 +903,7 @@ var DTW = (function () {
   }
 
   return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
-    genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
+    genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,

@@ -42,6 +42,24 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #toast { position:absolute; left:50%; top:12px; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; z-index:3; width:92%; }
 .toast { background:#000c; border:2px solid var(--gold); border-radius:12px; padding:10px 16px; font-size:22px; font-weight:500; text-align:center; animation:tin .25s ease-out; }
 @keyframes tin { from { transform:scale(.6); opacity:0; } }
+/* the chest lock: one column per pin, the key's tooth above the pin's button, both drawn as bars on the same scale */
+#lock { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:6px; width:min(92%,420px); padding:14px 16px 16px; background:var(--panel); border:3px solid var(--gold); border-radius:18px; box-shadow:0 8px 30px #000a; z-index:5; text-align:center; animation:tin .25s ease-out; }
+#lock.show { display:flex; }
+#lock h3 { margin:0; font-size:26px; }
+#lock p { margin:0; color:var(--muted); font-size:17px; }
+#lock .prize { color:var(--ink); }
+#lockBoard { display:flex; gap:10px; justify-content:center; align-items:stretch; margin:6px 0; }
+#lockBoard .col { display:flex; flex-direction:column; align-items:center; gap:6px; }
+#lockBoard .tooth, #lockBoard .pin { width:52px; height:78px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:10px; }
+#lockBoard .tooth { background:#0003; }
+#lockBoard .tooth i { display:block; background:linear-gradient(#fff3b0,var(--gold) 40%,#c98a10); border-radius:8px; }
+#lockBoard .pin { border:3px solid #8a7fa8; background:#1a1426; padding:0; cursor:pointer; touch-action:manipulation; }
+#lockBoard .pin i { display:block; background:linear-gradient(#ffffff,#c8c8d2 40%,#8d8d96); border-radius:6px; transition:height .12s; }
+#lockBoard .pin.ok { border-color:var(--good); }
+#lockBoard .pin.ok i { background:linear-gradient(#d8ffe0,var(--good) 40%,#2f9a4a); }
+#lockBoard .link { align-self:flex-end; margin:0 -8px 26px; color:var(--accent); font-size:20px; }
+#bSmash { margin-top:6px; font-size:19px; background:#4a3a5a; color:var(--ink); padding:10px 16px; }
+#bSmash small { color:var(--muted); font-size:14px; }
 #surface { position:absolute; inset:auto 0 0 0; max-height:62%; /* portrait: lifted above the controls, see --ctl */ display:none; flex-direction:column; background:var(--panel); border-radius:18px 18px 0 0; z-index:4; box-shadow:0 -6px 20px #0009; }
 #surface.show { display:flex; }
 #sTop { padding:10px 12px 4px; }
