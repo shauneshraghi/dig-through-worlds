@@ -32,7 +32,7 @@ var DTW = (function () {
       creatures: [{ name: 'Giant Sea Turtle', parts: ['Skull', 'Shell', 'Front Flippers', 'Back Flippers', 'Tail'] },
                   { name: 'Giant Shark', parts: ['Tooth', 'Jaw', 'Fin', 'Spine', 'Tail'] },
                   { name: 'Plesiosaur', parts: ['Skull', 'Neck', 'Ribs', 'Paddles', 'Tail'] }],
-      exhibit: { income: 2.5 },
+      exhibit: { income: 4 },
       relic: { name: 'Tide Pearl Crown', color: '#bff7ff' },
       pal: { sky: ['#1b6fa8', '#2fa6d6'], top: '#e9d39a', dirt: ['#cdb27a', '#a88e5c', '#7c6a48'], stone: '#5f7380',
              feature: '#bdf3ff', bed: '#14202e', hills: '#1e5d8a' },
@@ -44,7 +44,7 @@ var DTW = (function () {
       creatures: [{ name: 'Sabre-tooth Cat', parts: ['Skull', 'Fangs', 'Ribs', 'Legs', 'Tail'] },
                   { name: 'Mega Crocodile', parts: ['Skull', 'Jaw', 'Scales', 'Leg', 'Tail'] },
                   { name: 'Stegosaurus', parts: ['Skull', 'Plates', 'Ribs', 'Legs', 'Tail Spikes'] }],
-      exhibit: { income: 12.5 },
+      exhibit: { income: 32 },
       relic: { name: 'Golden Jaguar Idol', color: '#ffd23f' },
       pal: { sky: ['#5fbf6f', '#c9f2a0'], top: '#2e8f3e', dirt: ['#6b4a2b', '#5a5a3a', '#4a4030'], stone: '#8a8268',
              feature: '#b8a070', bed: '#20241a', hills: '#1f6e33' },
@@ -56,7 +56,7 @@ var DTW = (function () {
       creatures: [{ name: 'Lost Moon Rover', parts: ['Wheels', 'Antenna', 'Panel', 'Camera', 'Flag'] },
                   { name: 'Pterodactyl', parts: ['Skull', 'Crest', 'Wings', 'Body', 'Legs'] },
                   { name: 'Brachiosaurus', parts: ['Skull', 'Neck', 'Ribs', 'Legs', 'Tail'] }],
-      exhibit: { income: 62.5 },
+      exhibit: { income: 256 },
       relic: { name: 'Moonstone Core', color: '#e0e6ff' },
       pal: { sky: ['#05060f', '#1a1c33'], top: '#c8c8d0', dirt: ['#9c9ca8', '#80808e', '#666675'], stone: '#55556a',
              feature: '#2a2a3a', bed: '#12121c', hills: '#7a7a88' },
@@ -68,7 +68,7 @@ var DTW = (function () {
       creatures: [{ name: 'Glorpatops', parts: ['Skull', 'Horns', 'Frill', 'Legs', 'Tail'] },
                   { name: 'Sky Serpent', parts: ['Skull', 'Fang', 'Wing', 'Coil', 'Tail'] },
                   { name: 'Space Ankylosaur', parts: ['Skull', 'Armour', 'Ribs', 'Legs', 'Club Tail'] }],
-      exhibit: { income: 312.5 },
+      exhibit: { income: 2048 },
       relic: { name: 'Star Seed', color: '#ff9cf5' },
       pal: { sky: ['#3a0d5c', '#b04fa8'], top: '#7dff6a', dirt: ['#5a2e7a', '#472466', '#361a4f'], stone: '#2f5a5a',
              feature: '#5dff7a', bed: '#150a20', hills: '#6a2a8a' },
@@ -113,7 +113,7 @@ var DTW = (function () {
   });
 
   var UPGRADES = {
-    drill:  { name: 'Drill Power', base: 15, mult: 1.75, max: 30, text: 'Hits harder' },
+    drill:  { name: 'Drill Power', base: 15, mult: 1.6,  max: 30, text: 'Hits harder' },
     speed:  { name: 'Dig Speed',   base: 8,  mult: 1.7,  max: 20, text: 'Digs faster on its own' },
     bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy' },
     magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 3,  text: 'Pulls in finds from further away' }
@@ -766,6 +766,11 @@ var DTW = (function () {
     }
   }
   // the nearest loot in the miner's layer that it can walk to over open cells: the steps to its cell
+  // auto-mining's next block: the nearest one no helper is on, else the nearest of all
+  function autoPath(s, g, y, crewT) {
+    var r = s.run;
+    return findNearest(g, r.x, y, r.z, function (i) { return !crewT[i] && canDig(s, g, i); }) || findNearest(g, r.x, y, r.z, function (i) { return canDig(s, g, i); });
+  }
   function lootPath(s) {
     var r = s.run, g = r.grid, y = r.y, want = {}, any = false;
     r.loot.forEach(function (l) { if (l.layer === y && !lootWaits(s, l)) { want[Math.floor(l.z) * N + Math.floor(l.x)] = 1; any = true; } });
@@ -877,9 +882,15 @@ var DTW = (function () {
         if (fx >= 0 && fx < N && fz >= 0 && fz < N && canDig(s, g, idx(fx, y, fz))) { tgt = idx(fx, y, fz); steered = true; r.manual = Math.max(r.manual, MANUAL_HOLD); }
         else r.manual = 0;
       }
-      // loot on the floor comes first: auto-mining walks to it before the next block, and a cleared layer is swept
-      if (tgt < 0 && !moved && r.stun <= 0 && (!layerHasBlocks(g, y) || (auto && r.manual <= 0))) {
+      // loot on the floor: auto-mining goes for whichever is nearer, the loot or the next block (a tie goes to the
+      // loot), and a cleared layer is swept
+      var hasBlocks = layerHasBlocks(g, y);
+      if (tgt < 0 && !moved && r.stun <= 0 && (!hasBlocks || (auto && r.manual <= 0))) {
         var lsteps = lootPath(s);
+        if (lsteps && hasBlocks) {
+          if (!r.path || !canDig(s, g, r.path.target)) r.path = autoPath(s, g, y, crewT);
+          if (r.path && r.path.steps.length < lsteps.length) lsteps = null; // the block is nearer: dig it first
+        }
         if (lsteps) {
           r.path = null; r.state = lsteps.length ? 'walk' : 'idle'; r.taps = 0; r.fallAcc = 0; moved = true; // no steps: the find is under the miner's feet, still settling
           r.walkAcc += dt * WALK * (auto ? AUTO_PACE : 1);
@@ -902,7 +913,7 @@ var DTW = (function () {
         // auto-walk: follow the shortest path over open cells to the nearest block no helper is on, then dig it
         r.fallAcc = 0;
         if (!r.path || !canDig(s, g, r.path.target)) {
-          r.path = findNearest(g, r.x, y, r.z, function (i) { return !crewT[i] && canDig(s, g, i); }) || findNearest(g, r.x, y, r.z, function (i) { return canDig(s, g, i); });
+          r.path = autoPath(s, g, y, crewT);
           if (!r.path) boneHint(s); // only fossils left in this layer: the bone in hand must go to the museum first
         }
         if (r.path && r.path.steps.length) {

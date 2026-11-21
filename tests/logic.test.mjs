@@ -353,7 +353,15 @@ test('a better magnet pulls loot in from further away', () => {
   assert.equal(s.run.bag.length, 1); assert.equal(s.run.x, 3, 'without the miner moving');
 });
 
-test('auto-mining collects the loot before it goes for the next block', () => {
+test('auto-mining digs a block that is nearer than the loot first', () => {
+  const s = oreSetup(); digEast(s);
+  D._teleport(s, 1, 10, 3); D._setTile(s, 1, 10, 4, T.DIRT); D.setAuto(s, true); // loot three cells east, a block right beside
+  for (let i = 0; i < 400 && at(s.run.grid, 1, 10, 4) === T.DIRT; i++) D.step(s, 0.05);
+  assert.equal(at(s.run.grid, 1, 10, 4), T.AIR, 'the near block was dug');
+  assert.equal(s.run.loot.length, 1, 'before the loot was fetched');
+});
+
+test('auto-mining collects loot nearer than the next block first', () => {
   const s = oreSetup(); D.setAuto(s, true);
   for (let i = 0; i < 4000 && s.run.bag.length === 0; i++) D.step(s, 0.05);
   assert.equal(s.run.bag.length, 1, 'ore collected');
