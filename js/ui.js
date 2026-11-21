@@ -312,6 +312,11 @@
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) {
     cv.addEventListener(ev, function (e) { if (down && down.id === e.pointerId) stickRelease(); });
   });
+  // iOS Safari: a long press would start a text selection or the callout menu and cancel the pointer,
+  // so the joystick never got its hold. Pointer events still fire with the touch defaults blocked.
+  ['touchstart', 'touchmove'].forEach(function (ev) { cv.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
+  cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  document.addEventListener('selectstart', function (e) { e.preventDefault(); });
   // auto-mining on or off
   function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };
