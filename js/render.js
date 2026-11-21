@@ -17,7 +17,7 @@ var DTWRender = (function () {
   var time = 0, shakeT = 0, parts = [], floaters = [];
   // smoothed camera and miner display state
   var cam = { fx: 3.5, fy: 1, fz: 3.5, zoom: 0.62, anchor: 0.17, init: false };
-  var disp = { x: 3, y: 0, z: 3, face: 'e', phase: 0, boost: 0, world: -1 };
+  var disp = { x: 3, y: 0, z: 3, face: 'e', phase: 0, boost: 0, world: -1, spd: 0, walk: 0, air: 0, land: 0, hit: 0, blink: 2 };
 
   // ---------- helpers ----------
   function shade(hex, amt) {
@@ -186,17 +186,25 @@ var DTWRender = (function () {
     if (tier === 4 && Math.sin(time * 8) > 0.6) mp(Math.round(ex), Math.round(ey) - 2, '#ffffff');
   }
   // Draw the miner facing screen-right; back = facing away from the camera. Mirrored for left.
-  function minerSprite(back, ang, tier, bob, lampOn, climb) {
+  // pose: { bob (whole body, px), body (upper body drop, px), lean (upper body forward, px),
+  //         stride (-1..1 walk cycle), air (0..1 arms up, legs apart), blink }
+  function minerSprite(back, ang, tier, pose, lampOn, climb) {
     if (!mcv) { mcv = document.createElement('canvas'); mcv.width = MW; mcv.height = MH; mctx = mcv.getContext('2d'); }
     mctx.clearRect(0, 0, MW, MH);
-    var X = FX - 8, Y = FY - 27 + bob; // body box origin
+    var X0 = FX - 8, Y0 = FY - 27 + pose.bob; // body box origin
     var skin = '#f2c59b', hat = '#ffc61a', hatD = '#d99a00', blue = '#3d7bd9', blueD = '#2a5aa8', red = '#e05a3a', boot = '#5a3a24', hair = '#6b3f1d';
     var behind = back; // pick arm is drawn behind the body when facing away
-    if (climb != null) return climber(X, Y, climb, tier);
+    if (climb != null) return climber(X0, Y0, climb, tier);
+    // legs: the stride swings them apart and lifts the one moving forward; in the air they spread
+    var st = pose.stride, sw = Math.round(st * 2), lift = Math.round(Math.abs(st) * 1.5), ap = Math.round(pose.air * 1.5);
+    var l1x = X0 + 3 + sw - ap, l1y = st > 0 ? -lift : 0, l2x = X0 + 9 - sw + ap, l2y = st < 0 ? -lift : 0;
+    var X = X0 + Math.round(pose.lean), Y = Y0 + Math.round(pose.body); // upper body
     if (behind) drawPick(X + 9, Y + 15, ang, tier);
-    // boots and legs
-    mp(X + 3, Y + 24, boot, 4, 3); mp(X + 9, Y + 24, boot, 4, 3);
-    mp(X + 3, Y + 19, blue, 4, 5); mp(X + 9, Y + 19, blue, 4, 5); mp(X + 7, Y + 19, blueD, 2, 3);
+    mp(l1x, Y0 + 24 + l1y, boot, 4, 3); mp(l2x, Y0 + 24 + l2y, boot, 4, 3);
+    mp(l1x, Y + 19, blue, 4, Y0 - Y + 5 + l1y); mp(l2x, Y + 19, blue, 4, Y0 - Y + 5 + l2y); mp(X + 7, Y + 19, blueD, 2, 3);
+    if (pose.air > 0.3) { // arms flung up while falling
+      mp(X + 0, Y + 6, red, 2, 8); mp(X + 14, Y + 6, red, 2, 8); mp(X + 0, Y + 4, skin, 2, 2); mp(X + 14, Y + 4, skin, 2, 2);
+    }
     // torso: red shirt, blue bib with straps
     mp(X + 2, Y + 13, red, 12, 7); mp(X + 4, Y + 15, blue, 8, 5); mp(X + 4, Y + 13, blueD, 1, 2); mp(X + 11, Y + 13, blueD, 1, 2);
     if (!back) { mp(X + 7, Y + 16, '#ffd23f', 2, 1); } // bib button
@@ -206,7 +214,8 @@ var DTWRender = (function () {
     if (back) { mp(X + 2, Y + 6, hair, 12, 6); mp(X + 3, Y + 12, hair, 10, 1); }
     else {
       mp(X + 2, Y + 6, hair, 3, 5); // hair at the back of the head
-      mp(X + 10, Y + 8, '#2a1a10', 2, 2); mp(X + 10, Y + 8, '#ffffff'); // eye
+      if (pose.blink) mp(X + 10, Y + 9, '#2a1a10', 2, 1); // eye, shut
+      else { mp(X + 10, Y + 8, '#2a1a10', 2, 2); mp(X + 10, Y + 8, '#ffffff'); } // eye
       mp(X + 12, Y + 10, '#f29b8b', 2, 1); // cheek
       mp(X + 9, Y + 11, '#a0523d', 3, 1); // smile
       mp(X + 13, Y + 8, '#e8b088', 1, 2); // nose
@@ -217,6 +226,7 @@ var DTWRender = (function () {
     if (!back) { mp(X + 13, Y + 2, '#555', 2, 3); mp(X + 14, Y + 2, lampOn ? '#fff6b0' : '#cfc58a', 2, 2); }
     else mp(X + 1, Y + 3, '#333', 14, 1); // lamp strap
     if (!behind) drawPick(X + 8, Y + 15, ang, tier);
+    if (pose.air > 0.3) { mp(X + 0, Y + 6, red, 2, 8); mp(X + 0, Y + 4, skin, 2, 2); } // near arm over the pick
     return mcv;
   }
   // seen from behind, hands on the rungs; the pick hangs on the back. step alternates 0 / 1.
@@ -248,16 +258,31 @@ var DTWRender = (function () {
     var climbing = S.mode === 'up' || S.mode === 'down';
     var fc = FACE[disp.face] || FACE.e;
     var ang = swingAngle(disp.phase, digging, side);
-    var bob = S.mode === 'surface' ? (Math.sin(time * 3) > 0.7 ? -1 : 0) : 0;
-    var spr = minerSprite(climbing ? true : fc.back, ang, pickTier(S.upgrades.drill), bob, S.mode !== 'surface',
+    var walking = disp.spd > 0.6 && disp.air < 0.5 && !climbing;
+    var stride = walking ? Math.sin(disp.walk * Math.PI) * Math.min(1, disp.spd / 2) : 0;
+    var f = disp.phase % 1, pose = {
+      // walking bounces on each step; standing breathes
+      bob: walking ? -Math.round(Math.abs(stride) * 1.4) : 0,
+      body: walking || disp.air > 0.3 ? 0 : (Math.sin(time * 2.4) > 0.55 ? 1 : 0),
+      // lean back while raising the pick, forward into the strike
+      lean: digging && !side ? (f < 0.55 ? -1 : f < 0.85 ? 1 : 0) : (walking ? 1 : 0),
+      stride: stride, air: disp.air, blink: disp.blink < 0
+    };
+    if (digging && f >= 0.72 && f < 0.85) pose.body = 1; // knees give on the impact
+    var spr = minerSprite(climbing ? true : fc.back, ang, pickTier(S.upgrades.drill), pose, S.mode !== 'surface',
       climbing ? (Math.floor(disp.y * 3) & 1) : null);
     if (climbing) fc = FACE.w;
     var p = Math.max(1, Math.round(TW / 30));
+    // squash and stretch about the feet: squash on landing and on each strike, stretch while falling
+    var sq = disp.land * 0.22 + disp.hit * 0.06 - disp.air * 0.08;
+    var scy = 1 - sq, scx = 1 + sq * 0.7;
     ctx.save(); ctx.imageSmoothingEnabled = false;
     ctx.translate(Math.round(sx), Math.round(sy));
-    // shadow on the floor
-    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.45, hh * 0.45, 0, 0, 7); ctx.fill();
-    if (fc.flip) ctx.scale(-1, 1);
+    // shadow on the floor, smaller while in the air
+    var sh = 1 - disp.air * 0.35;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.45 * sh, hh * 0.45 * sh, 0, 0, 7); ctx.fill();
+    if (r && r.stun > 0) ctx.rotate(Math.sin(time * 14) * 0.1); // dazed wobble
+    ctx.scale(fc.flip ? -scx : scx, scy);
     ctx.drawImage(spr, -FX * p, -FY * p, MW * p, MH * p);
     ctx.restore();
     if (r && r.stun > 0) {
@@ -431,10 +456,25 @@ var DTWRender = (function () {
       var tx = r.target % N - r.x, tz = Math.floor(r.target / N) % N - r.z; // face the block being dug
       disp.face = tx > 0 ? 'e' : tx < 0 ? 'w' : tz > 0 ? 's' : 'n';
     }
-    disp.x += mx * Math.min(1, dt * 12); disp.z += mz * Math.min(1, dt * 12);
-    // pickaxe swing speed follows the dig rate, and taps kick it faster
+    var k = Math.min(1, dt * 12), moved = Math.hypot(mx, mz) * k;
+    disp.x += mx * k; disp.z += mz * k;
+    // walk cycle: two steps per cell, easing out when the miner stops
+    var spd = dt > 0 ? moved / dt : 0;
+    disp.spd += (spd - disp.spd) * Math.min(1, dt * 10);
+    disp.walk += moved * 2;
+    // falling, and a squash on landing
+    var air = S.mode !== 'up' && S.mode !== 'down' && (tg[1] - disp.y > 0.25 || (r && r.state === 'fall'));
+    if (disp.air > 0.5 && !air) disp.land = 1;
+    disp.air += ((air ? 1 : 0) - disp.air) * Math.min(1, dt * 14);
+    disp.land = Math.max(0, disp.land - dt * 5);
+    disp.blink -= dt; if (disp.blink < -0.12) disp.blink = 2 + Math.random() * 3;
+    // pickaxe swing speed follows the dig rate, and taps kick it faster; a strike jolts the body
     disp.boost = Math.max(0, disp.boost - dt * 3);
+    var f0 = disp.phase % 1;
     disp.phase += dt * Math.min(3.2, 0.9 + 0.22 * D.hitRate(S)) * (1 + disp.boost * 2.5);
+    var f1 = disp.phase % 1;
+    if (S.mode === 'dig' && r && r.state === 'dig' && r.stun <= 0 && (f0 < 0.72 && (f1 >= 0.72 || f1 < f0))) disp.hit = 1;
+    disp.hit = Math.max(0, disp.hit - dt * 6);
     // camera: follows the miner down; horizontally it follows halfway so the whole pit stays on screen
     var surf = S.mode === 'surface';
     var fx = 3.5 + (disp.x + 0.5 - 3.5) * 0.5, fz = 3.5 + (disp.z + 0.5 - 3.5) * 0.5, fy = disp.y + 1;
@@ -489,13 +529,17 @@ var DTWRender = (function () {
     var lo = -RIM, hi = N + RIM;
     // the ladder reaches from above the rim down to the floor of the layer being worked
     var ladderBot = r && S.mode === 'dig' ? r.y : Math.max(g.deepest, Math.ceil(disp.y));
-    for (var y = yBot; y >= 1; y--) {
+    // Draw order: deeper layers, the back half of the miner's layer, the layers above it (only the back
+    // rim walls, ladder, torches and rim scenery are left there, all behind the miner), then the miner,
+    // then the front half of its layer. The sprite stands about two layers tall, so drawing it before
+    // the layers above would let the rim walls cover its head.
+    var sMid = mcx + mcz, sEnd = 2 * (hi - 1);
+    function layer(y, s0, s1, last) {
       // a layer whose front-most cube is still above the top of the screen draws nothing
-      if (y !== minerLayer && y !== 1 && oy + 2 * (hi - 1) * hh + y * bh + TW < 0) continue;
+      if (y !== minerLayer && y !== 1 && oy + 2 * (hi - 1) * hh + y * bh + TW < 0) return;
       var dark = y > viewTop ? Math.min(0.8, (y - viewTop) * 0.065) : 0;
       // walk diagonals back to front: s = x + z
-      for (var s = 2 * lo; s <= 2 * (hi - 1); s++) {
-        if (y === minerLayer && s > mcx + mcz) drawMinerNow();
+      for (var s = s0; s <= s1; s++) {
         if (s === LADDER_Z && y <= ladderBot) ladder(y);
         if (s === 5 && y % 6 === 3) torch(0.03, y, 5.5, 'x', y >= viewTop && D.passable(g.t[D.idx(0, y, 5)]) || y < viewTop);
         if (s === 2 && y % 6 === 0 && y > 0) torch(2.5, y, 0.03, 'z', y >= viewTop && D.passable(g.t[D.idx(2, y, 0)]) || y < viewTop);
@@ -527,8 +571,7 @@ var DTWRender = (function () {
           if (pit) decorate(x, y, z, tt, i, q, w, S, g, i === tgt);
         }
       }
-      if (y === minerLayer) drawMinerNow();
-      if (y === 1) { // things standing on the surface: scenery and (at the surface) the miner
+      if (last && y === 1) { // things standing on the surface: scenery and (at the surface) the miner
         var items = [];
         if (P(lo, 0, lo)[1] < vh && P(hi, 1, hi)[1] > -TW * 3) scenery(w, items, surfaceView);
         if (viewTop === 0 && !minerDrawn) items.push({ k: disp.x + disp.z + 1, fn: drawMinerNow });
@@ -536,6 +579,9 @@ var DTWRender = (function () {
         if (surfaceView) shafts(id);
       }
     }
+    var split = minerLayer >= 1 && minerLayer <= yBot;
+    for (var y = yBot; y >= 1; y--) layer(y, 2 * lo, split && y === minerLayer ? sMid : sEnd, !(split && y === minerLayer));
+    if (split) { drawMinerNow(); layer(minerLayer, sMid + 1, sEnd, true); }
     drawMinerNow();
     // moon loot, particles and floating text on top
     if (r && r.loot) r.loot.forEach(function (l) { var q = P(l.x, l.y, l.z); drawItem(ctx, l.item, q[0], q[1], TW * 0.28); });
