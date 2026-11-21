@@ -1,0 +1,76 @@
+:root { --bg:#14101c; --panel:#241c33; --panel2:#30264a; --ink:#fff7e8; --muted:#b9a9d6; --gold:#ffd23f; --good:#58e07a; --bad:#ff6b6b; --accent:#ff9f1c; }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font-family:'Fredoka','Trebuchet MS',system-ui,sans-serif; overflow:hidden; touch-action:manipulation; user-select:none; }
+#app { position:relative; max-width:520px; height:100%; margin:0 auto; display:flex; flex-direction:column; background:#000; }
+#hud { display:flex; gap:6px; padding:6px 8px; background:var(--panel); align-items:center; font-size:15px; flex-wrap:wrap; z-index:2; }
+.chip { background:var(--panel2); border-radius:10px; padding:3px 8px; white-space:nowrap; }
+.chip.coins { color:var(--gold); font-weight:700; }
+.chip.heavy { background:#7a3b10; color:#ffd9a8; animation:pulse 1s infinite; }
+@keyframes pulse { 50% { filter:brightness(1.4); } }
+#o2 { flex:1; min-width:80px; height:14px; background:#0b2a40; border-radius:7px; overflow:hidden; display:none; border:1px solid #3fc8ff; }
+#o2 > div { height:100%; background:linear-gradient(90deg,#3fc8ff,#bff7ff); width:100%; transition:width .2s; }
+#mute { margin-left:auto; background:none; border:none; color:var(--ink); font-size:20px; cursor:pointer; padding:0 4px; }
+#stage { position:relative; flex:1; min-height:0; }
+canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touch-action:none; }
+#ov { position:absolute; inset:0; pointer-events:none; z-index:1; }
+#controls { display:flex; gap:8px; padding:8px; background:var(--panel); z-index:2; }
+#controls button, .btn { font:inherit; border:none; border-radius:14px; cursor:pointer; color:var(--ink); background:var(--panel2); box-shadow:0 4px 0 #0008; }
+#controls button:active, .btn:active { transform:translateY(3px); box-shadow:0 1px 0 #0008; }
+#controls #bHome { flex:1; background:#2f6f4a; font-size:20px; }
+#dpad { flex:1.3; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+#dpad button { font-size:24px; padding:6px 0; line-height:1.1; }
+#toast { position:absolute; left:50%; top:12px; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; z-index:3; width:92%; }
+.toast { background:#000c; border:2px solid var(--gold); border-radius:12px; padding:6px 12px; font-size:15px; text-align:center; animation:tin .25s ease-out; }
+@keyframes tin { from { transform:scale(.6); opacity:0; } }
+#surface { position:absolute; inset:auto 0 0 0; height:68%; display:none; flex-direction:column; background:var(--panel); border-radius:18px 18px 0 0; z-index:4; box-shadow:0 -6px 20px #0009; }
+#surface.show { display:flex; }
+#sTop { padding:10px 12px 4px; }
+#sTop h2 { margin:0; font-size:20px; }
+#sTop p { margin:2px 0 8px; color:var(--muted); font-size:14px; }
+#bDig { width:100%; font-size:24px; font-weight:700; padding:12px; background:linear-gradient(#ffb547,#ff8a1c); color:#3a1d00; }
+#tabs { display:flex; gap:4px; padding:8px 12px 0; }
+#tabs button { flex:1; font:inherit; font-size:14px; padding:7px 2px; border:none; border-radius:10px 10px 0 0; background:var(--panel2); color:var(--muted); cursor:pointer; }
+#tabs button.on { background:#3d3160; color:var(--ink); }
+#tabBody { overflow-y:auto; padding:10px 12px 14px; background:#3d3160; margin:0 12px 12px; border-radius:0 0 12px 12px; min-height:120px; }
+.row { display:flex; align-items:center; gap:10px; padding:8px; background:#2a2145; border-radius:12px; margin-bottom:8px; }
+.row .ic { width:40px; height:40px; flex:none; image-rendering:pixelated; }
+.row .txt { flex:1; min-width:0; }
+.row .txt b { display:block; font-size:16px; }
+.row .txt small { color:var(--muted); font-size:13px; }
+.row .btn { padding:8px 10px; font-size:15px; background:#2f6f4a; min-width:84px; }
+.row .btn:disabled { background:#4a4458; color:#999; cursor:default; }
+.wing { padding:8px; background:#2a2145; border-radius:12px; margin-bottom:8px; }
+.wing.locked { opacity:.45; }
+.pieces { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+.piece { font-size:12px; padding:3px 7px; border-radius:8px; background:#1a1430; color:#777; }
+.piece.have { background:#5a4a20; color:#ffe9a8; }
+.world { display:flex; align-items:center; gap:10px; padding:10px; border-radius:12px; margin-bottom:8px; cursor:pointer; border:3px solid transparent; }
+.world.cur { border-color:var(--gold); }
+.world.locked { filter:grayscale(1) brightness(.5); cursor:default; }
+.world .txt b { display:block; }
+.world .txt small { color:var(--muted); font-size:13px; }
+.world .sw { width:46px; height:46px; border-radius:10px; flex:none; }
+#splash { position:absolute; inset:0; z-index:9; display:flex; flex-direction:column; align-items:center; justify-content:center; background:radial-gradient(#3a2a5ccc,#000e); text-align:center; padding:20px; cursor:pointer; }
+#splash h1 { font-size:40px; margin:0 0 6px; color:var(--gold); text-shadow:0 4px 0 #7a3b10; }
+#splash p { color:var(--muted); font-size:17px; margin:4px; }
+#splash .go { margin-top:18px; font-size:22px; padding:12px 28px; background:linear-gradient(#ffb547,#ff8a1c); color:#3a1d00; font-weight:700; border-radius:16px; }
+.small { font-size:12px; color:var(--muted); }
+
+/* ---------- wide screens: the pit fills the window; HUD, controls and the surface menu float over it ---------- */
+@media (min-aspect-ratio: 1/1) and (min-width: 700px) {
+  #app { max-width:none; }
+  #hud { position:absolute; top:0; left:0; right:0; z-index:5; background:linear-gradient(#0a0612d0,#0a061200); padding:10px 14px 18px; font-size:17px; pointer-events:none; }
+  #hud > * { pointer-events:auto; }
+  .chip { background:#1a1328c8; border:1px solid #ffffff1f; backdrop-filter:blur(4px); padding:4px 11px; }
+  #o2 { flex:0 1 260px; }
+  #controls { position:absolute; left:0; right:0; bottom:0; z-index:3; background:none; padding:16px 18px; justify-content:space-between; align-items:flex-end; pointer-events:none; }
+  #controls > * { pointer-events:auto; }
+  #controls #bHome { flex:none; width:170px; height:70px; }
+  #dpad { flex:none; width:210px; }
+  #dpad button { padding:10px 0; background:#30264ad8; }
+  #surface { inset:0 0 0 auto; top:0; width:min(440px,40%); height:100%; border-radius:20px 0 0 20px; padding-top:52px; box-shadow:-8px 0 28px #000a; }
+  #toast { top:62px; width:min(640px,80%); }
+  #app.panel #toast { left:calc((100% - min(440px,40%)) / 2); width:min(560px,50%); }
+  #splash h1 { font-size:64px; }
+  #splash p { font-size:21px; }
+}

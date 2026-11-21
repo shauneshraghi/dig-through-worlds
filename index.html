@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Dig Through Worlds</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <span class="chip coins" id="hCoins">0</span>
+    <span class="chip" id="hDepth">0 m</span>
+    <span class="chip" id="hBag">Bag 0/10</span>
+    <span class="chip" id="hInc" title="Museum visitors">🏛 +0/s</span>
+    <div id="o2" title="Oxygen"><div></div></div>
+    <button id="mute" title="Sound on/off">🔊</button>
+  </div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <canvas id="ov" aria-hidden="true"></canvas>
+    <div id="toast"></div>
+    <div id="surface">
+      <div id="sTop"><h2 id="sTitle"></h2><p id="sRule"></p><button class="btn" id="bDig">⛏ Dig!</button></div>
+      <div id="tabs">
+        <button data-tab="up" class="on">Upgrades</button><button data-tab="mu">Museum</button>
+        <button data-tab="he">Helpers</button><button data-tab="wo">Worlds</button>
+      </div>
+      <div id="tabBody"></div>
+    </div>
+    <div id="splash">
+      <h1>Dig Through Worlds</h1>
+      <p>Dig down through five worlds, collect treasure,</p>
+      <p>fill your museum and find each world's relic!</p>
+      <div class="go">Tap to play</div>
+      <p class="small" style="margin-top:16px">↖ ↗ ↙ ↘ buttons, arrow keys, WASD or swipes to steer · tap or Space to dig faster · H to go home</p>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="bHome">⬆ Home</button>
+    <div id="dpad">
+      <button data-dir="w" id="bW" aria-label="Steer west (up-left)">↖</button>
+      <button data-dir="n" id="bN" aria-label="Steer north (up-right)">↗</button>
+      <button data-dir="s" id="bS" aria-label="Steer south (down-left)">↙</button>
+      <button data-dir="e" id="bE" aria-label="Steer east (down-right)">↘</button>
+    </div>
+  </div>
+</div>
+<script src="js/logic.js"></script>
+<script src="js/post.js"></script>
+<script src="js/render.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
