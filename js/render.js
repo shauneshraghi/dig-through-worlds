@@ -179,28 +179,48 @@ var DTWRender = (function () {
     return strike;                                                                 // follow through
   }
   // ---------- helper diggers (visual only: their work is the extra hit rate in the logic) ----------
-  // Each one works an open cell of the miner's layer next to a block, nearest the miner first; with too
-  // few open cells they share, standing at different corners. Positions ease toward their spots.
-  var crewPos = [], crewT = 0, CREW_OFF = [[0, 0], [-0.25, 0.22], [0.22, -0.25], [0.25, 0.25], [-0.25, -0.22]];
+  // Each one works a cell of the miner's layer at least two cells from the miner, off the miner's path, so
+  // the sprites never overlap it: an open cell next to a block, or else standing on top of a block still
+  // to be dug. Helpers keep their cell while it stays free, spread out where they can, and ease between cells.
+  var crewPos = [], crewT = 0;
   function helperSpots(S, g, r) {
-    var n = Math.min(S.workers.diggers, 5), y = r.y, mx = Math.round(disp.x), mz = Math.round(disp.z), cells = [];
+    var n = Math.min(S.workers.diggers, 5), y = r.y, mx = Math.round(disp.x), mz = Math.round(disp.z), cells = {}, list = [];
     if (!n) return [];
+    var busy = {}; busy[r.x + ',' + r.z] = 1; // where the miner is, is digging, and is about to walk
+    if (r.target >= 0) busy[(r.target % N) + ',' + (Math.floor(r.target / N) % N)] = 1;
+    if (r.path && r.path.steps) r.path.steps.forEach(function (c) { busy[c[0] + ',' + c[1]] = 1; });
+    function far(x, z, ax, az, gap) { return Math.max(Math.abs(x - ax), Math.abs(z - az)) >= gap; }
     for (var z = 0; z < N; z++) for (var x = 0; x < N; x++) {
-      if (!D.passable(g.t[D.idx(x, y, z)]) || (x === mx && z === mz)) continue;
-      var face = null;
-      ['e', 's', 'w', 'n'].some(function (k) { var d = D.DIRS[k], ax = x + d[0], az = z + d[1]; if (ax < 0 || az < 0 || ax >= N || az >= N) return false; var t = g.t[D.idx(ax, y, az)]; if (!D.passable(t) && t !== T.BEDROCK) { face = k; return true; } return false; });
-      cells.push({ x: x, z: z, face: face, d: (x - mx) * (x - mx) + (z - mz) * (z - mz) + (face ? 0 : 100) });
+      if (busy[x + ',' + z] || !far(x, z, mx, mz, 2) || !far(x, z, r.x, r.z, 2)) continue;
+      var t = g.t[D.idx(x, y, z)], open = D.passable(t), face = null;
+      if (!open && t === T.BEDROCK) continue;
+      ['e', 's', 'w', 'n'].some(function (k) { var d = D.DIRS[k], ax = x + d[0], az = z + d[1]; if (ax < 0 || az < 0 || ax >= N || az >= N) return false; var tt = g.t[D.idx(ax, y, az)]; if (!D.passable(tt) && tt !== T.BEDROCK) { face = k; return true; } return false; });
+      // an open cell with nothing beside it to dig is a last resort, where the helper waits
+      var c = { x: x, z: z, y: open ? y : y - 1, face: face || 'e', idle: open && !face, d: (x - mx) * (x - mx) + (z - mz) * (z - mz) + (open ? (face ? 0 : 100) : 30) };
+      cells[x + ',' + z] = c; list.push(c);
     }
-    cells.sort(function (a, b) { return a.d - b.d; });
-    if (!cells.length) cells.push({ x: mx, z: mz, face: disp.face, share: 1 });
+    list.sort(function (a, b) { return a.d - b.d; });
+    // keep each helper's cell while it is still free, then hand out the nearest cells, spread apart first
+    var pick = [], taken = {};
+    function clash(c, gap) { return pick.some(function (o) { return o && !far(c.x, c.z, o.x, o.z, gap); }); }
+    for (var k = 0; k < n; k++) { var p = crewPos[k], keep = p && p.layer === y && p.cell && cells[p.cell]; pick[k] = keep && !clash(keep, 1) ? keep : null; if (pick[k]) taken[p.cell] = 1; }
+    [2, 1].forEach(function (gap) {
+      for (var k = 0; k < n; k++) if (!pick[k]) for (var i = 0; i < list.length; i++) {
+        var c = list[i]; if (taken[c.x + ',' + c.z] || clash(c, gap)) continue;
+        pick[k] = c; taken[c.x + ',' + c.z] = 1; break;
+      }
+    });
     var out = [], dt = Math.min(0.1, Math.max(0, time - crewT)); crewT = time;
     for (var k = 0; k < n; k++) {
-      var c = cells[k % cells.length], o = CREW_OFF[(Math.floor(k / cells.length) + (c.share ? 1 : 0)) % CREW_OFF.length];
-      var tx = c.x + 0.5 + o[0], tz = c.z + 0.5 + o[1], p = crewPos[k];
-      if (!p || p.y !== y) p = crewPos[k] = { x: tx, z: tz, y: y };
+      var c = pick[k];
+      if (!c) continue; // no free cell at all (a nearly walled-in layer): this one sits out
+      var tx = c.x + 0.5, tz = c.z + 0.5, p = crewPos[k];
+      if (!p || p.layer !== y) p = crewPos[k] = { x: tx, z: tz, y: c.y, layer: y };
+      p.cell = c.x + ',' + c.z;
       var ex = tx - p.x, ez = tz - p.z, l = Math.sqrt(ex * ex + ez * ez), st = D.WALK * dt;
       if (l <= st) { p.x = tx; p.z = tz; } else { p.x += ex / l * st; p.z += ez / l * st; }
-      out.push({ k: k, x: p.x, z: p.z, y: y, face: c.face || 'e', dig: !!c.face && l <= st, walking: l > st });
+      p.y += Math.max(-st, Math.min(st, c.y - p.y));
+      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: !c.idle && l <= st, walking: l > st });
     }
     return out;
   }
@@ -235,7 +255,9 @@ var DTWRender = (function () {
       stride: stride, air: disp.air, blink: disp.blink < 0
     };
     if (digging && f >= 0.72 && f < 0.85) pose.body = 1; // knees give on the impact
-    var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: digging ? ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose,
+    // a big rucksack on the miner's back says the bag is full and it is time to go home
+    var full = !!(r && S.mode !== 'surface' && r.bag.length + r.loot.length >= D.bagCap(S));
+    var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: digging ? ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
       lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
@@ -793,7 +815,7 @@ var DTWRender = (function () {
     else drawCrew(-Infinity, Infinity);
     drawMinerNow();
     // moon loot, particles and floating text on top
-    if (r && r.loot) r.loot.forEach(function (l) { var q = P(l.x, l.y, l.z); drawItem(ctx, l.item, q[0], q[1], TW * 0.28); });
+    if (r && r.loot) r.loot.forEach(function (l) { var q = P(l.x, l.y, l.z), sz = TW * 0.34; ctx.imageSmoothingEnabled = false; ctx.drawImage(itemIcon(l.item), Math.round(q[0] - sz / 2), Math.round(q[1] - sz / 2), sz, sz); });
     for (var k = 0; k < parts.length; k++) { var p = parts[k], pq = P(p.x, p.y, p.z); ctx.fillStyle = p.c; ctx.fillRect(pq[0], pq[1], p.s * TW, p.s * TW); }
     // headlamp: darkness grows with depth, with a pool of light around the miner
     if (lastMiner && post) lamp(S, viewTop);
@@ -822,8 +844,15 @@ var DTWRender = (function () {
     octx.font = 'bold ' + Math.round(TW * 0.3) + 'px Fredoka, sans-serif'; octx.textAlign = 'center';
     for (var fi = 0; fi < floaters.length; fi++) {
       var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z);
-      octx.globalAlpha = Math.min(1, fl.life * 2); octx.fillStyle = '#000'; octx.fillText(fl.text, fq[0] + 2, fq[1] + 2);
-      octx.fillStyle = fl.c; octx.fillText(fl.text, fq[0], fq[1]); octx.globalAlpha = 1;
+      octx.globalAlpha = Math.min(1, fl.life * 2);
+      var tx = fq[0];
+      if (fl.icon) { // icon to the left of the text, the pair centred on the spot
+        var isz = Math.round(TW * 0.42 / 14) * 14 || 14, tw = octx.measureText(fl.text).width;
+        var ix = Math.round(fq[0] - (isz + 4 + tw) / 2); tx = ix + isz + 4 + tw / 2;
+        octx.imageSmoothingEnabled = false; octx.drawImage(fl.icon, ix, Math.round(fq[1] - isz * 0.8), isz, isz);
+      }
+      octx.fillStyle = '#000'; octx.fillText(fl.text, tx + 2, fq[1] + 2);
+      octx.fillStyle = fl.c; octx.fillText(fl.text, tx, fq[1]); octx.globalAlpha = 1;
     }
     if (post) composite(S, w, viewTop, surfaceView);
   }
@@ -1016,7 +1045,9 @@ var DTWRender = (function () {
   function spawnBreak(x, y, z, color, n) {
     for (var i = 0; i < n; i++) parts.push({ x: x + 0.5, y: y + 0.4, z: z + 0.5, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 4, vz: (Math.random() - 0.5) * 3, life: 0.5 + Math.random() * 0.4, c: color, s: 0.05 + Math.random() * 0.05 });
   }
-  function floatText(x, y, z, text, color) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: 1.3 }); }
+  // floating text, with the find's pixel icon in front of it when an item is given
+  function floatText(x, y, z, text, color, it) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: it ? 1.6 : 1.3, icon: it ? itemIcon(it) : null }); }
+  function itemIcon(it) { return DTWSprites.item(it.kind, it.idx || 0, itemColor(it), D.WORLDS[it.world].id === 'moon'); }
   // swipe on screen -> compass direction. In this projection +x runs down-right and +z down-left.
   function screenDir(dx, dy) {
     if (dx >= 0 && dy >= 0) return 'e';

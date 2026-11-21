@@ -79,6 +79,7 @@ var DTW = (function () {
   var ORE_P = 0.11; // chance that a ground block holds ore
   var WALK = 6;      // cells per second the miner walks between blocks
   var MANUAL_HOLD = 2; // seconds auto-walk waits after the player steers
+  var AUTO_PACE = 0.5; // left alone the miner walks and swings at this fraction of its steered pace
 
   // ---------- the surface plaza (hub) ----------
   // One character per cell, x across, z down the rows, from (x0, z0). The pit is at x, z in [0, N).
@@ -546,7 +547,7 @@ var DTW = (function () {
         r.fallAcc = 0;
         if (!r.path || !diggable(g.t[r.path.target])) r.path = findNearest(g, r.x, y, r.z);
         if (r.path && r.path.steps.length) {
-          r.state = 'walk'; r.taps = 0; r.walkAcc += dt * WALK;
+          r.state = 'walk'; r.taps = 0; r.walkAcc += dt * WALK * AUTO_PACE;
           while (r.walkAcc >= 1 && r.path.steps.length) { var c = r.path.steps.shift(); r.x = c[0]; r.z = c[1]; r.walkAcc -= 1; magnetPull(s); }
         } else if (r.path) tgt = r.path.target;
         else { r.state = 'idle'; r.taps = 0; }
@@ -555,7 +556,9 @@ var DTW = (function () {
       if (tgt >= 0) {
         r.walkAcc = 0; r.fallAcc = 0; r.state = 'dig';
         var wf = weightFactor(s, r.bag.length + r.loot.length);
-        var idle = drillDamage(s) * hitRate(s) * dt * wf;
+        // the miner's own swing is slower on auto-pilot; hired diggers keep their pace
+        var own = hitRate(s) - s.workers.diggers, pace = steered || r.manual > 0 ? 1 : AUTO_PACE;
+        var idle = drillDamage(s) * (own * pace + s.workers.diggers) * dt * wf;
         var dmg = idle + drillDamage(s) * r.taps * wf;
         if (g.t[tgt] === TILE.GOO) dmg -= idle * 0.55; // goo grows back while you drill it
         r.taps = 0;
@@ -630,7 +633,7 @@ var DTW = (function () {
     var g = s.run.grid, i = idx(x, y, z); g.t[i] = tt; g.v[i] = vv || 0; g.hp[i] = maxHp(s.world, tt, y);
   }
 
-  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD,
+  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, goHome: goHome,
     bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, itemValue: itemValue, itemName: itemName,

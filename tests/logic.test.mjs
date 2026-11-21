@@ -215,6 +215,28 @@ test('steering held down walks at walking pace, not a cell per frame', () => {
   assert.ok(s.run.x >= 2 && s.run.x <= Math.ceil(D.WALK * 0.5) + 1, `moved ${s.run.x} cells in 0.5 s`);
 });
 
+test('left alone the miner walks and digs slower than when the player steers it', () => {
+  assert.ok(D.AUTO_PACE > 0 && D.AUTO_PACE < 1);
+  // walking: the only block is far away, so auto-walk crosses the layer
+  const w = digAt(0, 0, 10, 0);
+  D._setTile(w, 6, 10, 6, T.DIRT);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x || z) D._setTile(w, x, 11, z, T.BEDROCK);
+  run(w, 1);
+  const autoCells = Math.max(w.run.x, w.run.z);
+  assert.ok(autoCells <= Math.ceil(D.WALK * D.AUTO_PACE) + 1, `auto-walk went ${autoCells} cells in 1 s`);
+  // digging: the same stone block, once on its own and once steered into
+  const timeToBreak = steerIt => {
+    const s = digAt(0, 3, 60, 3);
+    D._setTile(s, 4, 60, 3, T.STONE);
+    let t = 0;
+    if (steerIt) D.steer(s, 'e');
+    while (at(s.run.grid, 4, 60, 3) === T.STONE && t < 120) { D.step(s, 0.05); t += 0.05; }
+    return t;
+  };
+  const auto = timeToBreak(false), steered = timeToBreak(true);
+  assert.ok(steered < auto * 0.7, `steered ${steered.toFixed(2)} s vs auto ${auto.toFixed(2)} s`);
+});
+
 test('a cleared layer opens the one below: the miner digs down into it and carries on there', () => {
   const s = digAt(0, 3, 10, 3, { drill: 8 });
   s.events = [];
@@ -421,8 +443,8 @@ test('a save from the old flat 11-wide world keeps progress and starts a fresh 3
   assert.equal(g.deepest, 0);
 });
 
-// A simple bot standing in for a kid: lets the miner walk and dig on its own,
-// taps 3 times a second, heads home when the bag is full or every 2.5 minutes,
+// A simple bot standing in for a kid: steers toward the nearest block in its layer (the miner
+// walks and digs at full pace only while steered), taps 3 times a second, heads home when the bag is full or every 2.5 minutes,
 // and spends on the cheapest upgrade (bag and magnet weighted down).
 function shop(s) {
   for (let g = 0; g < 80; g++) {
@@ -433,12 +455,25 @@ function shop(s) {
     D.buyUpgrade(s, o[0][0]);
   }
 }
+function botSteer(s) {
+  const r = s.run, g = r.grid;
+  if (r.steer || !D.layerHasBlocks(g, r.y)) return;
+  let best = null, bd = 1e9;
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) {
+    if (!diggable(at(g, x, r.y, z))) continue;
+    const d = Math.abs(x - r.x) + Math.abs(z - r.z); if (d < bd) { bd = d; best = [x, z]; }
+  }
+  if (!best) return;
+  const dx = best[0] - r.x, dz = best[1] - r.z;
+  D.steer(s, Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 'e' : 'w') : (dz > 0 ? 's' : 'n'));
+}
 function botPlay(s, w, stats) {
   const dt = 0.1; let t = 0, acc = 0, lastHome = 0;
   D.startDig(s, w);
   while (!s.relics[w] && t < 3 * 3600) {
     if (s.mode === 'dig') {
       acc += 3 * dt; while (acc >= 1) { D.tap(s); acc--; }
+      botSteer(s);
       if (s.run.bag.length >= D.bagCap(s)) { D.goHome(s); stats.fullBag++; }
       else if (t - lastHome > 150) D.goHome(s);
     }

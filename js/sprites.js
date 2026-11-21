@@ -214,6 +214,24 @@ var DTWSprites = (function () {
     if (tier === 4 && Math.sin(t * 8) > 0.6) px(c, ex, ey - 3, '#ffffff');
   }
 
+  // ---------- the big rucksack, worn when the bag is full: stuffed so finds poke out of the top ----------
+  var PACK = { K: '#8a5a2b', k: '#5e3a1a', F: '#b07840', G: '#ffd23f', peek: ['#2fd56b', '#d9813b', '#6ff0ff', '#ff6f8a'] };
+  // side view, the pack on the miner's back at the left of the sprite: x, y is its top-left corner
+  function packSide(c, x, y) {
+    px(c, x + 2, y, PACK.peek[0], 2, 3); px(c, x + 5, y - 1, PACK.peek[1], 2, 4); px(c, x + 8, y + 1, PACK.peek[2], 2, 2);
+    px(c, x, y + 2, PACK.K, 12, 15); px(c, x, y + 2, PACK.k, 2, 15); px(c, x, y + 16, PACK.k, 12, 1);
+    px(c, x + 1, y + 2, PACK.F, 11, 5); px(c, x + 1, y + 7, PACK.k, 11, 1); px(c, x + 6, y + 6, PACK.G, 2, 2);
+    px(c, x - 2, y + 9, PACK.F, 3, 6); px(c, x - 2, y + 14, PACK.k, 3, 1);
+  }
+  // seen from behind it covers the back, centred at cx
+  function packBack(c, cx, y) {
+    var x = cx - 8;
+    px(c, x + 3, y, PACK.peek[0], 2, 3); px(c, x + 7, y - 1, PACK.peek[1], 3, 4); px(c, x + 12, y + 1, PACK.peek[3], 2, 2);
+    px(c, x, y + 2, PACK.K, 17, 15); px(c, x, y + 2, PACK.k, 1, 15); px(c, x + 16, y + 2, PACK.k, 1, 15); px(c, x, y + 16, PACK.k, 17, 1);
+    px(c, x + 1, y + 2, PACK.F, 15, 6); px(c, x + 1, y + 8, PACK.k, 15, 1); px(c, x + 7, y + 7, PACK.G, 3, 2);
+    px(c, x + 3, y + 11, PACK.F, 4, 4); px(c, x + 10, y + 11, PACK.F, 4, 4);
+  }
+
   // ---------- characters ----------
   // o: { back, flip handled by caller, pose: {bob, body, lean, stride, air, blink}, ang (pick angle) or null,
   //      tier, lampOn, climb (null | 0 | 1), P (palette), hair (true: no hard hat), arms ('swing' | 'carry' | 'none'), t }
@@ -228,6 +246,7 @@ var DTWSprites = (function () {
     // legs: the stride swings them apart and lifts the one moving forward; in the air they spread
     var st = pose.stride, sw = Math.round(st * 3), lift = Math.round(Math.abs(st) * 2), ap = Math.round(pose.air * 2);
     var behind = back && o.ang != null; // facing away, the pick arm is behind the body
+    if (o.pack && !back) packSide(c, X - 6, Y - 6);
     if (behind) pick(c, X + 14, Y + 3, o.ang, o.tier, P, t);
     else if (!back) { px(c, X + 4, Y + 2, P.q, 2, 6); px(c, X + 4, Y + 8, P.k, 2, 2); }                // far arm
     // not digging: the pick rests over the back shoulder, held by the hanging near arm
@@ -239,7 +258,9 @@ var DTWSprites = (function () {
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
     if (carry && back) shoulderPick();
     if (pose.air > 0.3) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
+    if (o.pack && !back) line(c, X + 9, Y + 1, X + 11, Y + 8, PACK.k, 1); // shoulder strap
     stamp(c, head, Pl, X, Y - 17);
+    if (o.pack && back) packBack(c, X + 12, Y - 4);
     if (!behind && o.ang != null && pose.air <= 0.3) pick(c, X + 12, Y + 3, o.ang, o.tier, P, t);
     else if (o.arms === 'wave') { var wv = Math.sin(t * 10) > 0 ? 1 : 0; px(c, X + 19, Y - 3 - wv, P.r, 2, 6); px(c, X + 19 + wv, Y - 5 - wv, P.S, 2, 2); }
     else if (o.ang == null && pose.air <= 0.3) { px(c, X + 15, Y + 2, P.r, 3, 6); px(c, X + 15, Y + 8, P.S, 3, 2); } // near arm at the side
@@ -255,6 +276,7 @@ var DTWSprites = (function () {
     px(c, X0 + 4, Y - 8 + b, P.r, 3, 10 - b); px(c, X0 + 17, Y - 8 + a, P.r, 3, 10 - a);
     px(c, X0 + 4, Y - 10 + b, P.S, 3, 2); px(c, X0 + 17, Y - 10 + a, P.S, 3, 2);
     stamp(c, head, Pl, X0, Y - 17);
+    if (o.pack) packBack(c, X0 + 12, Y - 4);
     outline(c, W, H, OUT);
     return { cv: cv, fx: FX, fy: FY };
   }
@@ -387,8 +409,39 @@ var DTWSprites = (function () {
     c.restore();
   }
 
+  // ---------- item icons for finds popping up: 12×12 pixel art, outlined, cached ----------
+  var ICONS = {
+    lump: ['    oooo    ', '  ooHHhhoo  ', ' oHHhhhhhdo ', ' oHhwhhhhdo ', 'oHhhhhhhhddo', 'ohhhhhhhhddo',
+           'ohhhhhhhhddo', 'ohhhhhhhddo ', ' ohhhhhdddo ', '  oohddddo  ', '    ooooo   ', '            '],
+    gem:  ['            ', '  oooooooo  ', ' oHHwHhhhdo ', 'oHHhhHhhhddo', 'oooooooooooo', ' ohHhhhhhddo',
+           '  ohHhhhddo ', '   ohhhddo  ', '    ohddo   ', '     odo    ', '      o     ', '            '],
+    bone: [' oo      oo ', 'oWWo    oWWo', 'oWWWooooWWdo', ' oWWWWWWWdo ', ' oWddddddWo ', 'oWWdooooWWdo',
+           'oWdo    oddo', ' oo      oo ', '            ', '            ', '            ', '            '],
+    wheel:['   oooooo   ', '  oddddddo  ', ' oddWWWWddo ', 'oddWdddWWddo', 'oddWdGGdWddo', 'oddWdGGdWddo',
+           'oddWWdddWddo', ' oddWWWWddo ', '  oddddddo  ', '   oooooo   ', '            ', '            '],
+    chest:['            ', ' oooooooooo ', 'oBBBBBBBBBBo', 'oBbbbbbbbbBo', 'oGGGGYYGGGGo', 'oBBBBYYBBBBo',
+           'oBbbbbbbbbBo', 'oBbbbbbbbbBo', ' oooooooooo ', '            ', '            ', '            '],
+    star: ['     oo     ', '    oHHo    ', '    oHho    ', 'ooooohhoooo ', 'oHHHhhhhhhdo', ' ohhhhhhhdo ',
+           '  ohhhhhdo  ', '  ohhoohdo  ', ' ohdo  oddo ', ' ooo    ooo ', '            ', '            ']
+  };
+  var iconCache = {};
+  // kind: 'ore' | 'fossil' | 'treasure' | 'relic'; idx: ore or fossil index; col: its colour; moon: rover parts instead of bones
+  function item(kind, idx, col, moon) {
+    var key = kind + idx + col + (moon ? 'm' : '');
+    if (iconCache[key]) return iconCache[key];
+    var shape = kind === 'ore' ? (idx >= 2 ? 'gem' : 'lump') : kind === 'fossil' ? (moon ? 'wheel' : 'bone') : kind === 'relic' ? 'star' : 'chest';
+    var P = { o: OUT, H: hexShade(col, 0.35), h: col, d: hexShade(col, -0.35), w: '#ffffff', W: '#f4ecd6', G: '#ffd23f', Y: '#fff3b0',
+      B: '#b8692a', b: '#8a4b1c' };
+    if (moon && kind === 'fossil') { P.W = '#cfd8dc'; P.d = '#546e7a'; }
+    else if (kind === 'fossil') P.d = '#c9bb98';
+    if (kind === 'ore' && idx === 0) P.H = '#6a6a72'; // coal: a dull grey sheen on black
+    var c = canvas(14, 14), g = c.getContext('2d');
+    stamp(g, ICONS[shape], P, 1, 1);
+    return (iconCache[key] = c);
+  }
+
   return {
-    PICK: PICK, hexShade: hexShade,
+    PICK: PICK, hexShade: hexShade, item: item,
     miner: function (o) { o.P = BASE; return person(o); },
     helper: function (k, o) { o.P = HELPERS[k % HELPERS.length]; return person(o); },
     npc: npc, exhibit: exhibit,

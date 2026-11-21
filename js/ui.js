@@ -177,7 +177,7 @@
         R.spawnBreak(e.x, e.y, e.z, col, 8); A.sfx('brk'); R.shake(0.08);
       } else if (e.type === 'collect') {
         var it = e.item;
-        R.floatText(r ? r.x + 0.5 : 3.5, r ? r.y : 0, r ? r.z + 0.5 : 3.5, e.name + (it.kind === 'ore' || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), it.kind === 'fossil' ? '#ffe9a8' : R.itemColor(it));
+        R.floatText(r ? r.x + 0.5 : 3.5, r ? r.y : 0, r ? r.z + 0.5 : 3.5, e.name + (it.kind === 'ore' || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), it.kind === 'fossil' ? '#ffe9a8' : R.itemColor(it), it);
         A.sfx(it.kind === 'fossil' ? 'fossil' : it.kind === 'treasure' ? 'coin' : 'ding');
         if (it.kind === 'fossil') toast('🦴 Found a fossil: <b>' + e.name + '</b>!');
         if (it.kind === 'treasure') toast('💰 Treasure chest!');
