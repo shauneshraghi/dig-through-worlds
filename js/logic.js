@@ -265,6 +265,8 @@ var DTW = (function () {
   var HUB_SPEED = 4;     // cells per second on the plaza
   var HUB_R = 0.3;       // the miner's radius for bumping into things
   var LADDER_Z = 3;      // the ladder hangs on the x = 0 pit wall at this z; its pad is at (-1, LADDER_Z)
+  var LADDER_REACH = 2;  // pushing into the x = 0 wall this many cells either side of the ladder still climbs it
+  function nearLadder(z) { return Math.abs(Math.floor(z) - LADDER_Z) <= LADDER_REACH; }
   var HUB_W = HUB.rows[0].length, HUB_H = HUB.rows.length;
   function hubCell(x, z) {
     var r = HUB.rows[z - HUB.z0];
@@ -340,9 +342,13 @@ var DTW = (function () {
     for (var c = goal; c !== -1 && c !== q[0]; c = prev[c]) out.unshift([c % HUB_W + HUB.x0 + 0.5, Math.floor(c / HUB_W) + HUB.z0 + 0.5]);
     return out.length ? out : [[tx + 0.5, tz + 0.5]];
   }
+  // A tap on a plaza spot walks there; a tap on the pit walks to the ladder pad and climbs down.
   function hubWalkTo(s, x, z) {
+    var dig = hubCell(Math.floor(x), Math.floor(z)) === 'P';
+    if (dig) { x = -0.5; z = LADDER_Z + 0.5; }
     var p = hubPath(s.hub.x, s.hub.z, x, z);
-    s.hub.path = p; if (p) s.hub.input = null;
+    s.hub.path = p && p.length ? p : null; s.hub.dig = !!p && dig;
+    if (p) s.hub.input = null;
     return !!p;
   }
   // bones carried home are handed in beside their creature's plinth, or all at once at the museum desk
@@ -365,15 +371,16 @@ var DTW = (function () {
       var got = Math.floor(s.pile); s.coins += got; s.pile -= got; emit(s, { type: 'museumCash', coins: got });
     }
     // pushing down the ladder (mostly +x, down-right on screen) from its pad climbs into the pit
-    if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && Math.floor(h.z) === LADDER_Z && s.unlocked[s.world]) {
+    if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && nearLadder(h.z) && s.unlocked[s.world]) {
       h.input = null; startDig(s, s.world); return;
     }
-    if (h.input) { hubMove(s, h.input[0], h.input[1], d); return; }
+    if (h.input) { h.dig = false; hubMove(s, h.input[0], h.input[1], d); return; }
     while (h.path && d > 0) {
       var p = h.path[0], ex = p[0] - h.x, ez = p[1] - h.z, l = Math.sqrt(ex * ex + ez * ez);
       if (l <= d) { h.x = p[0]; h.z = p[1]; d -= l; h.path.shift(); if (!h.path.length) h.path = null; }
       else { h.x += ex / l * d; h.z += ez / l * d; d = 0; }
     }
+    if (h.dig && !h.path) { h.dig = false; if (s.unlocked[s.world]) startDig(s, s.world); } // a tap on the pit: at the pad, climb down
   }
 
   function mulberry32(a) {
@@ -1072,7 +1079,7 @@ var DTW = (function () {
         var sd = DIRS[r.steer], sx = r.x + sd[0], sz = r.z + sd[1];
         var inPit = sx >= 0 && sx < N && sz >= 0 && sz < N, st = inPit ? g.t[idx(sx, y, sz)] : TILE.BEDROCK;
         r.face = r.steer;
-        if (r.steer === 'w' && sx < 0 && r.z === LADDER_Z) { r.steer = 0; goHome(s, 'ladder'); return; } // onto the ladder: climb home
+        if (r.steer === 'w' && sx < 0 && nearLadder(r.z)) { r.steer = 0; goHome(s, 'ladder'); return; } // onto the ladder: climb home
         if (passable(st)) { // one cell at a time, at walking pace
           if (r.stepCD <= 0) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; r.stepCD = 1 / WALK; }
           moved = true;
@@ -1256,7 +1263,7 @@ var DTW = (function () {
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
-    HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, hubCell: hubCell, hubWalkable: hubWalkable,
+    HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, hubCell: hubCell, hubWalkable: hubWalkable,
     PLINTH_CH: PLINTH_CH, WINGS: WINGS, hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
     topLayer: topLayer, layerHasBlocks: layerHasBlocks, diggable: diggable };
 })();

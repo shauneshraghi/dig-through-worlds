@@ -453,7 +453,8 @@
     return h && performance.now() - h.t > REPEAT * 1000 ? GRID[h.dir] || h.dir : null;
   }
   // A tap on the pit: on a block of the layer being cleared it walks there and digs it, on an open cell it
-  // walks there; elsewhere it digs faster (as does the Faster button).
+  // walks there; on the ladder wall it climbs home; elsewhere it digs faster (as does the Faster button).
+  // On the plaza a tap on the pit walks to the ladder pad and climbs down.
   // A tap on the plaza walks to that spot. Holding (or dragging) anywhere on the screen brings up a joystick
   // rooted where the finger went down; it is hidden again when the finger lifts. Outside a small dead zone
   // the pit takes the screen quadrant of the drag, which is one of the four ways the grid runs on screen
@@ -484,7 +485,10 @@
     if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
     else if (S.mode === 'dig') {
       var c = R.cellAt(e.clientX, e.clientY, S.run.y);
-      if (D.digAt(S, c[0], c[1])) A.sfx('step'); else doTap();
+      // the x = 0 wall projects onto floor cells with x < 0; up the wall z - x stays the same, so the ladder
+      // (and LADDER_REACH cells either side of it) is where z - x is near LADDER_Z
+      if (c[0] < 0 && Math.abs(c[1] - c[0] - D.LADDER_Z - 0.5) <= D.LADDER_REACH + 0.5 && !S.run.lock) D.goHome(S, 'ladder');
+      else if (D.digAt(S, c[0], c[1])) A.sfx('step'); else doTap();
     }
     else doTap();
     if (stickId !== null || splash) return; // a second finger only taps
