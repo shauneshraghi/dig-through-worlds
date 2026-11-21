@@ -119,9 +119,15 @@ var DTW = (function () {
     magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 3,  text: 'Pulls in finds from further away' }
   };
   var WORKERS = {
-    diggers: { name: 'Helper Digger', base: 80, mult: 2.5, max: 5, text: 'Digs blocks next to you' },
+    diggers: { name: 'Helper Digger', base: 80, mult: 2.5, max: 6, text: 'Digs blocks next to you' },
     staff:   { name: 'Museum Guide',  base: 100, mult: 2.5, max: 5, text: '+30% visitor coins' }
   };
+  // the helpers' own tools, sold at their hut: power and speed work like the miner's Drill Power and Dig Speed
+  var CREW_UPGRADES = {
+    crewDrill: { name: 'Helper Picks', base: 40, mult: 1.75, max: 30, text: 'Helpers hit harder' },
+    crewSpeed: { name: 'Helper Pace',  base: 30, mult: 1.7,  max: 20, text: 'Helpers swing faster' }
+  };
+  var DIGGERS_FIRST = 2; // helpers allowed in the first world; each world unlocked allows one more
   var O2_MAX = 75;
   var ORE_P = 0.11; // chance that a ground block holds ore
   var WALK = 6;      // cells per second the miner walks between blocks
@@ -286,6 +292,9 @@ var DTW = (function () {
   function stepHub(s, dt) {
     var h = s.hub, d = HUB_SPEED * dt;
     deliver(s);
+    if (s.pile >= 1 && 'mM'.indexOf(hubCell(Math.floor(h.x), Math.floor(h.z))) >= 0) {
+      var got = Math.floor(s.pile); s.coins += got; s.pile -= got; emit(s, { type: 'museumCash', coins: got });
+    }
     // pushing down the ladder (mostly +x, down-right on screen) from its pad climbs into the pit
     if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && Math.floor(h.z) === LADDER_Z && s.unlocked[s.world]) {
       h.input = null; startDig(s, s.world); return;
@@ -471,7 +480,7 @@ var DTW = (function () {
     var s = {
       v: 1, seed: seed | 0, rng: (seed | 0) ^ 0x5bd1e995, coins: 0,
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
-      upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0 }, workers: { diggers: 0, staff: 0 },
+      upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0,
       museum: WORLDS.map(function () { return { pieces: emptyPieces() }; }),
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
@@ -496,19 +505,23 @@ var DTW = (function () {
     return Math.max(0.15, 1 / (1 + 0.12 * (n - cap)));
   }
   function costOf(def, lvl) { return lvl >= def.max ? Infinity : Math.round(def.base * Math.pow(def.mult, lvl)); }
-  function upgradeCost(s, k) { return costOf(UPGRADES[k], s.upgrades[k]); }
+  function upgradeCost(s, k) { return costOf(UPGRADES[k] || CREW_UPGRADES[k], s.upgrades[k] | 0); }
   function buyUpgrade(s, k) {
     var c = upgradeCost(s, k);
     if (!isFinite(c) || s.coins < c) return false;
-    s.coins -= c; s.upgrades[k]++; emit(s, { type: 'buy', key: k }); return true;
+    s.coins -= c; s.upgrades[k] = (s.upgrades[k] | 0) + 1; emit(s, { type: 'buy', key: k }); return true;
   }
-  function hireCost(s, k) { return costOf(WORKERS[k], s.workers[k]); }
+  // helpers the player may have: two in the first world, one more for each world unlocked after it
+  function maxDiggers(s) { return DIGGERS_FIRST + s.unlocked.lastIndexOf(true); }
+  function hireCost(s, k) { return k === 'diggers' && s.workers[k] >= maxDiggers(s) ? Infinity : costOf(WORKERS[k], s.workers[k]); }
   function hire(s, k) {
     var c = hireCost(s, k);
     if (!isFinite(c) || s.coins < c) return false;
     s.coins -= c; s.workers[k]++; emit(s, { type: 'hire', key: k }); return true;
   }
   function drillDamage(s) { return Math.pow(1.5, s.upgrades.drill); }
+  function crewDamage(s) { return Math.pow(1.5, s.upgrades.crewDrill | 0); }
+  function crewRate(s) { return HELPER_RATE * (1 + 0.35 * (s.upgrades.crewSpeed | 0)); } // each helper's swings per second
   function hitRate(s) { return 2 * (1 + 0.35 * s.upgrades.speed); } // the miner's own swings per second
 
   // pieces of world w's creature c found so far (0-5), or of all its creatures when c is left out
@@ -774,7 +787,7 @@ var DTW = (function () {
 
   function faceTo(x0, z0, x1, z1) { return x1 > x0 ? 'e' : x1 < x0 ? 'w' : z1 > z0 ? 's' : 'n'; }
   // ---------- hired helper diggers ----------
-  // Each helper digs its own block of the miner's layer, at HELPER_RATE swings a second, and what it digs
+  // Each helper digs its own block of the miner's layer, at crewRate swings a second with its own pick (crewDamage), and what it digs
   // goes into the miner's bag. It keeps its block till it breaks, then takes the free block nearest to it,
   // preferring blocks at least two cells from the miner and not the one the miner is digging or heading for.
   // It stands on an open cell beside its block, or on top of the block when none is open.
@@ -789,7 +802,7 @@ var DTW = (function () {
     return best || { x: x, z: z, y: y - 1, face: 'e' };
   }
   function stepCrew(s, dt, hit) {
-    var r = s.run, g = r.grid, y = r.y, n = Math.min(s.workers.diggers, 5);
+    var r = s.run, g = r.grid, y = r.y, n = Math.min(s.workers.diggers, DIGGERS_FIRST + s.world); // world w lets 2 + w of them dig
     if (!r.crew) r.crew = [];
     r.crew.length = Math.min(r.crew.length, n);
     if (!n || y < 1 || y > DEPTH) return;
@@ -811,7 +824,7 @@ var DTW = (function () {
         var sp = crewSpot(g, y, best, r.x, r.z, stand);
         c.target = best; c.x = sp.x; c.z = sp.z; c.y = sp.y; c.face = sp.face;
       }
-      var tt = g.t[c.target], dmg = drillDamage(s) * HELPER_RATE * dt * (tt === TILE.GOO ? 0.45 : 1);
+      var tt = g.t[c.target], dmg = crewDamage(s) * crewRate(s) * dt * (tt === TILE.GOO ? 0.45 : 1);
       g.hp[c.target] -= dmg; hit[c.target] = 1;
       if (tt === TILE.GOO) r.goo[c.target] = 1;
       if (g.hp[c.target] <= 0) { var done = c.target; c.target = -1; breakTile(s, done, c); if (r.path && r.path.target === done) r.path = null; }
@@ -932,7 +945,7 @@ var DTW = (function () {
 
   function step(s, dt) {
     s.stats.timePlayed += dt;
-    s.coins += museumIncome(s) * dt;
+    s.pile = (s.pile || 0) + museumIncome(s) * dt; // visitor coins pile up at the museum till the miner walks in
     if (s.mode === 'dig') stepDig(s, dt);
     else if (s.mode === 'surface') stepHub(s, dt);
     else if (s.mode === 'down') { s.run.elevT -= dt; if (s.run.elevT <= 0) { s.mode = 'dig'; emit(s, { type: 'arrive' }); } }
@@ -942,7 +955,7 @@ var DTW = (function () {
   function serialize(s) {
     var bag = s.run && s.mode !== 'surface' ? s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 3, auto: s.auto !== false, carry: s.carry, seed: s.seed, rng: s.rng, coins: s.coins, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 3, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0 }; })
     });
@@ -952,7 +965,8 @@ var DTW = (function () {
       var o = JSON.parse(str);
       if (!o || [1, 2, 3].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
-      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      s.upgrades = Object.assign(newState(0).upgrades, s.upgrades); s.workers = Object.assign(newState(0).workers, s.workers);
       // before v3 each world had one creature of five pieces: it is now that world's middle creature
       var old = o.v < 3;
       s.museum = s.museum.map(function (m) {
@@ -996,7 +1010,7 @@ var DTW = (function () {
     var g = s.run.grid, i = idx(x, y, z); g.t[i] = tt; g.v[i] = vv || 0; g.hp[i] = maxHp(s.world, tt, y);
   }
 
-  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
+  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,

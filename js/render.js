@@ -502,6 +502,28 @@ var DTWRender = (function () {
       else if ((k = 'abcde'.indexOf(c)) >= 0) fn = function () { relicCase(k, b, S); };
       items.push({ x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, fn: fn });
     });
+    if (all && (S.pile >= 1 || burstT > 0)) { var px = HUB_DOOR[0] + 2.5, pz = HUB_DOOR[1] + 1.5; items.push(feet(px, pz, function () { coinPile(px, pz, S.pile); }, 0.4)); }
+  }
+  // visitor coins waiting just inside the museum door: the heap grows with the sum (log scale), and bursts when collected
+  var burstT = 0;
+  function coinPile(x, z, amt) {
+    var n = amt >= 1 ? Math.min(40, 4 + Math.floor(Math.log(amt) / Math.LN2 * 2.5)) : 0;
+    if (n) blob(x, z, 0.45, 0.22);
+    for (var i = 0; i < n; i++) {
+      var h = hash2(i, 7), a = h * 6.283, rr = 0.4 * Math.sqrt(1 - i / n) * (0.6 + 0.4 * hash2(i, 3)), lift = 0.45 * Math.pow(i / n, 0.8);
+      var q = P(x + Math.cos(a) * rr, 1 - lift - 0.02, z + Math.sin(a) * rr);
+      ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.ellipse(q[0], q[1] + TW * 0.02, TW * 0.09, TW * 0.045, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = i % 3 ? '#ffd23f' : '#ffe58a'; ctx.beginPath(); ctx.ellipse(q[0], q[1], TW * 0.09, TW * 0.045, 0, 0, 7); ctx.fill();
+    }
+    if (n) { var gq = P(x, 0.75, z); glow(gq[0], gq[1], TW * 0.7, GOLD, 0.08 + 0.04 * Math.sin(time * 3)); }
+    if (burstT > 0) { // coins leaping up out of the heap
+      var k = 1 - burstT / 0.8;
+      for (var j = 0; j < 10; j++) {
+        var ang = j / 10 * 6.283, d = 0.6 * k, bq = P(x + Math.cos(ang) * d, 1 - 1.6 * k + 1.8 * k * k, z + Math.sin(ang) * d);
+        ctx.globalAlpha = 1 - k; ctx.fillStyle = '#ffd23f'; ctx.beginPath(); ctx.ellipse(bq[0], bq[1], TW * 0.06, TW * 0.06, 0, 0, 7); ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
   }
   function blob(x, z, rx, a) { var q = P(x, 1, z); ctx.fillStyle = 'rgba(0,0,0,' + a + ')'; ctx.beginPath(); ctx.ellipse(q[0] + hw * 0.25, q[1] + hh * 0.15, hw * rx, hh * rx, 0, 0, 7); ctx.fill(); }
   function tree(x, z, s, k) {
@@ -737,7 +759,7 @@ var DTWRender = (function () {
     })(GUIDE_SPOTS[g], g);
     visitors.forEach(function (v) { items.push(feet(v.x, v.z, function () { drawPerson('visitor', v.seed, v.x, v.z, v.face, v.moving, v.walk); })); });
     // hired helper diggers rest by their hut while the miner is up top
-    HUT_SPOTS.filter(function (sp) { return D.hubWalkable(Math.floor(sp[0]), Math.floor(sp[1])); }).slice(0, Math.min(S.workers.diggers, 5)).forEach(function (sp, k) {
+    HUT_SPOTS.filter(function (sp) { return D.hubWalkable(Math.floor(sp[0]), Math.floor(sp[1])); }).slice(0, Math.min(S.workers.diggers, 6)).forEach(function (sp, k) {
       items.push(feet(sp[0], sp[1], function () { drawHelper({ k: k, x: sp[0], z: sp[1], y: 0, face: sp[2], dig: false, walking: false }, S); }));
     });
   }
@@ -943,7 +965,7 @@ var DTWRender = (function () {
     return [r.x, r.y, r.z];
   }
   function update(dt, S) {
-    time += dt; shakeT = Math.max(0, shakeT - dt);
+    time += dt; shakeT = Math.max(0, shakeT - dt); burstT = Math.max(0, burstT - dt);
     celebUpdate(dt);
     stepPeople(dt, S);
     var r = S.run, tg = targets(S);
@@ -1386,7 +1408,7 @@ var DTWRender = (function () {
     resize: resize, update: update, draw: draw,
     setView: function (v) { view = v; },
     celebrate: celebrate,
-    spawnBreak: spawnBreak, floatText: floatText, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
+    spawnBreak: spawnBreak, floatText: floatText, coinBurst: function () { burstT = 0.8; }, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
     // the point on the ground (y = 1) under a pointer, in plaza cells
     groundAt: function (cx, cy) {

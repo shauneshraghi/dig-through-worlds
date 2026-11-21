@@ -54,7 +54,8 @@
     var hb = $('hBag'), over = n > cap, bf = Math.min(1, n / Math.max(1, cap));
     hb.lastChild.textContent = (over ? '🎒 Heavy! ' : '🎒 ') + n + '/' + cap; hb.classList.toggle('heavy', over);
     hb.firstChild.style.width = (bf * 100) + '%'; hb.firstChild.style.background = over ? '#e5483a' : bf > 0.7 ? '#ff9f1c' : '#3fbf63';
-    $('hInc').textContent = '🏛 +' + fmtRate(D.museumIncome(S)) + '/s';
+    var pile = Math.floor(S.pile || 0);
+    $('hInc').textContent = '🏛 +' + fmtRate(D.museumIncome(S)) + '/s' + (pile > 0 ? ' · 🪙 ' + fmt(pile) + ' waiting' : '');
     var o2 = $('o2'), isO = D.WORLDS[S.world].rule === 'oxygen' && S.mode === 'dig';
     o2.style.display = isO ? 'block' : 'none';
     if (isO) { var f = r.oxygen / D.O2_MAX; o2.firstChild.style.width = (f * 100) + '%'; o2.firstChild.style.background = f < 0.25 ? '#ff6b6b' : ''; }
@@ -79,10 +80,11 @@
     $('app').classList.toggle('panel', wide && showPanel);
     R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide, open: showPanel });
   }
-  var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫' };
+  var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫', crewDrill: '⛏', crewSpeed: '⚡' };
   var PICK_NAMES = ['Wooden', 'Stone', 'Iron', 'Golden', 'Crystal'];
   function panelKey() {
-    var afford = Object.keys(D.UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return S.coins >= D.hireCost(S, k) ? 1 : 0; })).join('');
+    var afford = Object.keys(D.UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return S.coins >= D.hireCost(S, k) ? 1 : 0; }))
+      .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; })).join('');
     return [station, S.world, afford, station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind].join(';');
   }
@@ -118,13 +120,20 @@
       });
     } else if (tab === 'he') {
       Object.keys(D.WORKERS).forEach(function (key) {
-        var u = D.WORKERS[key], c = D.hireCost(S, key), n = S.workers[key];
-        row(UPIC[key], u.name + ' <span class="small">× ' + n + '</span>', u.text, isFinite(c) ? '🪙 ' + fmt(c) : 'MAX', isFinite(c) && S.coins >= c,
+        var u = D.WORKERS[key], c = D.hireCost(S, key), n = S.workers[key], dig = key === 'diggers', cap = dig ? D.maxDiggers(S) : u.max;
+        var sub = dig ? u.text + ' · up to ' + cap + ' now' + (cap < u.max ? ', one more each new world' : '') : u.text;
+        var btn = isFinite(c) ? '🪙 ' + fmt(c) : dig && n < u.max ? '🔒 New world' : 'MAX';
+        row(UPIC[key], u.name + ' <span class="small">× ' + n + (dig ? ' / ' + cap : '') + '</span>', sub, btn, isFinite(c) && S.coins >= c,
           function () { if (D.hire(S, key)) save(); else A.sfx('no'); });
+      });
+      if (S.workers.diggers > 0) Object.keys(D.CREW_UPGRADES).forEach(function (key) { // the helpers' own pick and pace
+        var u = D.CREW_UPGRADES[key], c = D.upgradeCost(S, key), lv = S.upgrades[key] | 0;
+        row(UPIC[key], u.name + ' <span class="small">Lv ' + lv + '</span>', u.text, isFinite(c) ? '🪙 ' + fmt(c) : 'MAX', isFinite(c) && S.coins >= c,
+          function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); });
       });
       var p = document.createElement('p'); p.className = 'small'; p.textContent = 'Helpers work only while the game is open.'; body.appendChild(p);
     } else if (tab === 'mu') {
-      var inc = document.createElement('p'); inc.innerHTML = 'Visitors pay <b style="color:var(--gold)">🪙 ' + fmtRate(D.museumIncome(S)) + ' / second</b>. Finish a skeleton to draw a crowd!'; inc.style.margin = '0 0 8px'; body.appendChild(inc);
+      var inc = document.createElement('p'); inc.innerHTML = 'Visitors pay <b style="color:var(--gold)">🪙 ' + fmtRate(D.museumIncome(S)) + ' / second</b>. Their coins pile up by the front door: walk in to collect them. Finish a skeleton to draw a crowd!'; inc.style.margin = '0 0 8px'; body.appendChild(inc);
       D.WINGS.forEach(function (wg) { // one block per wing of the museum, listing the skeletons on show there
         var d = document.createElement('div'), got = 0, tot = 0;
         wg.ks.forEach(function (k) { got += D.piecesFound(S, Math.floor(k / 3), k % 3); tot += D.PIECES; });
@@ -246,6 +255,7 @@
       else if (e.type === 'boneFull') toast('🦴 Your hands are full! Take your bone home to the 🏛 museum first.', 3000);
       else if (e.type === 'delivered') { A.sfx('fossil'); toast('🏛 On show: <b>' + e.names.join(', ') + '</b>!', 3200); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
       else if (e.type === 'buy' || e.type === 'hire') A.sfx('buy');
+      else if (e.type === 'museumCash') { A.sfx('coin'); R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(e.coins), '#ffd23f'); R.coinBurst(); toast('🏛 Your visitors paid <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>!', 2600); save(); }
       else if (e.type === 'banked') {
         var msg = [];
         if (e.coins > 0) msg.push('Sold your finds for <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>');

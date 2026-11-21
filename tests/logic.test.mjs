@@ -528,8 +528,64 @@ test('museum: a finished exhibit draws visitors, staff and diggers can be hired'
   assert.equal(D.hire(s, 'staff'), true);
   assert.ok(D.museumIncome(s) > inc);
   assert.equal(D.hire(s, 'diggers'), true);
-  const before = s.coins; D.step(s, 10);
-  assert.ok(s.coins > before, 'visitors pay while the game runs');
+});
+
+test('museum coins pile up at the museum and are collected by walking in', () => {
+  const s = D.newState(1);
+  for (let i = 0; i < 5; i++) s.museum[0].pieces[i] = 1;
+  const inc = D.museumIncome(s), before = s.coins;
+  D.step(s, 10);
+  assert.equal(s.coins, before, 'visitor coins do not go straight to the purse');
+  assert.ok(Math.abs(s.pile - inc * 10) < 1e-6, 'they pile up at the museum');
+  D.startDig(s, 0); D.step(s, 5);
+  assert.ok(s.pile > inc * 14, 'the pile grows while digging too');
+  const s2 = D.deserialize(D.serialize(s));
+  assert.ok(Math.abs(s2.pile - s.pile) < 1e-6, 'the pile is saved');
+  const H = D.HUB, row = H.rows.findIndex(r => r.includes('M'));
+  s2.mode = 'surface'; s2.run = null; s2.events = [];
+  s2.hub.x = H.rows[row].indexOf('M') + H.x0 + 0.5; s2.hub.z = row + H.z0 + 0.5;
+  const pile = s2.pile, c0 = s2.coins;
+  D.step(s2, 0.05);
+  assert.ok(s2.coins >= c0 + Math.floor(pile), 'entering the museum collects the pile');
+  assert.ok(s2.pile < 1);
+  const e = s2.events.find(e => e.type === 'museumCash');
+  assert.ok(e && e.coins >= Math.floor(pile), 'a museumCash event reports the sum');
+});
+
+test('helper diggers: two in the first world, one more for each world unlocked', () => {
+  const s = D.newState(1); s.coins = 1e12;
+  while (D.hire(s, 'diggers'));
+  assert.equal(s.workers.diggers, 2);
+  assert.equal(D.maxDiggers(s), 2);
+  s.unlocked[1] = true; assert.equal(D.maxDiggers(s), 3);
+  assert.equal(D.hire(s, 'diggers'), true); assert.equal(D.hire(s, 'diggers'), false);
+  s.unlocked = [true, true, true, true, true]; while (D.hire(s, 'diggers'));
+  assert.equal(s.workers.diggers, 6);
+});
+
+test('only as many helpers dig as the world allows', () => {
+  const s = digAt(0, 0, 20, 0); s.workers.diggers = 6; D.setAuto(s, false);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(s, x, 20, z, T.STONE);
+  run(s, 2);
+  assert.equal(s.run.crew.length, 2);
+});
+
+test('helpers have their own power and speed upgrades', () => {
+  const s = D.newState(1); s.coins = 1e12;
+  assert.ok(D.CREW_UPGRADES.crewDrill && D.CREW_UPGRADES.crewSpeed);
+  const p0 = D.crewDamage(s), r0 = D.crewRate(s);
+  s.upgrades.drill = 10; s.upgrades.speed = 10;
+  assert.equal(D.crewDamage(s), p0, "the miner's pick does not make helpers hit harder");
+  assert.equal(D.crewRate(s), r0);
+  const c = D.upgradeCost(s, 'crewDrill');
+  assert.ok(isFinite(c) && c > 0);
+  assert.equal(D.buyUpgrade(s, 'crewDrill'), true); assert.equal(D.buyUpgrade(s, 'crewSpeed'), true);
+  assert.ok(D.crewDamage(s) > p0); assert.ok(D.crewRate(s) > r0);
+  assert.ok(D.upgradeCost(s, 'crewDrill') > c);
+  const old = JSON.parse(D.serialize(D.newState(2))); old.upgrades = { drill: 1, speed: 0, bag: 0, magnet: 0 };
+  const s2 = D.deserialize(JSON.stringify(old));
+  assert.equal(s2.upgrades.crewDrill, 0, 'an old save gets the new upgrades at level 0');
+  assert.equal(s2.upgrades.drill, 1);
 });
 
 test('save and load round-trip', () => {
