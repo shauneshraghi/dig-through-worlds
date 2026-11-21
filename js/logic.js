@@ -92,10 +92,11 @@ var DTW = (function () {
   var CHEST_EVERY = 3;  // layers between treasure chests
   var CHEST_FOSSIL = 0.6; // chance a chest holds a missing fossil piece of the creature buried at that depth
   // A chest is locked. The miner reaching one opens the lock puzzle (run.lock) and the dig waits: pins sit at one
-  // of LOCK_LEVELS heights and must match the key's teeth; a tap moves a pin up one (wrapping round), and from world 3
-  // on it bumps the pin to its right as well, so the lock is solved left to right. Picking it gives the contents and a
+  // of LOCK_LEVELS heights and must match the key's teeth; a tap moves a pin up one (wrapping round) and its linked
+  // neighbours with it (LOCK_LINK): in the first world only the pin to its right, so it is solved left to right; after
+  // that the pins on both sides, so the taps have to be planned. Picking it gives the contents and a
   // bonus gem worth LOCK_GEM coins (times the world's ore value); smashing it gives SMASH_COINS and never a fossil.
-  var LOCK_LEVELS = 3, LOCK_PINS = [3, 3, 4, 4, 5], LOCK_GEM = 30, SMASH_COINS = 8;
+  var LOCK_LEVELS = 4, LOCK_PINS = [4, 4, 5, 5, 6], LOCK_LINK = [1, 2, 2, 2, 2], LOCK_GEM = 30, SMASH_COINS = 8;
   WORLDS.forEach(function (w) {
     w.fossils = [];
     w.creatures.forEach(function (c, ci) {
@@ -561,25 +562,26 @@ var DTW = (function () {
   function setAuto(s, on) { s.auto = !!on; if (s.run) s.run.manual = 0; }
   // ---------- chest locks ----------
   function openLock(s, i) {
-    var r = s.run, w = s.world, n = LOCK_PINS[w], linked = w >= 2, key = [], pins = [];
+    var r = s.run, w = s.world, n = LOCK_PINS[w], link = LOCK_LINK[w], key = [], pins = [];
     for (var k = 0; k < n; k++) { key.push(Math.floor(rand(s) * LOCK_LEVELS)); pins.push(key[k]); }
     // scramble from the key with backward taps, so the lock can always be picked
     while (pins.join() === key.join()) for (var m = 0; m < n; m++) {
       var back = Math.floor(rand(s) * LOCK_LEVELS);
-      for (var b = 0; b < back; b++) bumpPins(pins, m, linked, LOCK_LEVELS - 1);
+      for (var b = 0; b < back; b++) bumpPins(pins, m, link, LOCK_LEVELS - 1);
     }
-    r.lock = { i: i, key: key, pins: pins, linked: linked, taps: 0 };
+    r.lock = { i: i, key: key, pins: pins, link: link, taps: 0 };
     r.target = -1; r.state = 'idle'; r.taps = 0; r.steer = 0; r.path = null;
     emit(s, { type: 'lock', i: i });
   }
-  function bumpPins(pins, k, linked, by) {
+  function bumpPins(pins, k, link, by) {
     pins[k] = (pins[k] + by) % LOCK_LEVELS;
-    if (linked && k + 1 < pins.length) pins[k + 1] = (pins[k + 1] + by) % LOCK_LEVELS;
+    if (link >= 1 && k + 1 < pins.length) pins[k + 1] = (pins[k + 1] + by) % LOCK_LEVELS;
+    if (link === 2 && k > 0) pins[k - 1] = (pins[k - 1] + by) % LOCK_LEVELS;
   }
   function lockTap(s, k) {
     var L = s.mode === 'dig' && s.run.lock;
     if (!L || k < 0 || k >= L.pins.length) return false;
-    bumpPins(L.pins, k, L.linked, 1); L.taps++;
+    bumpPins(L.pins, k, L.link, 1); L.taps++;
     emit(s, { type: 'pin', k: k });
     if (L.pins.join() === L.key.join()) {
       s.run.lock = null; breakTile(s, L.i);

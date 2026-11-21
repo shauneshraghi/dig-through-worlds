@@ -625,7 +625,7 @@ var DTWRender = (function () {
     var ct = carryTarget(S), hi = null, ce = null;
     celebs.forEach(function (cc) { if (cc.k === k) ce = cc; });
     if (ct && ct.k === k) { // aura around the plinth the bone belongs to, and its missing piece shimmering
-      var pu = 0.5 + 0.5 * Math.sin(time * 3.5), ay = q[1] - TW * 0.55;
+      var pu = 0.5 + 0.5 * Math.sin(time * 2), ay = q[1] - TW * 0.55;
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       var ag = ctx.createRadialGradient(q[0], ay, 0, q[0], ay, TW * 1.6); ag.addColorStop(0, rgba(GOLD, 0.2 + 0.1 * pu)); ag.addColorStop(0.5, rgba(GOLD, 0.07 + 0.05 * pu)); ag.addColorStop(1, rgba(GOLD, 0));
       ctx.fillStyle = ag; ctx.fillRect(q[0] - TW * 1.6, ay - TW * 1.6, TW * 3.2, TW * 3.2); ctx.restore();
@@ -758,22 +758,20 @@ var DTWRender = (function () {
     for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) if (D.hubCell(x, z) === 'M') return [x + 0.5, z + 0.5];
     return null;
   }
+  // the hand-in spot: a thin gold ring with a faint fill, an inner ring, and one slow ring easing outwards
   function ringAt(cx, cz, rad, a, pulse) {
     var q = P(cx, 1, cz);
-    ctx.save(); // plain blending with a dark edge, so it reads on the pale museum floor too
-    ctx.fillStyle = rgba('#ffc400', (0.3 + 0.15 * pulse) * a); ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rad, hh * rad, 0, 0, 7); ctx.fill();
-    ctx.lineWidth = Math.max(5, TW / 6); ctx.strokeStyle = rgba('#8a5200', 0.7 * a);
-    ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rad, hh * rad, 0, 0, 7); ctx.stroke();
-    ctx.lineWidth = Math.max(3, TW / 11); ctx.strokeStyle = rgba('#ffe45c', (0.8 + 0.2 * pulse) * a);
-    ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rad, hh * rad, 0, 0, 7); ctx.stroke();
-    for (var r = 0; r < 2; r++) { // rings spreading outwards
-      var ph = (time * 0.8 + r * 0.5) % 1, rr = rad * (0.6 + 0.9 * ph);
-      ctx.lineWidth = Math.max(2, TW / 16); ctx.strokeStyle = rgba('#ffb300', 0.8 * (1 - ph) * a);
-      ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rr, hh * rr, 0, 0, 7); ctx.stroke();
-    }
+    function ell(r) { ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * r, hh * r, 0, 0, 7); }
+    ctx.save();
+    ctx.fillStyle = rgba('#ffd23f', (0.10 + 0.05 * pulse) * a); ell(rad); ctx.fill();
+    ctx.lineWidth = Math.max(3, TW / 12); ctx.strokeStyle = rgba('#2a1a00', 0.35 * a); ell(rad); ctx.stroke(); // soft shadow so it reads on pale floors
+    ctx.lineWidth = Math.max(1.5, TW / 26); ctx.strokeStyle = rgba('#ffe27a', 0.95 * a); ell(rad); ctx.stroke();
+    ctx.strokeStyle = rgba('#fff6d8', 0.55 * a); ell(rad * 0.62); ctx.stroke();
+    var ph = (time / 1.8) % 1, e = 1 - Math.pow(1 - ph, 2);
+    ctx.lineWidth = Math.max(1.2, TW / 34); ctx.strokeStyle = rgba('#ffe27a', 0.6 * (1 - ph) * a); ell(rad * (1 + 0.45 * e)); ctx.stroke();
     ctx.restore();
-    glow(q[0], q[1], TW * 1.3 * rad, GOLD, (0.25 + 0.15 * pulse) * a);
-    light(q[0], q[1] - TW * 0.2, TW * 2.2, (0.3 + 0.15 * pulse) * a, '#ffd96a');
+    glow(q[0], q[1], TW * 1.0 * rad, GOLD, (0.12 + 0.06 * pulse) * a);
+    light(q[0], q[1] - TW * 0.2, TW * 1.8, (0.18 + 0.08 * pulse) * a, '#ffd96a');
   }
   function sparkle(x, y, r, a, col) {
     ctx.save(); ctx.fillStyle = rgba(col, a); ctx.strokeStyle = rgba('#8a5200', a * 0.8); ctx.lineWidth = Math.max(1.5, r * 0.3); ctx.lineJoin = 'round';
@@ -781,39 +779,58 @@ var DTWRender = (function () {
     ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.3, y + r * 0.3); ctx.lineTo(x - r, y); ctx.lineTo(x - r * 0.3, y - r * 0.3); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
     glow(x, y, r * 2.2, col, a * 0.5);
   }
-  // the floor effects, drawn under the props: the ring, the trail of sparkles to it, the glowing door and desk
+  // the floor effects, drawn under the props: the ring, a line of chevrons leading to it, the glowing door and desk
   function handInFloor(S) {
     var T0 = carryTarget(S); if (!T0) return;
-    var pulse = 0.5 + 0.5 * Math.sin(time * 4);
-    ringAt(T0.cell[0], T0.cell[1], 1.0, 1, pulse);
+    var pulse = 0.5 + 0.5 * Math.sin(time * 2.2);
+    ringAt(T0.cell[0], T0.cell[1], 0.9, 1, pulse);
     var dq = P(HUB_DOOR[0] + 0.5, 1, HUB_DOOR[1] + 0.5), desk = deskCell();
-    glow(dq[0], dq[1], TW * 1.0, GOLD, 0.12 + 0.1 * pulse);
-    if (desk) { var kq = P(desk[0], 1, desk[1]); glow(kq[0], kq[1], TW * 1.0, GOLD, 0.15 + 0.1 * pulse); }
-    if (time - trail.t > 1 || !trail.pts.length) {
+    glow(dq[0], dq[1], TW * 0.9, GOLD, 0.08 + 0.05 * pulse);
+    if (desk) { var kq = P(desk[0], 1, desk[1]); glow(kq[0], kq[1], TW * 0.9, GOLD, 0.1 + 0.05 * pulse); }
+    if (time - trail.t > 0.5 || !trail.pts.length) { // chevrons every STEP along the walking path, each with its heading
+      var STEP = 0.75;
       trail.t = time; trail.pts = [];
       var path = D.hubPath(S.hub.x, S.hub.z, T0.cell[0], T0.cell[1]) || [], px = S.hub.x, pz = S.hub.z, acc = 0, run = 0;
       for (var i = 0; i < path.length; i++) {
         var sx = path[i][0] - px, sz = path[i][1] - pz, seg = Math.hypot(sx, sz), at = 0;
-        while (acc + (seg - at) >= 0.7) { at += 0.7 - acc; acc = 0; run += 0.7; trail.pts.push([px + sx * at / seg, pz + sz * at / seg, run]); }
+        while (seg > 0 && acc + (seg - at) >= STEP) { at += STEP - acc; acc = 0; run += STEP; trail.pts.push([px + sx * at / seg, pz + sz * at / seg, run, sx / seg, sz / seg]); }
         acc += seg - at; px = path[i][0]; pz = path[i][1];
       }
     }
-    var n = trail.pts.length;
+    var n = trail.pts.length, total = n ? trail.pts[n - 1][2] : 0;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (var j = 0; j < n; j++) {
-      var p = trail.pts[j]; if (p[2] < 1.0 || p[2] > 12) continue;
-      var fade = Math.min(1, (p[2] - 1.0) / 1.2) * Math.min(1, (n - j) / 2 + 0.4) * Math.max(0, 1 - (time - trail.t) * 0.55);
-      var wave = 0.5 + 0.5 * Math.sin(time * 6 - p[2] * 1.6), tq = P(p[0], 1, p[1]);
-      sparkle(tq[0], tq[1], TW * (0.12 + 0.08 * wave), fade * (0.5 + 0.5 * wave), '#fff0a0');
+      var p = trail.pts[j]; if (p[2] < 0.9 || p[2] > 14 || total - p[2] < 0.6) continue; // not under the miner, nor inside the ring
+      var fade = Math.min(1, (p[2] - 0.9) / 1.0) * Math.min(1, (14 - p[2]) / 2);
+      var wave = Math.pow(0.5 + 0.5 * Math.cos(time * 3.2 - p[2] * 1.1), 3); // a highlight travelling towards the plinth
+      var c = P(p[0], 1, p[1]), f = P(p[0] + p[3], 1, p[1] + p[4]), dx = f[0] - c[0], dy = f[1] - c[1], dl = Math.hypot(dx, dy) || 1;
+      dx /= dl; dy /= dl;
+      var r = TW * 0.13, nx = -dy, ny = dx;
+      var tip = [c[0] + dx * r * 0.6, c[1] + dy * r * 0.6], l = [c[0] - dx * r * 0.5 + nx * r, c[1] - dy * r * 0.5 + ny * r], rr = [c[0] - dx * r * 0.5 - nx * r, c[1] - dy * r * 0.5 - ny * r];
+      ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(tip[0], tip[1]); ctx.lineTo(rr[0], rr[1]);
+      ctx.lineWidth = Math.max(4, TW / 10); ctx.strokeStyle = rgba('#3a2400', 0.55 * fade); ctx.stroke();
+      ctx.lineWidth = Math.max(2, TW / 20); ctx.strokeStyle = rgba(wave > 0.5 ? '#fff6d8' : '#ffd23f', (0.7 + 0.3 * wave) * fade); ctx.stroke();
     }
+    ctx.restore();
   }
-  function handInTop(S) { // the arrow over the ring, on top of everything
+  // a small dark tag over the ring naming the skeleton the bone belongs to, with a pointer down to the spot
+  function handInTop(S) {
     var T0 = carryTarget(S); if (!T0) return;
-    var q = P(T0.cell[0], 1, T0.cell[1]), bob = Math.abs(Math.sin(time * 4)) * TW * 0.25, y = q[1] - TW * 1.45 + bob, a = TW * 0.3;
-    ctx.save(); ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, TW / 12); ctx.strokeStyle = '#7a4a00'; ctx.fillStyle = GOLD;
-    ctx.beginPath(); ctx.moveTo(q[0] - a * 0.45, y - a * 1.1); ctx.lineTo(q[0] + a * 0.45, y - a * 1.1); ctx.lineTo(q[0] + a * 0.45, y - a * 0.3);
-    ctx.lineTo(q[0] + a, y - a * 0.3); ctx.lineTo(q[0], y + a * 0.7); ctx.lineTo(q[0] - a, y - a * 0.3); ctx.lineTo(q[0] - a * 0.45, y - a * 0.3); ctx.closePath();
-    ctx.stroke(); ctx.fill(); ctx.restore();
-    tagText(q[0], y - a * 1.5, '🦴 Bring it here!', Math.max(12, TW * 0.26), '#fff2a8', 'rgba(90,58,0,0.85)');
+    var it = S.carry[0], cr = D.WORLDS[it.world].creatures[Math.floor(it.idx / 5)];
+    var q = P(T0.cell[0], 1, T0.cell[1]), size = Math.max(12, TW * 0.24), y = q[1] - TW * 1.25 + Math.sin(time * 2) * TW * 0.03;
+    var text = '🦴 ' + (cr && cr.name ? cr.name : 'Museum');
+    octx.save(); octx.font = 'bold ' + Math.round(size) + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+    var wd = octx.measureText(text).width + size * 1.1, hgt = size * 1.7, x0 = q[0] - wd / 2, y0 = y - hgt / 2;
+    octx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(octx, x0 + 1, y0 + 2, wd, hgt, hgt * 0.3); octx.fill();
+    octx.fillStyle = 'rgba(22,17,34,0.88)'; roundRect(octx, x0, y0, wd, hgt, hgt * 0.3); octx.fill();
+    octx.lineWidth = Math.max(1, size / 12); octx.strokeStyle = 'rgba(255,210,63,0.85)'; octx.stroke();
+    var py = y0 + hgt, pw = size * 0.38; // pointer
+    octx.beginPath(); octx.moveTo(q[0] - pw, py - 0.5); octx.lineTo(q[0], py + pw * 0.95); octx.lineTo(q[0] + pw, py - 0.5); octx.closePath();
+    octx.fillStyle = 'rgba(22,17,34,0.88)'; octx.fill();
+    octx.beginPath(); octx.moveTo(q[0] - pw, py); octx.lineTo(q[0], py + pw * 0.95); octx.lineTo(q[0] + pw, py); octx.stroke();
+    octx.beginPath(); octx.arc(q[0], q[1] - TW * 0.02, Math.max(2, size * 0.16), 0, 7); octx.fillStyle = '#ffe27a'; octx.fill(); // the spot itself
+    octx.fillStyle = '#fff6d8'; octx.fillText(text, q[0], y + 1);
+    octx.restore();
   }
   // a short celebration at the plinth (or the desk when world < 0) once a bone is handed in
   function celebrate(world, creature) {

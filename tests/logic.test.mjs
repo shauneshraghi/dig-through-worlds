@@ -32,12 +32,25 @@ function digAt(w, x, y, z, up = {}) {
   return s;
 }
 const breaks = s => s.events.filter(e => e.type === 'break');
-// pick a chest lock the way a kid can: left to right, tap each pin until it matches the key
-// (a linked pin also bumps the one to its right, so the pins already done stay done)
-const solveLock = s => {
-  const L = s.run.lock; let taps = 0;
-  for (let k = 0; k < L.pins.length && s.run.lock; k++) while (s.run.lock && s.run.lock.pins[k] !== L.key[k]) { D.lockTap(s, k); taps++; }
-  return taps;
+// what one tap on pin k does to the pins: it moves up one, and so do its linked neighbours (right only, or both sides)
+const tapPins = (pins, k, link) => pins.map((v, j) => (j === k || (j === k + 1 && link >= 1) || (j === k - 1 && link === 2)) ? (v + 1) % D.LOCK_LEVELS : v);
+// the fewest taps that open a lock, found by searching every pin setting
+const lockPlan = L => {
+  const goal = L.key.join(), seen = new Map([[L.pins.join(), []]]), q = [L.pins.slice()];
+  while (q.length) {
+    const p = q.shift(), plan = seen.get(p.join());
+    if (p.join() === goal) return plan;
+    for (let k = 0; k < p.length; k++) { const n = tapPins(p, k, L.link); if (!seen.has(n.join())) { seen.set(n.join(), plan.concat(k)); q.push(n); } }
+  }
+  return null;
+};
+// pick a chest lock by planning it out, as a careful player would
+const solveLock = s => { const plan = lockPlan(s.run.lock); for (const k of plan) D.lockTap(s, k); return plan.length; };
+// the naive way: left to right, tap each pin until it matches the key (gives up after a few rounds)
+const greedyOpens = L => {
+  let p = L.pins.slice();
+  for (let k = 0; k < p.length; k++) for (let t = 0; t < D.LOCK_LEVELS && p[k] !== L.key[k]; t++) p = tapPins(p, k, L.link);
+  return p.join() === L.key.join();
 };
 
 test('five worlds with distinct biomes and distinct rules', () => {
@@ -743,18 +756,25 @@ test('reaching a chest opens a lock instead of breaking it, and the dig waits fo
   assert.equal(at(s.run.grid, 4, 10, 3), T.CHEST);
 });
 
-test('locks are always solvable left to right; they grow from 3 to 5 pins and pins link from world 3', () => {
+test('locks are always solvable; they grow from 4 to 6 pins, and after the first world a tap moves the pins on both sides', () => {
+  assert.equal(D.LOCK_LEVELS, 4);
+  const greedy = [0, 0, 0, 0, 0];
   for (let w = 0; w < 5; w++) for (let k = 0; k < 30; k++) {
     const s = digAt(w, 3, 10, 3); s.rng = k * 131 + 7; D.setAuto(s, false);
     D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
     const L = s.run.lock;
-    assert.equal(L.pins.length, [3, 3, 4, 4, 5][w]);
-    assert.equal(L.linked, w >= 2);
+    assert.equal(L.pins.length, [4, 4, 5, 5, 6][w]);
+    assert.equal(L.link, w === 0 ? 1 : 2);
     assert.notDeepEqual([...L.pins], [...L.key], 'it starts locked');
+    if (greedyOpens(L)) greedy[w]++;
+    const before = [...L.pins], mid = Math.min(2, L.pins.length - 1);
+    D.lockTap(s, mid); assert.deepEqual([...s.run.lock.pins], tapPins(before, mid, L.link), 'a tap moves the pin and its linked neighbours');
     solveLock(s);
     assert.equal(s.run.lock, null, `world ${w} lock ${k} solved`);
     assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
   }
+  assert.equal(greedy[0], 30, 'the first world is the tutorial: left to right always works');
+  for (let w = 1; w < 5; w++) assert.ok(greedy[w] <= 10, `world ${w}: left to right opened ${greedy[w]} of 30 locks`);
 });
 
 test('picking a lock gives the contents and a bonus gem; smashing gives a few coins and no fossil', () => {

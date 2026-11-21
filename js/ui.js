@@ -268,10 +268,10 @@
     var key = L.i + '|' + L.pins.join() + '|' + L.key.join();
     if (key === lockKey) return;
     lockKey = key;
-    $('lockHint').textContent = L.linked ? 'Match the golden key. Careful: each pin pushes the one to its right!' : 'Tap the pins to match the golden key.';
+    $('lockHint').textContent = L.link === 2 ? 'Match the golden key. Tricky: each pin moves its neighbours on both sides too!' : 'Match the golden key. Careful: each pin pushes the one to its right!';
     var h = function (v) { return Math.round((v + 1) / D.LOCK_LEVELS * 100) + '%'; }, html = '';
     for (var k = 0; k < L.pins.length; k++) {
-      if (k && L.linked) html += '<span class="link">➜</span>';
+      if (k && L.link) html += '<span class="link">' + (L.link === 2 ? '⇄' : '➜') + '</span>';
       html += '<div class="col"><div class="tooth"><i style="height:' + h(L.key[k]) + '"></i></div>' +
         '<button class="pin' + (L.pins[k] === L.key[k] ? ' ok' : '') + '" data-k="' + k + '" aria-label="Pin ' + (k + 1) + '"><i style="height:' + h(L.pins[k]) + '"></i></button></div>';
     }
