@@ -51,3 +51,7 @@ A browser digging game in plain HTML, CSS and JavaScript with no build step and 
 - Art is original and drawn in code. Do not copy names, sprites or layouts from other digging games.
 - Never call `alert`, `confirm` or `prompt`. Destructive buttons use a second tap to confirm.
 - Saves go to `localStorage` under the key `dig-through-worlds-v1`, and every access is wrapped in try/catch. The save format is version 3. A version 2 save's single skeleton per world becomes that world's middle creature (pieces and buried fossils shift by 5). A version 1 save from the old flat 11-wide world keeps coins, upgrades, museum and unlocks, and its dig sites are regenerated.
+
+## Agent workflow
+
+- Fanning independent work out to parallel subagents (for example one for the logic and tests, one for rendering, one for CSS and controls) is pre-approved here; do not ask first (standing rule, 2026-11-21). Keep to the model tiers and concurrency limits in the global instructions, give each agent its own files so edits do not collide, and review and test the merged result before committing.
