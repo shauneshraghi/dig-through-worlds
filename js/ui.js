@@ -83,11 +83,39 @@
   var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫', crewDrill: '⛏', crewSpeed: '⚡' };
   var PICK_NAMES = ['Wooden', 'Stone', 'Iron', 'Golden', 'Crystal'];
   function panelKey() {
-    var afford = Object.keys(D.UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return S.coins >= D.hireCost(S, k) ? 1 : 0; }))
-      .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; })).join('');
-    return [station, S.world, afford, station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
+    var afford = Object.keys(D.UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return D.canAfford(S, D.hireCost(S, k)) ? 1 : 0; }))
+      .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; })).join('');
+    return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind].join(';');
   }
+  // a price as chips: coins, then each material needed with a dot in its colour; a chip is dimmed when the player is short of it
+  function dot(t) { return '<i class="dot" style="background:' + D.MATS[t].color + '"></i>'; }
+  function priceHtml(c) {
+    if (!isFinite(c.coins)) return '';
+    var h = [];
+    if (c.coins > 0) h.push('<span class="chip' + (S.coins < c.coins ? ' lack' : '') + '">🪙 ' + fmt(c.coins) + '</span>');
+    c.mats.forEach(function (n, t) { if (n > 0) h.push('<span class="chip' + (S.mats[t] < n ? ' lack' : '') + '" title="' + D.MATS[t].name + '">' + dot(t) + fmt(n) + '</span>'); });
+    return '<div class="price">' + h.join('') + '</div>';
+  }
+  // the shop's stash and exchange: sell any material for coins, or buy one you are short of (it costs more, and more with each unit bought)
+  function exchangeRows(body) {
+    var h = document.createElement('div'); h.className = 'xhead';
+    h.innerHTML = '<b>Your materials</b>';
+    var tg = document.createElement('button'); tg.className = 'btn small'; tg.textContent = '× ' + xferN; tg.onclick = function () { xferN = xferN === 1 ? 10 : 1; lastPanelKey = ''; };
+    h.appendChild(tg); body.appendChild(h);
+    var note = document.createElement('p'); note.className = 'small'; note.textContent = 'Buying costs more than selling, and more with each one you buy. Dig what you need where it is common!'; body.appendChild(note);
+    D.MATS.forEach(function (m, t) {
+      var d = document.createElement('div'); d.className = 'row xrow';
+      d.innerHTML = '<div class="xdot" style="background:' + m.color + '"></div><div class="txt"><b>' + m.name + ' <span class="have">' + fmt(S.mats[t]) + '</span></b></div>';
+      var sell = document.createElement('button'); sell.className = 'btn xbtn sell'; sell.innerHTML = 'Sell<br><small>+🪙 ' + fmt(D.MAT_PRICE[t] * xferN) + '</small>'; sell.disabled = S.mats[t] < xferN;
+      sell.onclick = function () { if (!D.sellMat(S, t, xferN)) A.sfx('no'); else save(); };
+      var cost = D.matBuyPrice(S, t, xferN);
+      var buy = document.createElement('button'); buy.className = 'btn xbtn buy'; buy.innerHTML = 'Buy<br><small>−🪙 ' + fmt(cost) + '</small>'; buy.disabled = S.coins < cost;
+      buy.onclick = function () { if (!D.buyMat(S, t, xferN)) A.sfx('no'); else save(); };
+      d.appendChild(sell); d.appendChild(buy); body.appendChild(d);
+    });
+  }
+  var xferN = 1; // how many units one tap on the exchange buys or sells
   // a reset waits for the player to type yes; while that box is open the panel is not redrawn, so typing is not lost
   var confirmKind = null;
   function renderPanel() {
@@ -102,11 +130,11 @@
     $('bDig').textContent = top > 1 ? '⛏ Dig! (back to ' + top + ' m)' : '⛏ Dig!';
     $('bDig').style.display = dig ? '' : 'none';
     var body = $('tabBody'); body.innerHTML = ''; body.style.display = dig ? 'none' : '';
-    function row(ic, title, sub, btnText, enabled, onClick) {
+    function row(ic, title, sub, btnText, enabled, onClick, cost) {
       var d = document.createElement('div'); d.className = 'row';
       var i = document.createElement('div'); i.className = 'ic'; i.style.cssText = 'font-size:42px;display:flex;align-items:center;justify-content:center;background:#1a1430;border-radius:10px';
       i.textContent = ic;
-      var t = document.createElement('div'); t.className = 'txt'; t.innerHTML = '<b>' + title + '</b><small>' + sub + '</small>';
+      var t = document.createElement('div'); t.className = 'txt'; t.innerHTML = '<b>' + title + '</b><small>' + sub + '</small>' + (cost ? priceHtml(cost) : '');
       d.appendChild(i); d.appendChild(t);
       if (btnText) { var b = document.createElement('button'); b.className = 'btn'; b.textContent = btnText; b.disabled = !enabled; b.onclick = onClick; d.appendChild(b); }
       body.appendChild(d);
@@ -115,21 +143,22 @@
       Object.keys(D.UPGRADES).forEach(function (key) {
         var u = D.UPGRADES[key], c = D.upgradeCost(S, key), lv = S.upgrades[key];
         var sub = key === 'drill' ? u.text + ' · ' + PICK_NAMES[R.pickTier(lv)] + ' pickaxe' : u.text;
-        row(UPIC[key], u.name + ' <span class="small">Lv ' + lv + '</span>', sub, isFinite(c) ? '🪙 ' + fmt(c) : 'MAX', isFinite(c) && S.coins >= c,
-          function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); });
+        row(UPIC[key], u.name + ' <span class="small">Lv ' + lv + '</span>', sub, isFinite(c.coins) ? 'Buy' : 'MAX', D.canAfford(S, c),
+          function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); }, c);
       });
+      exchangeRows(body);
     } else if (tab === 'he') {
       Object.keys(D.WORKERS).forEach(function (key) {
         var u = D.WORKERS[key], c = D.hireCost(S, key), n = S.workers[key], dig = key === 'diggers', cap = dig ? D.maxDiggers(S) : u.max;
         var sub = dig ? u.text + ' · up to ' + cap + ' now' + (cap < u.max ? ', one more each new world' : '') : u.text;
-        var btn = isFinite(c) ? '🪙 ' + fmt(c) : dig && n < u.max ? '🔒 New world' : 'MAX';
-        row(UPIC[key], u.name + ' <span class="small">× ' + n + (dig ? ' / ' + cap : '') + '</span>', sub, btn, isFinite(c) && S.coins >= c,
-          function () { if (D.hire(S, key)) save(); else A.sfx('no'); });
+        var btn = isFinite(c.coins) ? 'Hire' : dig && n < u.max ? '🔒 New world' : 'MAX';
+        row(UPIC[key], u.name + ' <span class="small">× ' + n + (dig ? ' / ' + cap : '') + '</span>', sub, btn, D.canAfford(S, c),
+          function () { if (D.hire(S, key)) save(); else A.sfx('no'); }, c);
       });
       if (S.workers.diggers > 0) Object.keys(D.CREW_UPGRADES).forEach(function (key) { // the helpers' own pick and pace
         var u = D.CREW_UPGRADES[key], c = D.upgradeCost(S, key), lv = S.upgrades[key] | 0;
-        row(UPIC[key], u.name + ' <span class="small">Lv ' + lv + '</span>', u.text, isFinite(c) ? '🪙 ' + fmt(c) : 'MAX', isFinite(c) && S.coins >= c,
-          function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); });
+        row(UPIC[key], u.name + ' <span class="small">Lv ' + lv + '</span>', u.text, isFinite(c.coins) ? 'Buy' : 'MAX', D.canAfford(S, c),
+          function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); }, c);
       });
       var p = document.createElement('p'); p.className = 'small'; p.textContent = 'Helpers work only while the game is open.'; body.appendChild(p);
     } else if (tab === 'mu') {
@@ -231,7 +260,7 @@
       } else if (e.type === 'collect') {
         var it = e.item;
         // the find appears in the pit where its block was; moon loot that bounced into the miner just sparkles there
-        var lbl = e.name + (it.kind === 'ore' || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), pick = !lastBreak || (D.WORLDS[S.world].rule === 'lowgrav' && it.kind !== 'relic');
+        var lbl = e.name + ((it.kind === 'ore' && D.WORLDS[it.world].ores[it.idx].mat == null) || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), pick = !lastBreak || (D.WORLDS[S.world].rule === 'lowgrav' && it.kind !== 'relic');
         if (e.at) R.spawnFind(e.at.x - 0.5, e.at.y - 0.4, e.at.z - 0.5, it, lbl, { from: true, carried: !!it.carried }); // flies from where it lay to the miner
         else if (pick) R.spawnFind(r ? r.x : 3, r ? r.y : 0, r ? r.z : 3, it, lbl, { pickup: true });
         else R.spawnFind(lastBreak.x, lastBreak.y, lastBreak.z, it, lbl, { chest: lastBreak.tile === T.CHEST, carried: !!it.carried });
@@ -255,10 +284,13 @@
       else if (e.type === 'boneFull') toast('🦴 Your hands are full! Take your bone home to the 🏛 museum first.', 3000);
       else if (e.type === 'delivered') { A.sfx('fossil'); toast('🏛 On show: <b>' + e.names.join(', ') + '</b>!', 3200); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
       else if (e.type === 'buy' || e.type === 'hire') A.sfx('buy');
+      else if (e.type === 'sell' || e.type === 'exchange') A.sfx('coin');
       else if (e.type === 'museumCash') { A.sfx('coin'); R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(e.coins), '#ffd23f'); R.coinBurst(); toast('🏛 Your visitors paid <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>!', 2600); save(); }
       else if (e.type === 'banked') {
         var msg = [];
         if (e.coins > 0) msg.push('Sold your finds for <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>');
+        var got = e.mats.map(function (n, t) { return n > 0 ? '<span class="chip">' + dot(t) + '+' + fmt(n) + ' ' + D.MATS[t].name + '</span>' : ''; }).join('');
+        if (got) msg.push('Mined ' + got);
         if (e.pieces.length) msg.push('🦴 Carry your new bone' + (e.pieces.length > 1 ? 's' : '') + ' to the 🏛 museum!');
         if (msg.length) { toast(msg.join('<br>'), 3500); A.sfx('coin'); }
         if (e.relic !== null) {

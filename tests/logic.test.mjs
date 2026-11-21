@@ -127,7 +127,7 @@ test('five worlds with distinct biomes and distinct rules', () => {
   assert.equal(rules.size, 5);
   assert.deepEqual([...ids], ['forest', 'ocean', 'jungle', 'moon', 'alien']);
   for (const w of D.WORLDS) {
-    assert.equal(w.ores.length, 4, w.id);
+    assert.equal(w.ores.length, 6, w.id);
     assert.equal(w.creatures.length, 3, w.id);
     for (const c of w.creatures) assert.equal(c.parts.length, 5, c.name);
     assert.equal(w.fossils.length, 15, w.id);
@@ -376,7 +376,7 @@ test('going home sweeps up loot left on the floor, and a save keeps it in the ba
   D.goHome(s);
   assert.equal(s.run.loot.length, 0); assert.equal(s.run.bag.length, 1);
   run(s, 6);
-  assert.ok(s.coins > 0, 'and it was sold');
+  assert.equal(s.mats[0], 1, 'and the coal went to the stash');
 });
 
 test('walking onto loot picks it up', () => {
@@ -492,7 +492,7 @@ test('ocean: when oxygen runs out the miner floats home with its bag', () => {
   assert.notEqual(s.mode, 'dig');
   run(s, 5);
   assert.equal(s.mode, 'surface');
-  assert.ok(s.coins > 0, 'bag was kept and sold');
+  assert.equal(s.mats[0], 1, 'the bag was kept');
 });
 
 test('ocean: a bubble pocket in a neighbouring block refills oxygen', () => {
@@ -566,11 +566,11 @@ test('moon: ore pops out as loot that bounces in 3D, settles and waits to be pic
 test('upgrades cost more each level and cannot be bought without coins', () => {
   const s = D.newState(1);
   assert.equal(D.buyUpgrade(s, 'drill'), false);
-  s.coins = 1e9;
+  s.coins = 1e9; s.mats = [1e9, 1e9, 1e9, 1e9, 1e9];
   const c0 = D.upgradeCost(s, 'drill');
   assert.equal(D.buyUpgrade(s, 'drill'), true);
-  assert.equal(s.coins, 1e9 - c0);
-  assert.ok(D.upgradeCost(s, 'drill') > c0);
+  assert.equal(s.coins, 1e9 - c0.coins);
+  assert.ok(D.upgradeCost(s, 'drill').coins > c0.coins);
   for (const k of ['bag', 'speed', 'magnet']) assert.equal(D.buyUpgrade(s, k), true);
   assert.equal(D.bagCap(s) > D.bagCap(D.newState(1)), true);
 });
@@ -585,7 +585,7 @@ test('museum: a finished exhibit draws visitors, staff and diggers can be hired'
   assert.ok(inc > part * 3, 'a finished skeleton pays far more than loose pieces');
   assert.equal(D.exhibitDone(s, 0, 0), true);
   assert.equal(D.exhibitDone(s, 0), false);
-  s.coins = 1e9;
+  s.coins = 1e9; s.mats = [1e9, 1e9, 1e9, 1e9, 1e9];
   assert.equal(D.hire(s, 'staff'), true);
   assert.ok(D.museumIncome(s) > inc);
   assert.equal(D.hire(s, 'diggers'), true);
@@ -614,7 +614,7 @@ test('museum coins pile up at the museum and are collected by walking in', () =>
 });
 
 test('helper diggers: two in the first world, one more for each world unlocked', () => {
-  const s = D.newState(1); s.coins = 1e12;
+  const s = D.newState(1); s.coins = 1e12; s.mats = [1e9, 1e9, 1e9, 1e9, 1e9];
   while (D.hire(s, 'diggers'));
   assert.equal(s.workers.diggers, 2);
   assert.equal(D.maxDiggers(s), 2);
@@ -632,17 +632,17 @@ test('only as many helpers dig as the world allows', () => {
 });
 
 test('helpers have their own power and speed upgrades', () => {
-  const s = D.newState(1); s.coins = 1e12;
+  const s = D.newState(1); s.coins = 1e12; s.mats = [1e9, 1e9, 1e9, 1e9, 1e9];
   assert.ok(D.CREW_UPGRADES.crewDrill && D.CREW_UPGRADES.crewSpeed);
   const p0 = D.crewDamage(s), r0 = D.crewRate(s);
   s.upgrades.drill = 10; s.upgrades.speed = 10;
   assert.equal(D.crewDamage(s), p0, "the miner's pick does not make helpers hit harder");
   assert.equal(D.crewRate(s), r0);
   const c = D.upgradeCost(s, 'crewDrill');
-  assert.ok(isFinite(c) && c > 0);
+  assert.ok(isFinite(c.coins) && c.mats[0] > 0);
   assert.equal(D.buyUpgrade(s, 'crewDrill'), true); assert.equal(D.buyUpgrade(s, 'crewSpeed'), true);
   assert.ok(D.crewDamage(s) > p0); assert.ok(D.crewRate(s) > r0);
-  assert.ok(D.upgradeCost(s, 'crewDrill') > c);
+  assert.ok(D.upgradeCost(s, 'crewDrill').coins > c.coins);
   const old = JSON.parse(D.serialize(D.newState(2))); old.upgrades = { drill: 1, speed: 0, bag: 0, magnet: 0 };
   const s2 = D.deserialize(JSON.stringify(old));
   assert.equal(s2.upgrades.crewDrill, 0, 'an old save gets the new upgrades at level 0');
@@ -699,14 +699,21 @@ test('a save from the 100-layer pits keeps progress, banks its bag and digs fres
 
 // A simple bot standing in for a kid: steers toward the nearest block in its layer (the miner
 // walks and digs at full pace only while steered), taps 3 times a second, heads home when the bag is full or every 2.5 minutes,
-// and spends on the cheapest upgrade (bag and magnet weighted down).
+// and spends on the cheapest upgrade (bag and magnet weighted down). An upgrade it is short of materials for it buys
+// at the exchange (buyMat) when its coins stretch to that.
+const costValue = c => c.coins + c.mats.reduce((a, n, t) => a + n * D.MAT_PRICE[t], 0);
 function shop(s) {
   for (let g = 0; g < 80; g++) {
     const o = ['drill', 'speed', 'bag', 'magnet']
-      .map(k => [k, D.upgradeCost(s, k) * (k === 'bag' ? 2 : k === 'magnet' ? 1.5 : 1)])
+      .map(k => [k, costValue(D.upgradeCost(s, k)) * (k === 'bag' ? 2 : k === 'magnet' ? 1.5 : 1)])
       .filter(([, c]) => isFinite(c)).sort((a, b) => a[1] - b[1]);
-    if (!o.length || D.upgradeCost(s, o[0][0]) > s.coins) break;
-    D.buyUpgrade(s, o[0][0]);
+    if (!o.length) break;
+    const c = D.upgradeCost(s, o[0][0]);
+    let need = c.coins;
+    for (let t = 0; t < 5; t++) { const short = Math.max(0, c.mats[t] - s.mats[t]); if (short) need += D.matBuyPrice(s, t, short); }
+    if (need > s.coins) break;
+    for (let t = 0; t < 5; t++) { const short = Math.max(0, c.mats[t] - s.mats[t]); if (short) assert.equal(D.buyMat(s, t, short), true); }
+    assert.equal(D.buyUpgrade(s, o[0][0]), true);
   }
 }
 function botSteer(s) {
@@ -758,8 +765,7 @@ test('the first upgrade is affordable after one trip', () => {
     if (s.mode === 'dig') { acc += 3 * 0.1; while (acc >= 1) { D.tap(s); acc--; } if (s.run.bag.length >= D.bagCap(s) || t > 150) D.goHome(s); }
     D.step(s, 0.1); t += 0.1;
   }
-  const cheapest = Math.min(...['drill', 'speed', 'bag', 'magnet'].map(k => D.upgradeCost(s, k)));
-  assert.ok(s.coins >= cheapest, `earned ${s.coins} vs cheapest ${cheapest}`);
+  assert.ok(['drill', 'speed', 'bag', 'magnet'].some(k => D.canAfford(s, D.upgradeCost(s, k))), `earned ${s.coins} coins and [${s.mats}] without buying anything`);
 });
 
 test('playthrough: each world takes a kid-sized 8–20 minutes, all five finish, and a full bag sends the miner home', () => {

@@ -15,8 +15,7 @@ var DTW = (function () {
   var WORLDS = [
     { id: 'forest', name: 'Whispering Forest', rule: 'roots', ruleText: 'Tough tree roots: steer around them!',
       hp: 3, oreMult: 1,
-      ores: [{ name: 'Coal', value: 2, color: '#2b2b2b' }, { name: 'Copper', value: 5, color: '#d9813b' },
-             { name: 'Iron', value: 10, color: '#c9b8a6' }, { name: 'Emerald', value: 25, color: '#2fd56b' }],
+      gem: { name: 'Emerald', color: '#2fd56b' }, // the world's rare themed gem: the one ore that sells for coins
       creatures: [{ name: 'Woolly Mammoth', parts: ['Skull', 'Tusks', 'Ribs', 'Legs', 'Tail'] },
                   { name: 'Raptor', parts: ['Skull', 'Ribs', 'Leg', 'Tail', 'Claw'] },
                   { name: 'T. rex', parts: ['Skull', 'Arms', 'Ribs', 'Legs', 'Tail'] }],
@@ -27,8 +26,7 @@ var DTW = (function () {
       music: { tempo: 112, root: 60, scale: [0, 2, 4, 7, 9], wave: 'triangle' } },
     { id: 'ocean', name: 'Sunken Ocean Floor', rule: 'oxygen', ruleText: 'Watch your oxygen! Pop bubbles to refill.',
       hp: 40, oreMult: 5,
-      ores: [{ name: 'Sea Glass', value: 2, color: '#8ff0d8' }, { name: 'Coral', value: 5, color: '#ff6f8a' },
-             { name: 'Pearl', value: 10, color: '#fff6e6' }, { name: 'Aquamarine', value: 25, color: '#3fc8ff' }],
+      gem: { name: 'Aquamarine', color: '#3fc8ff' }, // the world's rare themed gem: the one ore that sells for coins
       creatures: [{ name: 'Giant Sea Turtle', parts: ['Skull', 'Shell', 'Front Flippers', 'Back Flippers', 'Tail'] },
                   { name: 'Giant Shark', parts: ['Tooth', 'Jaw', 'Fin', 'Spine', 'Tail'] },
                   { name: 'Plesiosaur', parts: ['Skull', 'Neck', 'Ribs', 'Paddles', 'Tail'] }],
@@ -39,8 +37,7 @@ var DTW = (function () {
       music: { tempo: 84, root: 57, scale: [0, 3, 5, 7, 10], wave: 'sine' } },
     { id: 'jungle', name: 'Jungle Ruins', rule: 'traps', ruleText: 'Ancient traps make you dizzy. Find the treasure rooms!',
       hp: 100, oreMult: 25,
-      ores: [{ name: 'Jade', value: 2, color: '#59c98a' }, { name: 'Gold', value: 5, color: '#ffd23f' },
-             { name: 'Topaz', value: 10, color: '#ffa63f' }, { name: 'Ruby', value: 25, color: '#ff3b5c' }],
+      gem: { name: 'Ruby', color: '#ff3b5c' }, // the world's rare themed gem: the one ore that sells for coins
       creatures: [{ name: 'Sabre-tooth Cat', parts: ['Skull', 'Fangs', 'Ribs', 'Legs', 'Tail'] },
                   { name: 'Mega Crocodile', parts: ['Skull', 'Jaw', 'Scales', 'Leg', 'Tail'] },
                   { name: 'Stegosaurus', parts: ['Skull', 'Plates', 'Ribs', 'Legs', 'Tail Spikes'] }],
@@ -51,8 +48,7 @@ var DTW = (function () {
       music: { tempo: 128, root: 62, scale: [0, 2, 3, 7, 8], wave: 'square' } },
     { id: 'moon', name: 'The Moon', rule: 'lowgrav', ruleText: 'Low gravity: loot bounces around before you grab it.',
       hp: 750, oreMult: 125,
-      ores: [{ name: 'Moon Rock', value: 2, color: '#d6d6e0' }, { name: 'Helium Ice', value: 5, color: '#a8e8ff' },
-             { name: 'Titanium', value: 10, color: '#9aa6c8' }, { name: 'Star Diamond', value: 25, color: '#ffffff' }],
+      gem: { name: 'Star Diamond', color: '#ffffff' }, // the world's rare themed gem: the one ore that sells for coins
       creatures: [{ name: 'Lost Moon Rover', parts: ['Wheels', 'Antenna', 'Panel', 'Camera', 'Flag'] },
                   { name: 'Pterodactyl', parts: ['Skull', 'Crest', 'Wings', 'Body', 'Legs'] },
                   { name: 'Brachiosaurus', parts: ['Skull', 'Neck', 'Ribs', 'Legs', 'Tail'] }],
@@ -63,8 +59,7 @@ var DTW = (function () {
       music: { tempo: 72, root: 64, scale: [0, 2, 4, 6, 9], wave: 'sine' } },
     { id: 'alien', name: 'Planet Glorp', rule: 'goo', ruleText: 'Alien goo grows back if you stop drilling it. Tap fast!',
       hp: 2200, oreMult: 625,
-      ores: [{ name: 'Glowshroom', value: 2, color: '#b6ff3f' }, { name: 'Plasma Gem', value: 5, color: '#ff4fd8' },
-             { name: 'Void Crystal', value: 10, color: '#8a5cff' }, { name: 'Nebula Opal', value: 25, color: '#5ff3ff' }],
+      gem: { name: 'Nebula Opal', color: '#5ff3ff' }, // the world's rare themed gem: the one ore that sells for coins
       creatures: [{ name: 'Glorpatops', parts: ['Skull', 'Horns', 'Frill', 'Legs', 'Tail'] },
                   { name: 'Sky Serpent', parts: ['Skull', 'Fang', 'Wing', 'Coil', 'Tail'] },
                   { name: 'Space Ankylosaur', parts: ['Skull', 'Armour', 'Ribs', 'Legs', 'Club Tail'] }],
@@ -129,6 +124,62 @@ var DTW = (function () {
       c.parts.forEach(function (p) { w.fossils.push(c.name + ' ' + p); });
     });
   });
+
+  // ---------- materials ----------
+  // Five global materials, tier 0-4, kept in s.mats. Ore blocks hold a material (ore index = tier) or the world's gem (index 5).
+  // The index of an ore tile's value and of a bag item's idx is the index into WORLDS[w].ores.
+  var MATS = [{ name: 'Coal', color: '#2b2b2b', icon: '⚫' }, { name: 'Copper', color: '#d9813b', icon: '🟠' },
+              { name: 'Iron', color: '#c9b8a6', icon: '⚙️' }, { name: 'Gold', color: '#ffd23f', icon: '🟡' },
+              { name: 'Crystal', color: '#9a6bff', icon: '🔮' }];
+  var GEM = 5; // ore index of the themed gem
+  // Share of a world's ore blocks (percent) per ore index: coal, copper, iron, gold, crystal, gem. The early worlds hold
+  // the cheap tiers in bulk, the late ones the dear tiers, and each keeps a little of the two tiers below its main ones.
+  var ORE_WEIGHT = [[62, 25, 9, 1, 0, 3], [14, 38, 36, 8, 1, 3], [5, 10, 35, 35, 12, 3], [2, 5, 12, 36, 42, 3], [1, 3, 8, 27, 58, 3]];
+  // The exchange at the shop. A material sells for MAT_PRICE coins (about x5 a tier, like oreMult). Buying costs
+  // BUY_SPREAD times that, rising by BUY_RAMP of itself with each unit bought since the last trip home (s.matBought), so
+  // the cheap way to a material is to dig it where it is common and coins only top up a shortfall.
+  var MAT_PRICE = [3, 15, 75, 375, 1875], BUY_SPREAD = 2, BUY_RAMP = 0.1;
+  var OLD_ORE_VALUE = [2, 5, 10, 25]; // coin value of old (before save v4) ores, times the world's oreMult
+  WORLDS.forEach(function (w) {
+    w.ores = MATS.map(function (m, t) { return { name: m.name, color: m.color, mat: t }; }).concat([{ name: w.gem.name, color: w.gem.color, value: 25 }]);
+  });
+  function emptyMats() { return [0, 0, 0, 0, 0]; }
+  // The price of an upgrade or hire at level lvl (of def.max): coins plus materials. def's coin curve is the value V;
+  // 40% is paid in coins, 30% in the level's tier (lvl spread over the five tiers), then shares of V in the tiers below
+  // it, each count capped by LOW_CAP (grows with the level) so the low tiers are bought in bulk but not absurdly.
+  var PRICE_SHARE = [0.3, 0.15, 0.1, 0.05, 0.05], COIN_SHARE = 0.4, LOW_CAP = [300, 200, 120, 60];
+  function priceOf(def, lvl) {
+    var V = costOf(def, lvl), mats = emptyMats();
+    if (!isFinite(V)) return { coins: Infinity, mats: mats };
+    var top = Math.min(4, Math.floor(lvl * 5 / def.max)), coinShare = lvl === 0 ? 0 : COIN_SHARE; // a first level costs no coins: the first trip home pays for it
+    for (var t = top; t >= 0; t--) {
+      var n = Math.ceil((PRICE_SHARE[top - t] + (t === top ? COIN_SHARE - coinShare : 0)) * V / MAT_PRICE[t]);
+      if (t < top) n = Math.min(n, Math.ceil(LOW_CAP[t] * (lvl + 1) / def.max));
+      mats[t] = Math.max(1, n);
+    }
+    return { coins: Math.round(coinShare * V), mats: mats };
+  }
+  function canAfford(s, c) {
+    if (!isFinite(c.coins) || s.coins < c.coins) return false;
+    for (var t = 0; t < 5; t++) if (s.mats[t] < c.mats[t]) return false;
+    return true;
+  }
+  function pay(s, c) { s.coins -= c.coins; for (var t = 0; t < 5; t++) s.mats[t] -= c.mats[t]; }
+  function sellMat(s, t, n) {
+    if (!(n > 0) || s.mats[t] < n) return false;
+    s.mats[t] -= n; s.coins += n * MAT_PRICE[t]; emit(s, { type: 'sell', tier: t, n: n }); return true;
+  }
+  // the coins it costs to buy n more units of tier t now
+  function matBuyPrice(s, t, n) {
+    var total = 0, b = s.matBought[t];
+    for (var i = 0; i < n; i++) total += Math.ceil(BUY_SPREAD * MAT_PRICE[t] * (1 + BUY_RAMP * (b + i)));
+    return total;
+  }
+  function buyMat(s, t, n) {
+    var c = matBuyPrice(s, t, n);
+    if (!(n > 0) || s.coins < c) return false;
+    s.coins -= c; s.mats[t] += n; s.matBought[t] += n; emit(s, { type: 'exchange', tier: t, n: n }); return true;
+  }
 
   var UPGRADES = {
     drill:  { name: 'Drill Power', base: 15, mult: 1.6,  max: 30, text: 'Hits harder' },
@@ -417,8 +468,8 @@ var DTW = (function () {
         var r = rng(), tt = TILE.DIRT, vv = 0;
         if (r < ORE_P) {
           tt = TILE.ORE;
-          var maxIdx = Math.min(3, Math.floor(f * 4.5));
-          vv = Math.min(maxIdx, Math.floor(Math.pow(rng(), 1.6) * (maxIdx + 1)));
+          var q = rng() * 100, acc = 0; // pick an ore index by the world's weights
+          for (vv = 0; vv < GEM; vv++) { acc += ORE_WEIGHT[w][vv]; if (q < acc) break; }
         } else if (r < ORE_P + 0.06 + 0.2 * f) tt = TILE.STONE;
         t[i] = tt; v[i] = vv;
       }
@@ -498,7 +549,7 @@ var DTW = (function () {
     var s = {
       v: 1, seed: seed | 0, rng: (seed | 0) ^ 0x5bd1e995, coins: 0,
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
-      upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0,
+      upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
       museum: WORLDS.map(function () { return { pieces: emptyPieces() }; }),
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
@@ -523,19 +574,21 @@ var DTW = (function () {
     return Math.max(0.15, 1 / (1 + 0.12 * (n - cap)));
   }
   function costOf(def, lvl) { return lvl >= def.max ? Infinity : Math.round(def.base * Math.pow(def.mult, lvl)); }
-  function upgradeCost(s, k) { return costOf(UPGRADES[k] || CREW_UPGRADES[k], s.upgrades[k] | 0); }
+  // upgradeCost and hireCost return { coins, mats: [5 counts] } (coins Infinity when there is nothing to buy); nothing is
+  // converted for the player: buying needs every coin and every material in hand (buyMat and sellMat do the exchange).
+  function upgradeCost(s, k) { var d = UPGRADES[k] || CREW_UPGRADES[k]; return priceOf(d, s.upgrades[k] | 0); }
   function buyUpgrade(s, k) {
     var c = upgradeCost(s, k);
-    if (!isFinite(c) || s.coins < c) return false;
-    s.coins -= c; s.upgrades[k] = (s.upgrades[k] | 0) + 1; emit(s, { type: 'buy', key: k }); return true;
+    if (!canAfford(s, c)) return false;
+    pay(s, c); s.upgrades[k] = (s.upgrades[k] | 0) + 1; emit(s, { type: 'buy', key: k }); return true;
   }
   // helpers the player may have: two in the first world, one more for each world unlocked after it
   function maxDiggers(s) { return DIGGERS_FIRST + s.unlocked.lastIndexOf(true); }
-  function hireCost(s, k) { return k === 'diggers' && s.workers[k] >= maxDiggers(s) ? Infinity : costOf(WORKERS[k], s.workers[k]); }
+  function hireCost(s, k) { return k === 'diggers' && s.workers[k] >= maxDiggers(s) ? { coins: Infinity, mats: emptyMats() } : priceOf(WORKERS[k], s.workers[k]); }
   function hire(s, k) {
     var c = hireCost(s, k);
-    if (!isFinite(c) || s.coins < c) return false;
-    s.coins -= c; s.workers[k]++; emit(s, { type: 'hire', key: k }); return true;
+    if (!canAfford(s, c)) return false;
+    pay(s, c); s.workers[k]++; emit(s, { type: 'hire', key: k }); return true;
   }
   function drillDamage(s) { return Math.pow(1.5, s.upgrades.drill); }
   function crewDamage(s) { return Math.pow(1.5, s.upgrades.crewDrill | 0); }
@@ -560,7 +613,7 @@ var DTW = (function () {
   }
   function itemValue(it) {
     var wd = WORLDS[it.world];
-    if (it.kind === 'ore') return Math.round(wd.ores[it.idx].value * wd.oreMult);
+    if (it.kind === 'ore') return wd.ores[it.idx].mat != null ? MAT_PRICE[wd.ores[it.idx].mat] : Math.round(wd.ores[it.idx].value * wd.oreMult); // a material's coin worth is its sell price
     if (it.kind === 'treasure') return it.value;
     if (it.kind === 'fossil') return Math.round(15 * wd.oreMult);
     return 0;
@@ -802,17 +855,18 @@ var DTW = (function () {
     emit(s, { type: 'ascend', reason: reason || 'button' });
   }
   function bank(s) {
-    var r = s.run, coins = 0, pieces = [], relic = null;
+    var r = s.run, coins = 0, pieces = [], relic = null, gained = emptyMats();
     r.bag.forEach(function (it) {
       if (it.kind === 'fossil') { // a new bone is carried to the museum by hand; a copy is sold
         var have = s.museum[it.world].pieces[it.idx] > 0 || s.carry.some(function (c) { return c.world === it.world && c.idx === it.idx; });
         if (have) coins += itemValue(it); else { s.carry.push({ kind: 'fossil', world: it.world, idx: it.idx }); pieces.push(itemName(it)); }
       } else if (it.kind === 'relic') {
         if (!s.relics[it.world]) { s.relics[it.world] = true; relic = it.world; if (it.world < 4) s.unlocked[it.world + 1] = true; }
-      } else coins += itemValue(it);
+      } else if (it.kind === 'ore' && WORLDS[it.world].ores[it.idx].mat != null) { gained[WORLDS[it.world].ores[it.idx].mat]++; s.mats[WORLDS[it.world].ores[it.idx].mat]++; }
+      else coins += itemValue(it);
     });
-    s.coins += coins; r.bag = []; s.hub = hubHome();
-    emit(s, { type: 'banked', coins: coins, pieces: pieces, relic: relic });
+    s.coins += coins; r.bag = []; s.hub = hubHome(); s.matBought = emptyMats();
+    emit(s, { type: 'banked', coins: coins, mats: gained, pieces: pieces, relic: relic });
   }
 
   function isNewBone(s, it) {
@@ -1100,7 +1154,7 @@ var DTW = (function () {
   function serialize(s) {
     var bag = s.run && s.mode !== 'surface' ? s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 3, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 4, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0 }; })
     });
@@ -1108,9 +1162,10 @@ var DTW = (function () {
   function deserialize(str) {
     try {
       var o = JSON.parse(str);
-      if (!o || [1, 2, 3].indexOf(o.v) < 0) return null;
+      if (!o || [1, 2, 3, 4].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
-      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      if (!Array.isArray(s.mats) || s.mats.length !== 5) s.mats = emptyMats();
       s.upgrades = Object.assign(newState(0).upgrades, s.upgrades); s.workers = Object.assign(newState(0).workers, s.workers);
       // before v3 each world had one creature of five pieces: it is now that world's middle creature
       var old = o.v < 3;
@@ -1126,10 +1181,14 @@ var DTW = (function () {
         var gg = { t: Uint8Array.from(g.t), v: Uint8Array.from(g.v), hp: new Float32Array(g.t.length), deepest: g.deepest,
                    deepestX: g.deepestX == null ? mid : g.deepestX, deepestZ: g.deepestZ == null ? mid : g.deepestZ, gen: g.gen };
         if (old) for (var i = 0; i < gg.t.length; i++) if (gg.t[i] === TILE.FOSSIL) gg.v[i] += PIECES;
+        if (o.v < 4) for (var j = 0; j < gg.t.length; j++) if (gg.t[j] === TILE.ORE && gg.v[j] === 3) gg.v[j] = GEM; // the old gem ore (index 3) is now index 5
         fillHp(w, gg); return gg;
       });
       if (o.bag && o.bag.length) {
         if (old) o.bag.forEach(function (it) { if (it.kind === 'fossil') it.idx += PIECES; });
+        if (o.v < 4) o.bag = o.bag.map(function (it) { // old ores were all coins, worth their old value
+          return it.kind === 'ore' ? { kind: 'treasure', world: it.world, value: Math.round(OLD_ORE_VALUE[it.idx] * WORLDS[it.world].oreMult) } : it;
+        });
         s.run = { bag: o.bag, loot: [] }; bank(s); s.run = null;
       }
       s.events = [];
@@ -1155,7 +1214,9 @@ var DTW = (function () {
     var g = s.run.grid, i = idx(x, y, z); g.t[i] = tt; g.v[i] = vv || 0; g.hp[i] = maxHp(s.world, tt, y);
   }
 
-  return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
+  return {
+    MATS: MATS, MAT_PRICE: MAT_PRICE, GEM: GEM, canAfford: canAfford, sellMat: sellMat, buyMat: buyMat, matBuyPrice: matBuyPrice, bank: bank,
+    N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
