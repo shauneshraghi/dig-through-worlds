@@ -53,7 +53,10 @@ var DTWAudio = (function () {
     step: function () { tone(220, 0.06, 'triangle', 0.06); },
     click: function () { tone(1200, 0.04, 'square', 0.06); tone(700, 0.05, 'triangle', 0.05, AC.currentTime + 0.03); },
     unlock: function () { [784, 988, 1175, 1568].forEach(function (f, i) { tone(f, 0.12, 'square', 0.08, AC.currentTime + i * 0.07); }); },
-    no: function () { tone(160, 0.15, 'square', 0.1); }
+    no: function () { tone(160, 0.15, 'square', 0.1); },
+    // the four gems of the simon chest, a note each
+    pad0: function () { tone(523, 0.3, 'triangle', 0.14); }, pad1: function () { tone(659, 0.3, 'triangle', 0.14); },
+    pad2: function () { tone(784, 0.3, 'triangle', 0.14); }, pad3: function () { tone(1047, 0.3, 'triangle', 0.14); }
   };
   function sfx(n) { if (AC && !muted && SFX[n]) SFX[n](); }
   // Two moods of music. Overworld: one bright major tune shared by all worlds, keyed by the world's root and wave.

@@ -231,7 +231,9 @@
         if (it.kind === 'fossil') toast(it.chest ? '💰 Chest! A fossil bone inside!' : '🦴 You found a fossil!');
         if (it.kind === 'treasure') toast(it.gem ? '💎 A bonus gem!' : '💰 Treasure!');
       } else if (e.type === 'lock') { A.sfx('ding'); lockKey = ''; }
-      else if (e.type === 'pin') A.sfx('click');
+      else if (e.type === 'pin') { if (!(S.run && S.run.lock && S.run.lock.kind === 'simon')) A.sfx('click'); }
+      else if (e.type === 'match') A.sfx('coin');
+      else if (e.type === 'miss') A.sfx('no');
       else if (e.type === 'unlocked') { A.sfx('unlock'); toast('🔓 You picked the lock!', 2200); }
       else if (e.type === 'smashed') { R.shake(0.25); toast('🔨 Smash! Only a few coins fell out.', 2200); }
       else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
@@ -258,28 +260,65 @@
     });
   }
 
-  // ---------- the chest lock ----------
-  // Shown while the logic holds a lock open (run.lock); one column per pin: the key's tooth, then the pin to tap.
-  var lockKey = '';
+  // ---------- the chest puzzle ----------
+  // Shown while the logic holds a puzzle open (run.lock). Pins: one column per pin, the key's tooth over the pin to tap.
+  // Pairs: a grid of face-down cards. Simon: four gems that light up in turn, then wait for the player.
+  var lockKey = '', simonStep = -1, padFlash = { k: -1, t: 0 };
+  var PAIR_ICONS = ['💎', '🦴', '🪙', '⭐', '🍄', '🐚', '🌙', '👾'], PAD_ICONS = ['❤️', '💙', '💚', '💛'];
+  var LOCK_TEXT = {
+    pins: ['🔒 A locked chest!'],
+    pairs: ['🃏 A memory chest!', 'Flip two cards at a time and find every matching pair.'],
+    simon: ['🎵 A singing chest!', 'Watch the gems light up…', 'Your turn: tap the gems in the same order.']
+  };
   function renderLock() {
     var L = S.mode === 'dig' && S.run && S.run.lock, el = $('lock');
     el.classList.toggle('show', !!L);
-    if (!L) { lockKey = ''; return; }
-    var key = L.i + '|' + L.pins.join() + '|' + L.key.join();
-    if (key === lockKey) return;
-    lockKey = key;
-    $('lockHint').textContent = L.link === 2 ? 'Match the golden key. Tricky: each pin moves its neighbours on both sides too!' : 'Match the golden key. Careful: each pin pushes the one to its right!';
-    var h = function (v) { return Math.round((v + 1) / D.LOCK_LEVELS * 100) + '%'; }, html = '';
-    for (var k = 0; k < L.pins.length; k++) {
-      if (k && L.link) html += '<span class="link">' + (L.link === 2 ? '⇄' : '➜') + '</span>';
-      html += '<div class="col"><div class="tooth"><i style="height:' + h(L.key[k]) + '"></i></div>' +
-        '<button class="pin' + (L.pins[k] === L.key[k] ? ' ok' : '') + '" data-k="' + k + '" aria-label="Pin ' + (k + 1) + '"><i style="height:' + h(L.pins[k]) + '"></i></button></div>';
+    if (!L) { lockKey = ''; simonStep = -1; return; }
+    var kind = L.kind || 'pins', T0 = LOCK_TEXT[kind], html = '', key, hint;
+    if (kind === 'simon') {
+      var total = D.SIMON_LEAD + L.seq.length * D.SIMON_STEP, el2 = total - L.show - D.SIMON_LEAD, n = Math.floor(el2 / D.SIMON_STEP);
+      var lit = L.show > 0 && el2 >= 0 && n < L.seq.length && el2 - n * D.SIMON_STEP < D.SIMON_STEP * 0.7 ? L.seq[n] : -1;
+      if (lit >= 0 && n !== simonStep) { simonStep = n; A.sfx('pad' + lit); } // each gem sings as it lights
+      if (el2 < 0 || L.show === 0) simonStep = -1;
+      var flash = padFlash.k >= 0 && performance.now() - padFlash.t < 250 ? padFlash.k : -1;
+      key = 's|' + L.i + '|' + lit + '|' + n + '|' + L.pos + '|' + (L.show > 0) + '|' + flash;
+      if (key === lockKey) return;
+      hint = L.show > 0 ? T0[1] : T0[2];
+      html = '<div class="simon">';
+      for (var p = 0; p < D.SIMON_PADS; p++) html += '<button class="pad p' + p + (p === lit || p === flash ? ' lit' : '') + '" data-k="' + p + '"' + (L.show > 0 ? ' disabled' : '') + '>' + PAD_ICONS[p] + '</button>';
+      html += '</div><div class="dots">' + L.seq.map(function (_, j) { return '<i' + (j < L.pos ? ' class="on"' : '') + '></i>'; }).join('') + '</div>';
+    } else if (kind === 'pairs') {
+      key = 'p|' + L.i + '|' + L.up.join() + '|' + L.done.join() + '|' + (L.wait > 0);
+      if (key === lockKey) return;
+      hint = T0[1];
+      html = '<div class="pairs">';
+      L.cards.forEach(function (c, j) {
+        var up = L.done[j] || L.up.indexOf(j) >= 0;
+        html += '<button class="card' + (up ? ' up' : '') + (L.done[j] ? ' done' : '') + (L.wait > 0 && L.up.indexOf(j) >= 0 ? ' miss' : '') + '" data-k="' + j + '">' + (up ? PAIR_ICONS[c] : '') + '</button>';
+      });
+      html += '</div>';
+    } else {
+      key = 'k|' + L.i + '|' + L.pins.join() + '|' + L.key.join();
+      if (key === lockKey) return;
+      hint = L.link === 2 ? 'Match the golden key. Tricky: each pin moves its neighbours on both sides too!' : 'Match the golden key. Careful: each pin pushes the one to its right!';
+      var h = function (v) { return Math.round((v + 1) / D.LOCK_LEVELS * 100) + '%'; };
+      html = '<div class="pinrow">';
+      for (var k = 0; k < L.pins.length; k++) {
+        if (k && L.link) html += '<span class="link">' + (L.link === 2 ? '⇄' : '➜') + '</span>';
+        html += '<div class="col"><div class="tooth"><i style="height:' + h(L.key[k]) + '"></i></div>' +
+          '<button class="pin' + (L.pins[k] === L.key[k] ? ' ok' : '') + '" data-k="' + k + '" aria-label="Pin ' + (k + 1) + '"><i style="height:' + h(L.pins[k]) + '"></i></button></div>';
+      }
+      html += '</div>';
     }
+    lockKey = key;
+    $('lockTitle').textContent = T0[0]; $('lockHint').textContent = hint;
     $('lockBoard').innerHTML = html;
   }
   $('lockBoard').addEventListener('pointerdown', function (e) {
-    var b = e.target.closest('.pin'); if (!b) return;
-    audio(); D.lockTap(S, +b.dataset.k); e.preventDefault();
+    var b = e.target.closest('[data-k]'); if (!b || b.disabled) return;
+    audio(); var L = S.run && S.run.lock, k = +b.dataset.k;
+    if (L && L.kind === 'simon') { padFlash = { k: k, t: performance.now() }; A.sfx('pad' + k); }
+    D.lockTap(S, k); e.preventDefault();
   });
   $('bSmash').onclick = function () { audio(); D.lockSmash(S); };
 

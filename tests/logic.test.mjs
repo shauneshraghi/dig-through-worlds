@@ -44,8 +44,22 @@ const lockPlan = L => {
   }
   return null;
 };
-// pick a chest lock by planning it out, as a careful player would
-const solveLock = s => { const plan = lockPlan(s.run.lock); for (const k of plan) D.lockTap(s, k); return plan.length; };
+// solve whatever puzzle the chest holds, as a careful player would
+const solveLock = s => {
+  const L = s.run.lock;
+  if (L.kind === 'pins') { const plan = lockPlan(L); for (const k of plan) D.lockTap(s, k); return plan.length; }
+  if (L.kind === 'pairs') { // perfect memory: flip each pair by looking up the matching card
+    let taps = 0;
+    for (let a = 0; a < L.cards.length && s.run.lock; a++) if (!L.done[a]) {
+      const b = L.cards.findIndex((c, j) => j !== a && c === L.cards[a]);
+      D.lockTap(s, a); D.lockTap(s, b); taps += 2;
+    }
+    return taps;
+  }
+  D.step(s, L.show + 0.01); // watch the sequence, then play it back
+  for (const k of L.seq.slice()) D.lockTap(s, k);
+  return L.seq.length;
+};
 // the naive way: left to right, tap each pin until it matches the key (gives up after a few rounds)
 const greedyOpens = L => {
   let p = L.pins.slice();
@@ -760,8 +774,8 @@ test('locks are always solvable; they grow from 4 to 6 pins, and after the first
   assert.equal(D.LOCK_LEVELS, 4);
   const greedy = [0, 0, 0, 0, 0];
   for (let w = 0; w < 5; w++) for (let k = 0; k < 30; k++) {
-    const s = digAt(w, 3, 10, 3); s.rng = k * 131 + 7; D.setAuto(s, false);
-    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
+    const s = digAt(w, 3, 10, 3); s.rng = k * 131 + 7; D.setAuto(s, false); D._lockKind('pins');
+    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2); D._lockKind(null);
     const L = s.run.lock;
     assert.equal(L.pins.length, [4, 4, 5, 5, 6][w]);
     assert.equal(L.link, w === 0 ? 1 : 2);
@@ -775,6 +789,56 @@ test('locks are always solvable; they grow from 4 to 6 pins, and after the first
   }
   assert.equal(greedy[0], 30, 'the first world is the tutorial: left to right always works');
   for (let w = 1; w < 5; w++) assert.ok(greedy[w] <= 10, `world ${w}: left to right opened ${greedy[w]} of 30 locks`);
+});
+
+const openChest = (w, kind, rng) => {
+  const s = digAt(w, 3, 10, 3); if (rng !== undefined) s.rng = rng; D.setAuto(s, false); D._lockKind(kind);
+  D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2); D._lockKind(null);
+  return s;
+};
+
+test('chests hold three kinds of puzzle and never the same kind twice in a row', () => {
+  const s = digAt(1, 3, 10, 3); D.setAuto(s, false);
+  const kinds = [];
+  for (let k = 0; k < 30; k++) {
+    D._setTile(s, 4, 10, 3, T.CHEST); D._teleport(s, 3, 10, 3); D.steer(s, 'e'); run(s, 2);
+    kinds.push(s.run.lock.kind); solveLock(s); run(s, 1);
+  }
+  assert.deepEqual(new Set(kinds), new Set(['pins', 'pairs', 'simon']));
+  for (let k = 1; k < kinds.length; k++) assert.notEqual(kinds[k], kinds[k - 1]);
+});
+
+test('pairs: two cards flip at a time; a match stays up, a miss turns back over, all pairs open the chest', () => {
+  for (let w = 0; w < 5; w++) {
+    const s = openChest(w, 'pairs', 11 + w), L = s.run.lock;
+    assert.equal(L.cards.length, [8, 12, 12, 16, 16][w]);
+    for (let c = 0; c < L.cards.length / 2; c++) assert.equal(L.cards.filter(x => x === c).length, 2, 'each symbol twice');
+    const a = 0, miss = L.cards.findIndex(c => c !== L.cards[0]), hit = L.cards.findIndex((c, j) => j && c === L.cards[0]);
+    D.lockTap(s, a); D.lockTap(s, miss);
+    assert.deepEqual([...L.up], [a, miss], 'both face up for a moment');
+    D.lockTap(s, [...L.cards.keys()].find(j => j !== a && j !== miss)); assert.deepEqual([...L.up], [a, miss], 'no third card while a miss is showing');
+    run(s, 1.2); assert.equal(L.up.length, 0, 'the miss turned back over');
+    D.lockTap(s, a); D.lockTap(s, hit);
+    assert.ok(L.done[a] && L.done[hit] && L.up.length === 0, 'a match stays face up');
+    solveLock(s);
+    assert.equal(s.run.lock, null, `world ${w} opened`); assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
+  }
+});
+
+test('simon: watch the gems, then tap them back in order; a wrong tap replays the sequence', () => {
+  for (let w = 0; w < 5; w++) {
+    const s = openChest(w, 'simon', 5 + w), L = s.run.lock;
+    assert.equal(L.seq.length, [4, 5, 5, 6, 7][w]);
+    assert.ok(L.seq.every(k => k >= 0 && k < D.SIMON_PADS));
+    assert.ok(L.show > 0, 'it starts by showing the sequence');
+    D.lockTap(s, L.seq[0]); assert.equal(L.pos, 0, 'taps while it plays are ignored');
+    D.step(s, L.show + 0.01);
+    D.lockTap(s, L.seq[0]); assert.equal(L.pos, 1);
+    D.lockTap(s, (L.seq[1] + 1) % D.SIMON_PADS);
+    assert.equal(L.pos, 0); assert.ok(L.show > 0, 'a wrong tap plays it again');
+    solveLock(s);
+    assert.equal(s.run.lock, null, `world ${w} opened`);
+  }
 });
 
 test('picking a lock gives the contents and a bonus gem; smashing gives a few coins and no fossil', () => {

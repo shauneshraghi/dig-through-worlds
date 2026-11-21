@@ -97,6 +97,13 @@ var DTW = (function () {
   // that the pins on both sides, so the taps have to be planned. Picking it gives the contents and a
   // bonus gem worth LOCK_GEM coins (times the world's ore value); smashing it gives SMASH_COINS and never a fossil.
   var LOCK_LEVELS = 4, LOCK_PINS = [4, 4, 5, 5, 6], LOCK_LINK = [1, 2, 2, 2, 2], LOCK_GEM = 30, SMASH_COINS = 8;
+  // Not every chest is a pin lock (run.lock.kind): 'pairs' is a memory game, cards face down, two flipped at a time,
+  // a match stays up and a miss turns back over after PAIR_MISS seconds; 'simon' lights SIMON_PADS gems in a sequence
+  // (SIMON_STEP seconds each) for the player to tap back in order, and a wrong tap plays it again. Each chest picks
+  // a kind other than the last one.
+  var LOCK_KINDS = ['pins', 'pairs', 'simon'], PAIRS = [4, 6, 6, 8, 8], PAIR_MISS = 0.9;
+  var SIMON_PADS = 4, SIMON_LEN = [4, 5, 5, 6, 7], SIMON_STEP = 0.7, SIMON_LEAD = 0.6;
+  var forceKind = null;
   WORLDS.forEach(function (w) {
     w.fossils = [];
     w.creatures.forEach(function (c, ci) {
@@ -562,6 +569,24 @@ var DTW = (function () {
   function setAuto(s, on) { s.auto = !!on; if (s.run) s.run.manual = 0; }
   // ---------- chest locks ----------
   function openLock(s, i) {
+    var r = s.run, w = s.world, last = LOCK_KINDS.indexOf(r.lastLock), kind = forceKind;
+    if (!kind) kind = last < 0 ? LOCK_KINDS[Math.floor(rand(s) * 3)] : LOCK_KINDS[(last + 1 + Math.floor(rand(s) * 2)) % 3];
+    r.lastLock = kind;
+    if (kind === 'pairs') {
+      var cards = [];
+      for (var c = 0; c < PAIRS[w]; c++) cards.push(c, c);
+      for (var j = cards.length - 1; j > 0; j--) { var q = Math.floor(rand(s) * (j + 1)), t = cards[j]; cards[j] = cards[q]; cards[q] = t; }
+      r.lock = { i: i, kind: kind, cards: cards, up: [], done: cards.map(function () { return false; }), wait: 0, taps: 0 };
+    } else if (kind === 'simon') {
+      var seq = [];
+      for (var m = 0; m < SIMON_LEN[w]; m++) seq.push(Math.floor(rand(s) * SIMON_PADS));
+      r.lock = { i: i, kind: kind, seq: seq, pos: 0, show: simonShow(seq), taps: 0 };
+    } else openPins(s, i);
+    r.target = -1; r.state = 'idle'; r.taps = 0; r.steer = 0; r.path = null;
+    emit(s, { type: 'lock', i: i, kind: kind });
+  }
+  function simonShow(seq) { return SIMON_LEAD + seq.length * SIMON_STEP; }
+  function openPins(s, i) {
     var r = s.run, w = s.world, n = LOCK_PINS[w], link = LOCK_LINK[w], key = [], pins = [];
     for (var k = 0; k < n; k++) { key.push(Math.floor(rand(s) * LOCK_LEVELS)); pins.push(key[k]); }
     // scramble from the key with backward taps, so the lock can always be picked
@@ -569,9 +594,12 @@ var DTW = (function () {
       var back = Math.floor(rand(s) * LOCK_LEVELS);
       for (var b = 0; b < back; b++) bumpPins(pins, m, link, LOCK_LEVELS - 1);
     }
-    r.lock = { i: i, key: key, pins: pins, link: link, taps: 0 };
-    r.target = -1; r.state = 'idle'; r.taps = 0; r.steer = 0; r.path = null;
-    emit(s, { type: 'lock', i: i });
+    r.lock = { i: i, kind: 'pins', key: key, pins: pins, link: link, taps: 0 };
+  }
+  // the timers of an open puzzle: a missed pair turning back over, the simon sequence playing
+  function tickLock(L, dt) {
+    if (L.wait > 0 && (L.wait -= dt) <= 0) { L.wait = 0; L.up = []; }
+    if (L.show > 0) L.show = Math.max(0, L.show - dt);
   }
   function bumpPins(pins, k, link, by) {
     pins[k] = (pins[k] + by) % LOCK_LEVELS;
@@ -580,12 +608,32 @@ var DTW = (function () {
   }
   function lockTap(s, k) {
     var L = s.mode === 'dig' && s.run.lock;
-    if (!L || k < 0 || k >= L.pins.length) return false;
-    bumpPins(L.pins, k, L.link, 1); L.taps++;
-    emit(s, { type: 'pin', k: k });
-    if (L.pins.join() === L.key.join()) {
+    if (!L || k < 0) return false;
+    var solved = false;
+    if (L.kind === 'pairs') {
+      if (k >= L.cards.length || L.wait > 0 || L.done[k] || L.up.indexOf(k) >= 0) return false;
+      L.up.push(k); L.taps++;
+      emit(s, { type: 'pin', k: k });
+      if (L.up.length === 2) {
+        if (L.cards[L.up[0]] === L.cards[L.up[1]]) { L.done[L.up[0]] = L.done[L.up[1]] = true; L.up = []; emit(s, { type: 'match' }); }
+        else { L.wait = PAIR_MISS; emit(s, { type: 'miss' }); }
+      }
+      solved = L.done.every(function (d) { return d; });
+    } else if (L.kind === 'simon') {
+      if (k >= SIMON_PADS || L.show > 0) return false;
+      L.taps++;
+      if (L.seq[L.pos] === k) { L.pos++; emit(s, { type: 'pin', k: k }); }
+      else { L.pos = 0; L.show = simonShow(L.seq); emit(s, { type: 'miss' }); }
+      solved = L.pos === L.seq.length;
+    } else {
+      if (k >= L.pins.length) return false;
+      bumpPins(L.pins, k, L.link, 1); L.taps++;
+      emit(s, { type: 'pin', k: k });
+      solved = L.pins.join() === L.key.join();
+    }
+    if (solved) {
       s.run.lock = null; breakTile(s, L.i);
-      var g = s.run.grid, it = { kind: 'treasure', world: s.world, value: Math.round(LOCK_GEM * WORLDS[s.world].oreMult), gem: true };
+      var it = { kind: 'treasure', world: s.world, value: Math.round(LOCK_GEM * WORLDS[s.world].oreMult), gem: true };
       s.run.loot.push({ x: L.i % N + 0.5, y: FLOOR_Y + Math.floor(L.i / NN), z: Math.floor(L.i / N) % N + 0.5, layer: Math.floor(L.i / NN), rest: true, item: it, age: 0, delay: 0.8, vx: 0, vy: 0, vz: 0 });
       emit(s, { type: 'unlocked', i: L.i, taps: L.taps });
     }
@@ -772,7 +820,7 @@ var DTW = (function () {
   function stepDig(s, dt) {
     var r = s.run, g = r.grid, w = s.world, rule = WORLDS[w].rule;
     var hit = {}, layers = DEPTH + 2;
-    if (r.lock) { r.target = -1; r.state = 'idle'; r.taps = 0; return; } // the dig waits while a chest lock is open
+    if (r.lock) { tickLock(r.lock, dt); r.target = -1; r.state = 'idle'; r.taps = 0; return; } // the dig waits while a chest lock is open
     if (rule === 'oxygen' && r.y > 0) {
       r.oxygen -= dt;
       if (r.oxygen <= 0) { r.oxygen = 0; goHome(s, 'oxygen'); return; }
@@ -949,7 +997,7 @@ var DTW = (function () {
   }
 
   return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
-    genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
+    genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
