@@ -288,7 +288,7 @@
       else if (e.type === 'delivered') { A.sfx('fossil'); toast('🏛 On show: <b>' + e.names.join(', ') + '</b>!', 3200); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
       else if (e.type === 'buy' || e.type === 'hire') A.sfx('buy');
       else if (e.type === 'sell' || e.type === 'exchange') A.sfx('coin');
-      else if (e.type === 'museumCash') { A.sfx('coin'); R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(e.coins), '#ffd23f'); R.coinBurst(); toast('🏛 Your visitors paid <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>!', 2600); save(); }
+      else if (e.type === 'museumCash') museumCash(e.coins);
       else if (e.type === 'banked') {
         var msg = [];
         if (e.coins > 0) msg.push('Sold your finds for <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>');
@@ -427,6 +427,21 @@
   $('bSmash').addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // ---------- input ----------
+  // Museum takings: walking in collects the heap with a toast; while the miner stays inside, each new coin
+  // is collected quietly and summed into one small float every CASH_FLOAT seconds, with the toast held back
+  // for CASH_QUIET seconds so it never covers the screen.
+  var CASH_QUIET = 20, CASH_FLOAT = 5, cashToastT = -1e9, cashFloatT = -1e9, cashPend = 0;
+  function museumCash(n) {
+    var now = performance.now() / 1000;
+    cashPend += n;
+    if (now - cashToastT > CASH_QUIET) {
+      cashToastT = cashFloatT = now; A.sfx('coin'); R.coinBurst();
+      R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(cashPend), '#ffd23f');
+      toast('🏛 Your visitors paid <b style="color:var(--gold)">🪙 ' + fmt(cashPend) + '</b>!', 2600); cashPend = 0; save();
+    } else if (now - cashFloatT > CASH_FLOAT) {
+      cashFloatT = now; cashToastT = now; R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(cashPend), '#ffd23f'); cashPend = 0; save();
+    } else cashToastT = now; // still inside: keep the toast quiet
+  }
   var lastTap = 0;
   function doTap() {
     var now = performance.now(); if (now - lastTap < 70) return; lastTap = now;
