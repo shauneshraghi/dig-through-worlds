@@ -452,6 +452,22 @@ var DTW = (function () {
     return null;
   }
 
+  // the steps over open cells of layer y from (x0, z0) to (x1, z1), or null when it cannot be reached
+  function walkPath(g, y, x0, z0, x1, z1) {
+    var prev = new Int16Array(NN).fill(-2), q = [z0 * N + x0], end = z1 * N + x1, DV = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    prev[q[0]] = -1;
+    for (var h = 0; h < q.length; h++) {
+      var c = q[h], cx = c % N, cz = (c - cx) / N;
+      if (c === end) { var steps = []; for (var b = c; prev[b] !== -1; b = prev[b]) steps.unshift([b % N, (b - b % N) / N]); return steps; }
+      for (var k = 0; k < 4; k++) {
+        var nx = cx + DV[k][0], nz = cz + DV[k][1], nc = nz * N + nx;
+        if (nx < 0 || nx >= N || nz < 0 || nz >= N || prev[nc] !== -2 || !passable(g.t[y * NN + nc])) continue;
+        prev[nc] = c; q.push(nc);
+      }
+    }
+    return null;
+  }
+
   function genWorld(w, seed) {
     var rng = mulberry32((seed * 7919 + w * 104729) | 0);
     var n = NN * (DEPTH + 2);
@@ -640,13 +656,20 @@ var DTW = (function () {
   // the player takes over: auto-walk waits MANUAL_HOLD seconds after the last steer
   function steer(s, dir) { if (s.mode === 'dig') { s.run.steer = dirKey(dir); s.run.manual = MANUAL_HOLD; s.run.goal = -1; } }
   // the player picked a block of the layer being cleared (a tap on it): walk next to it and dig it
+  // A tap on the pit: on a block of the layer, walk next to it and dig it; on an open cell, walk onto it.
   function digAt(s, x, z) {
     if (s.mode !== 'dig' || x < 0 || x >= N || z < 0 || z >= N) return false;
     var r = s.run, i = idx(x, r.y, z);
+    if (passable(r.grid.t[i])) {
+      var steps = walkPath(r.grid, r.y, r.x, r.z, x, z);
+      if (!steps || !steps.length) return false;
+      r.dest = { y: r.y, steps: steps }; r.goal = -1; r.path = null; r.steer = 0; r.manual = MANUAL_HOLD; r.walkAcc = 0;
+      return true;
+    }
     if (!canDig(s, r.grid, i)) { if (diggable(r.grid.t[i])) boneHint(s); return false; }
     var p = findNearest(r.grid, r.x, r.y, r.z, function (j) { return j === i; });
     if (!p) return false;
-    r.goal = i; r.path = p; r.steer = 0; r.manual = MANUAL_HOLD; r.walkAcc = 0;
+    r.goal = i; r.path = p; r.dest = null; r.steer = 0; r.manual = MANUAL_HOLD; r.walkAcc = 0;
     return true;
   }
   // auto-mining on (the miner finds blocks itself) or off (it only moves and digs when told)
@@ -1044,6 +1067,7 @@ var DTW = (function () {
       var crewT = crewTargets(r);
       // steering: walk onto an open cell, or pick that block as the next one to dig
       r.manual = Math.max(0, (r.manual || 0) - dt); r.hintT = Math.max(0, (r.hintT || 0) - dt); r.stepCD = Math.max(0, (r.stepCD || 0) - dt);
+      if (r.steer) r.dest = null;
       if (r.steer) {
         var sd = DIRS[r.steer], sx = r.x + sd[0], sz = r.z + sd[1];
         var inPit = sx >= 0 && sx < N && sz >= 0 && sz < N, st = inPit ? g.t[idx(sx, y, sz)] : TILE.BEDROCK;
@@ -1055,6 +1079,15 @@ var DTW = (function () {
         }
         else if (inPit && canDig(s, g, idx(sx, y, sz))) { tgt = idx(sx, y, sz); steered = true; } // off the edge, idx() would wrap onto another cell
         else { if (diggable(st)) boneHint(s); r.steer = 0; }
+      }
+      // an open cell the player tapped: walk onto it at full pace
+      if (tgt < 0 && !moved && r.dest) {
+        if (r.dest.y !== y || !r.dest.steps.length || !passable(g.t[idx(r.dest.steps[0][0], y, r.dest.steps[0][1])])) r.dest = null;
+        else {
+          r.manual = MANUAL_HOLD; moved = true; r.walkAcc += dt * WALK;
+          while (r.walkAcc >= 1 && r.dest.steps.length) { var dc = r.dest.steps.shift(); r.face = faceTo(r.x, r.z, dc[0], dc[1]); r.x = dc[0]; r.z = dc[1]; r.walkAcc -= 1; }
+          if (!r.dest.steps.length) { r.dest = null; r.walkAcc = 0; }
+        }
       }
       // a block the player tapped: walk next to it at full pace, then dig it
       if (tgt < 0 && !moved && r.goal >= 0) {
@@ -1201,7 +1234,7 @@ var DTW = (function () {
     var g = s.run.grid; if (z == null) z = s.run.z;
     s.mode = 'dig'; s.run.x = x; s.run.y = y; s.run.z = z;
     g.t[idx(x, y, z)] = TILE.AIR; g.hp[idx(x, y, z)] = 0;
-    s.run.path = null; s.run.steer = 0; s.run.fallAcc = 0; s.run.manual = 0; s.run.stepCD = 0;
+    s.run.path = null; s.run.dest = null; s.run.steer = 0; s.run.fallAcc = 0; s.run.manual = 0; s.run.stepCD = 0;
   }
   function _clearLayer(s, y) { // empty a whole layer (open cells only)
     var g = s.run.grid; for (var i = y * NN; i < (y + 1) * NN; i++) { g.t[i] = TILE.AIR; g.v[i] = 0; g.hp[i] = 0; }

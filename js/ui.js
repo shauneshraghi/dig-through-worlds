@@ -62,8 +62,11 @@
     var surf = S.mode === 'surface';
     $('controls').style.visibility = (S.mode === 'dig' || surf) && !splash ? 'visible' : 'hidden';
     $('bAuto').style.display = surf ? 'none' : '';
-    var bh = $('bHome'), label = surf ? '⛏ Dig!' : '⬆ Home';
-    if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); }
+    $('bFast').style.display = S.mode === 'dig' && !S.run.lock ? '' : 'none';
+    // a full bag lights up the Home button so the way back to the surface is easy to spot
+    var full = S.mode === 'dig' && n >= cap;
+    var bh = $('bHome'), label = surf ? '⛏ Dig!' : full ? '🎒 Full! ⬆ Home' : '⬆ Home';
+    if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); bh.classList.toggle('full', full); }
     // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
     if (!surf || splash) { menuOpen = false; menuPick = null; }
     var plaza = surf && !splash;
@@ -449,7 +452,8 @@
     var k = Object.keys(held), h = k.length ? held[k[k.length - 1]] : null;
     return h && performance.now() - h.t > REPEAT * 1000 ? GRID[h.dir] || h.dir : null;
   }
-  // A tap on the pit: on a block of the layer being cleared it walks there and digs it; elsewhere it digs faster.
+  // A tap on the pit: on a block of the layer being cleared it walks there and digs it, on an open cell it
+  // walks there; elsewhere it digs faster (as does the Faster button).
   // A tap on the plaza walks to that spot. Holding (or dragging) anywhere on the screen brings up a joystick
   // rooted where the finger went down; it is hidden again when the finger lifts. Outside a small dead zone
   // the pit takes the screen quadrant of the drag, which is one of the four ways the grid runs on screen
@@ -502,6 +506,8 @@
   ['touchstart', 'touchmove'].forEach(function (ev) { cv.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   document.addEventListener('selectstart', function (e) { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
+  // the Faster button: each press is one extra swing, wherever the miner is digging
+  $('bFast').addEventListener('pointerdown', function (e) { e.preventDefault(); audio(); doTap(); });
   // auto-mining on or off
   function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };

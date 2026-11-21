@@ -273,6 +273,18 @@ test('steering picks the next block to dig, in all four directions', () => {
   }
 });
 
+test('a tap on an open cell of the layer walks the miner there, round blocks, without digging', () => {
+  const s = digAt(0, 0, 10, 0, { drill: 8 });
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) D._setTile(s, x, 11, z, T.BEDROCK); // stay in this layer
+  for (let z = 0; z < 6; z++) D._setTile(s, 3, 10, z, T.STONE); // a wall with a gap at z = 6
+  s.events = [];
+  assert.equal(D.digAt(s, 5, 0), true, 'an open cell is a walk target');
+  run(s, 3);
+  assert.deepEqual([s.run.x, s.run.z], [5, 0], 'walked round the wall to the tapped cell');
+  assert.equal(breaks(s).length, 0, 'no block was dug on the way');
+  assert.equal(D.digAt(s, 5, 0), false, 'tapping the cell the miner stands on does not walk');
+});
+
 test('steering onto an open cell walks there, and steering into the pit wall is ignored', () => {
   const s = digAt(0, 1, 10, 1);
   // nothing to dig in this layer or the one below, so the miner only moves when steered
@@ -861,7 +873,7 @@ test('tapping a block walks the miner next to it and digs it', () => {
   assert.equal(at(s.run.grid, 6, 20, 6), T.AIR);
   assert.equal(at(s.run.grid, 1, 20, 0), T.DIRT, 'not the nearer one');
   assert.equal(Math.abs(s.run.x - 6) + Math.abs(s.run.z - 6), 1);
-  assert.equal(D.digAt(s, 3, 3), false, 'an open cell is not a target');
+  assert.equal(D.digAt(s, 3, 3), true, 'an open cell is a walk target');
 });
 
 test('a v2 save keeps its one skeleton per world as the middle creature', () => {
