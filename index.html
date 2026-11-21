@@ -17,6 +17,8 @@
     <span class="chip" id="hBag"><i></i><span>🎒 0/10</span></span>
     <span class="chip" id="hInc" title="Museum visitors">🏛 +0/s</span>
     <div id="o2" title="Oxygen"><div></div></div>
+    <span class="sp"></span>
+    <button id="bShop" title="Shop">🛒 Shop</button>
     <button id="bMenu" title="Menu (Esc)">☰</button>
     <button id="mute" title="Sound on/off">🔊</button>
   </div>
@@ -37,14 +39,11 @@
       </div>
   </div>
   <div id="controls">
-    <button id="bHome">⬆ Home</button>
-    <button id="bAuto" class="on" aria-label="Auto or manual digging">🤖 Auto</button>
-    <div id="dpad">
-      <button data-dir="w" id="bW" aria-label="Steer west (up-left)">↖</button>
-      <button data-dir="n" id="bN" aria-label="Steer north (up-right)">↗</button>
-      <button data-dir="s" id="bS" aria-label="Steer south (down-left)">↙</button>
-      <button data-dir="e" id="bE" aria-label="Steer east (down-right)">↘</button>
+    <div id="btns">
+      <button id="bHome">⬆ Home</button>
+      <button id="bAuto" class="on" aria-label="Auto or manual digging">🤖 Auto</button>
     </div>
+    <div id="stick" aria-label="Joystick: hold and drag to walk"><i class="an">↗</i><i class="ae">↘</i><i class="as">↙</i><i class="aw">↖</i><div id="knob"></div></div>
   </div>
 </div>
 <script src="js/logic.js"></script>

@@ -64,13 +64,16 @@
     if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); }
     // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
     if (!surf || splash) { menuOpen = false; menuPick = null; }
-    $('bMenu').style.visibility = surf && !splash ? 'visible' : 'hidden';
+    var plaza = surf && !splash;
+    $('bMenu').style.display = $('bShop').style.display = $('hInc').style.display = plaza ? '' : 'none';
+    $('hDepth').style.display = hb.style.display = surf ? 'none' : '';
     $('bClose').style.display = menuOpen ? '' : 'none';
     $('bClose').textContent = menuPick ? '‹ Menu' : '✕';
     var st = surf && !splash ? (menuOpen ? menuPick || 'menu' : D.hubStation(S)) : null;
     if (st !== station) { station = st; lastPanelKey = ''; }
     var showPanel = !!station;
     $('surface').classList.toggle('show', showPanel);
+    $('bShop').classList.toggle('on', station === 'shop');
     var wide = WIDE.matches;
     $('app').classList.toggle('panel', wide && showPanel);
     R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide, open: showPanel });
@@ -182,6 +185,11 @@
   }
   function toggleMenu() { audio(); if (S.mode !== 'surface' || splash) return; menuOpen = !menuOpen; menuPick = null; }
   $('bMenu').onclick = toggleMenu;
+  // the Shop button opens the shop from anywhere on the plaza; a second tap closes it
+  $('bShop').onclick = function () {
+    audio(); if (S.mode !== 'surface' || splash) return;
+    if (station === 'shop' && menuOpen) { menuOpen = false; menuPick = null; } else { menuOpen = true; menuPick = 'shop'; }
+  };
   $('bClose').onclick = function () { if (menuPick) menuPick = null; else menuOpen = false; };
   $('bDig').onclick = function () { audio(); D.startDig(S, S.world); };
   $('mute').onclick = function () { audio(); setMute(!A.isMuted()); };
@@ -242,15 +250,16 @@
   }
   function steer(dir) { audio(); if (S.mode === 'dig') { D.steer(S, dir); A.sfx('step'); } }
   var cv = $('cv'), down = null;
-  // Directions held down (keys and the d-pad) walk the miner about the plaza and keep steering in the pit.
-  // Keys are stored as screen directions ('up', 'right', ...) and the d-pad as compass ones.
+  // Directions held down (keys and the joystick) walk the miner about the plaza and keep steering in the pit.
+  // Keys are stored as screen directions ('up', 'right', ...); the joystick stores a compass one for the pit
+  // and, in `dirs`, the compass pair for its eight-way screen direction on the plaza.
   // On the plaza a key walks that way on screen; in the pit a key steers along the grid diagonal shown
-  // on the d-pad (Up ↗ north, Right ↘ east, Down ↙ south, Left ↖ west), the only moves a pit cell has.
+  // on the joystick (Up ↗ north, Right ↘ east, Down ↙ south, Left ↖ west), the only moves a pit cell has.
   // A press steers once; only a press held longer than REPEAT keeps stepping, so a tap moves one cell.
   var REPEAT = 0.35;
   var held = {}, SCREEN = { up: ['n', 'w'], right: ['n', 'e'], down: ['s', 'e'], left: ['s', 'w'] }, GRID = { up: 'n', right: 'e', down: 's', left: 'w' };
-  function press(key, dir) { held[key] = { dir: dir, t: performance.now() }; }
-  function heldDirs() { var out = []; Object.keys(held).forEach(function (k) { var d = held[k].dir; out = out.concat(SCREEN[d] || d); }); return out; }
+  function press(key, dir, dirs) { held[key] = { dir: dir, dirs: dirs, t: performance.now() }; }
+  function heldDirs() { var out = []; Object.keys(held).forEach(function (k) { var h = held[k], d = h.dir; out = out.concat(h.dirs || SCREEN[d] || d); }); return out; }
   function heldGrid() {
     var k = Object.keys(held), h = k.length ? held[k[k.length - 1]] : null;
     return h && performance.now() - h.t > REPEAT * 1000 ? GRID[h.dir] || h.dir : null;
@@ -278,25 +287,28 @@
     down = null;
   });
   cv.addEventListener('pointercancel', function () { down = null; });
-  // The d-pad is one drag pad: press anywhere on it and slide between the four diagonal arrows,
-  // which match the four ways the grid runs on screen. Whichever arrow is under the finger is held.
-  var pad = $('dpad'), padId = null;
-  function padDir(e) {
-    var rc = pad.getBoundingClientRect(), up = e.clientY < rc.top + rc.height / 2, left = e.clientX < rc.left + rc.width / 2;
-    return up ? (left ? 'w' : 'n') : (left ? 's' : 'e');
+  // The joystick: hold it and drag. The knob follows the finger out to the rim. Outside a small dead zone
+  // the pit takes the screen quadrant, which is one of the four ways the grid runs on screen
+  // (↗ north, ↘ east, ↙ south, ↖ west); the plaza takes the nearest of eight screen directions.
+  var stick = $('stick'), knob = $('knob'), stickId = null;
+  var EIGHT = [['n', 'e'], ['e'], ['s', 'e'], ['s'], ['s', 'w'], ['w'], ['n', 'w'], ['n']]; // right, down-right, down, ... (screen y down)
+  function stickMove(e) {
+    var rc = stick.getBoundingClientRect(), r = rc.width / 2, dx = e.clientX - rc.left - r, dy = e.clientY - rc.top - r;
+    var len = Math.sqrt(dx * dx + dy * dy), lim = r * 0.62, k = len > lim ? lim / len : 1;
+    knob.style.transform = 'translate(' + (dx * k) + 'px,' + (dy * k) + 'px)';
+    if (len < r * 0.22) { delete held.pad; return; }
+    var quad = dy < 0 ? (dx < 0 ? 'w' : 'n') : (dx < 0 ? 's' : 'e');
+    var dirs = EIGHT[(Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8];
+    if (held.pad && held.pad.dir === quad) { held.pad.dirs = dirs; return; }
+    press('pad', quad, dirs); steer(quad);
   }
-  function padShow(d) { pad.querySelectorAll('button').forEach(function (b) { b.classList.toggle('held', b.dataset.dir === d); }); }
-  function padRelease() { padId = null; delete held.pad; padShow(null); }
-  pad.addEventListener('pointerdown', function (e) {
-    audio(); padId = e.pointerId; try { pad.setPointerCapture(e.pointerId); } catch (er) {}
-    var d = padDir(e); press('pad', d); padShow(d); steer(d); e.preventDefault();
+  function stickRelease() { stickId = null; delete held.pad; knob.style.transform = ''; stick.classList.remove('held'); }
+  stick.addEventListener('pointerdown', function (e) {
+    audio(); stickId = e.pointerId; try { stick.setPointerCapture(e.pointerId); } catch (er) {}
+    stick.classList.add('held'); stickMove(e); e.preventDefault();
   });
-  pad.addEventListener('pointermove', function (e) {
-    if (padId !== e.pointerId) return;
-    var d = padDir(e); if (held.pad && held.pad.dir === d) return;
-    press('pad', d); padShow(d); steer(d);
-  });
-  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { pad.addEventListener(ev, function (e) { if (padId === e.pointerId) padRelease(); }); });
+  stick.addEventListener('pointermove', function (e) { if (stickId === e.pointerId) stickMove(e); });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { stick.addEventListener(ev, function (e) { if (stickId === e.pointerId) stickRelease(); }); });
   // auto-mining on or off
   function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };
@@ -315,7 +327,7 @@
   });
 
   window.addEventListener('keyup', function (e) { delete held[e.key.toLowerCase()]; });
-  window.addEventListener('blur', function () { held = {}; padShow(null); });
+  window.addEventListener('blur', function () { held = {}; stickRelease(); });
   var splash = true;
   function startGame(gesture) { if (!splash) return; splash = false; $('splash').style.display = 'none'; if (gesture !== false) audio(); }
   $('splash').addEventListener('pointerdown', startGame);
