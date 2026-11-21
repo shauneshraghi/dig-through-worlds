@@ -32,7 +32,7 @@
   }
   // a browser that cannot start audio must not stop the touch handler that called this
   function audio() { try { A.init(function () { return { world: S.world, mode: S.mode, depth: S.run ? S.run.y : 0 }; }); } catch (e) {} }
-  function setMute(m) { A.setMute(m); $('mute').textContent = m ? '🔇' : '🔊'; }
+  function setMute(m) { A.setMute(m); lastPanelKey = ''; }
 
   // ---------- UI: toasts, HUD, surface panel ----------
   function toast(html, ms) {
@@ -71,7 +71,7 @@
     $('bClose').style.display = menuOpen ? '' : 'none';
     $('bClose').textContent = menuPick ? '‹ Menu' : '✕';
     var st = surf && !splash ? (menuOpen ? menuPick || 'menu' : D.hubStation(S)) : null;
-    if (st !== station) { station = st; lastPanelKey = ''; }
+    if (st !== station) { station = st; lastPanelKey = ''; confirmKind = null; }
     var showPanel = !!station;
     $('surface').classList.toggle('show', showPanel);
     $('bMenu').classList.toggle('on', menuOpen);
@@ -84,11 +84,13 @@
   function panelKey() {
     var afford = Object.keys(D.UPGRADES).map(function (k) { return S.coins >= D.upgradeCost(S, k) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return S.coins >= D.hireCost(S, k) ? 1 : 0; })).join('');
     return [station, S.world, afford, station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
-      S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), resetArm, wipeArm].join(';');
+      S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind].join(';');
   }
-  var resetArm = 0, wipeArm = 0;
+  // a reset waits for the player to type yes; while that box is open the panel is not redrawn, so typing is not lost
+  var confirmKind = null;
   function renderPanel() {
     if (!station) return;
+    if (confirmKind && lastPanelKey) return;
     var k = panelKey(); if (k === lastPanelKey) return; lastPanelKey = k;
     var wd = D.WORLDS[S.world], g = D.site(S, S.world), tab = STATION_TAB[station], dig = station === 'dig';
     $('sTitle').textContent = dig ? wd.name + (S.relics[S.world] ? ' ✓' : '') : STATION_TITLE[station];
@@ -166,29 +168,46 @@
         var t = STATION_TITLE[key].split(' ');
         row(t[0], t.slice(1).join(' '), '', 'Open', true, function () { menuPick = key; });
       });
+      var muted = A.isMuted();
+      row(muted ? '🔇' : '🔊', 'Sound', muted ? 'Off' : 'On', muted ? 'Turn on' : 'Turn off', true, function () { audio(); setMute(!A.isMuted()); });
       restartRows();
     }
     function restartRows() {
-      row('🔄', 'New dig site', S.relics[S.world] ? 'Fill in this world\'s tunnels for fresh treasure.' : 'Fill in the ' + wd.name + ' pit and start it again from the top.',
-        resetArm ? 'Sure?' : 'Reset', true, function () {
-          if (!resetArm) { resetArm = 1; setTimeout(function () { resetArm = 0; }, 3000); return; }
-          resetArm = 0; D.resetSite(S, S.world); save(); toast('New dig site ready!');
-        });
-      var wipe = document.createElement('button'); wipe.className = 'btn'; wipe.style.cssText = 'margin-top:10px;padding:6px 10px;font-size:13px;background:#5a2a2a';
-      wipe.textContent = wipeArm ? 'Tap again to erase ALL progress' : 'Start over';
-      wipe.onclick = function () {
-        if (!wipeArm) { wipeArm = 1; setTimeout(function () { wipeArm = 0; }, 3000); return; }
+      var bar = document.createElement('div'); bar.className = 'resets';
+      [['site', '🔄 Restart world'], ['wipe', '🧹 Start over']].forEach(function (o) {
+        var b = document.createElement('button'); b.className = 'btn small' + (confirmKind === o[0] ? ' on' : ''); b.textContent = o[1];
+        b.onclick = function () { confirmKind = confirmKind === o[0] ? null : o[0]; lastPanelKey = ''; };
+        bar.appendChild(b);
+      });
+      body.appendChild(bar);
+      if (!confirmKind) return;
+      var box = document.createElement('div'); box.className = 'confirm';
+      var p = document.createElement('p');
+      p.textContent = confirmKind === 'site' ? 'This fills in the ' + wd.name + ' pit and starts it again from the top. Type yes to restart it.'
+        : 'This erases ALL progress: coins, museum, worlds. Type yes to start over.';
+      var inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'type yes'; inp.autocomplete = 'off'; inp.autocapitalize = 'off'; inp.spellcheck = false;
+      var go = document.createElement('button'); go.className = 'btn small danger'; go.textContent = confirmKind === 'site' ? 'Restart world' : 'Erase everything'; go.disabled = true;
+      var no = document.createElement('button'); no.className = 'btn small'; no.textContent = 'Cancel';
+      function typedYes() { return inp.value.trim().toLowerCase() === 'yes'; }
+      inp.oninput = function () { go.disabled = !typedYes(); };
+      inp.onkeydown = function (e) { e.stopPropagation(); if (e.key === 'Enter' && typedYes()) go.onclick(); else if (e.key === 'Escape') no.onclick(); };
+      no.onclick = function () { confirmKind = null; lastPanelKey = ''; };
+      go.onclick = function () {
+        if (!typedYes()) return;
+        var kind = confirmKind; confirmKind = null; lastPanelKey = '';
+        if (kind === 'site') { D.resetSite(S, S.world); save(); toast('New dig site ready!'); return; }
         try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-        S = D.newState(Date.now() % 1e9); NOSAVE = false; wipeArm = 0; lastPanelKey = ''; setAutoBtn(); toast('Fresh start!');
+        S = D.newState(Date.now() % 1e9); NOSAVE = false; setAutoBtn(); toast('Fresh start!');
       };
-      body.appendChild(wipe);
+      box.appendChild(p); box.appendChild(inp);
+      var btns = document.createElement('div'); btns.className = 'resets'; btns.appendChild(no); btns.appendChild(go); box.appendChild(btns);
+      body.appendChild(box);
     }
   }
   function toggleMenu() { audio(); if (S.mode !== 'surface' || splash) return; menuOpen = !menuOpen; menuPick = null; }
   $('bMenu').onclick = toggleMenu;
   $('bClose').onclick = function () { if (menuPick) menuPick = null; else menuOpen = false; };
   $('bDig').onclick = function () { audio(); D.startDig(S, S.world); };
-  $('mute').onclick = function () { audio(); setMute(!A.isMuted()); };
 
   // ---------- events from logic ----------
   function drain() {
@@ -342,7 +361,7 @@
   // so the joystick never got its hold. Pointer events still fire with the touch defaults blocked.
   ['touchstart', 'touchmove'].forEach(function (ev) { cv.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  document.addEventListener('selectstart', function (e) { e.preventDefault(); });
+  document.addEventListener('selectstart', function (e) { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
   // auto-mining on or off
   function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };
@@ -350,6 +369,7 @@
   var KEYS = { arrowup: 'up', w: 'up', arrowright: 'right', d: 'right', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left' };
   window.addEventListener('keydown', function (e) {
     if (splash) { startGame(); return; }
+    if (e.target.tagName === 'INPUT') return; // typing in the reset box
     var k = e.key.toLowerCase();
     if (S.mode === 'dig' && S.run.lock && k >= '1' && k <= '9') { D.lockTap(S, +k - 1); e.preventDefault(); return; } // number keys tap pins
     if (KEYS[k]) { if (!e.repeat) { delete held[k]; press(k, KEYS[k]); steer(GRID[KEYS[k]]); } e.preventDefault(); }
