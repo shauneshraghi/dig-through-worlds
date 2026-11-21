@@ -40,8 +40,10 @@
     while ($('toast').children.length > 3) $('toast').firstChild.remove();
   }
   var station = null, lastPanelKey = '';
-  var STATION_TITLE = { shop: '🛒 Shop', helpers: '👷 Helpers', museum: '🏛️ Museum', worlds: '🗺️ Worlds' };
-  var STATION_TAB = { shop: 'up', helpers: 'he', museum: 'mu', worlds: 'wo', dig: '' };
+  var STATION_TITLE = { shop: '🛒 Shop', helpers: '👷 Helpers', museum: '🏛️ Museum', worlds: '🗺️ Worlds', menu: '☰ Menu' };
+  var STATION_TAB = { shop: 'up', helpers: 'he', museum: 'mu', worlds: 'wo', dig: '', menu: 'me' };
+  // the ☰ button opens the menu anywhere on the plaza; from it any station's panel can be opened
+  var menuOpen = false, menuPick = null;
   var WIDE = window.matchMedia('(min-aspect-ratio: 1/1) and (min-width: 700px)');
   function updateHud() {
     $('hCoins').textContent = '🪙 ' + fmt(S.coins);
@@ -57,8 +59,12 @@
     $('controls').style.visibility = (S.mode === 'dig' || surf) && !splash ? 'visible' : 'hidden';
     var bh = $('bHome'), label = surf ? '⛏ Dig!' : '⬆ Home';
     if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); }
-    // on the plaza the menu opens while the miner stands on a station pad
-    var st = surf && !splash ? D.hubStation(S) : null;
+    // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
+    if (!surf || splash) { menuOpen = false; menuPick = null; }
+    $('bMenu').style.visibility = surf && !splash ? 'visible' : 'hidden';
+    $('bClose').style.display = menuOpen ? '' : 'none';
+    $('bClose').textContent = menuPick ? '‹ Menu' : '✕';
+    var st = surf && !splash ? (menuOpen ? menuPick || 'menu' : D.hubStation(S)) : null;
     if (st !== station) { station = st; lastPanelKey = ''; }
     var showPanel = !!station;
     $('surface').classList.toggle('show', showPanel);
@@ -130,12 +136,20 @@
         if (S.unlocked[wi]) d.onclick = function () { S.world = wi; save(); };
         body.appendChild(d);
       });
-      if (S.relics[S.world]) {
-        row('🔄', 'New dig site', 'Fill in this world\'s tunnels for fresh treasure.', resetArm ? 'Sure?' : 'Reset', true, function () {
+      restartRows();
+    } else if (tab === 'me') {
+      ['shop', 'helpers', 'museum', 'worlds'].forEach(function (key) {
+        var t = STATION_TITLE[key].split(' ');
+        row(t[0], t.slice(1).join(' '), '', 'Open', true, function () { menuPick = key; });
+      });
+      restartRows();
+    }
+    function restartRows() {
+      row('🔄', 'New dig site', S.relics[S.world] ? 'Fill in this world\'s tunnels for fresh treasure.' : 'Fill in the ' + wd.name + ' pit and start it again from the top.',
+        resetArm ? 'Sure?' : 'Reset', true, function () {
           if (!resetArm) { resetArm = 1; setTimeout(function () { resetArm = 0; }, 3000); return; }
           resetArm = 0; D.resetSite(S, S.world); save(); toast('New dig site ready!');
         });
-      }
       var wipe = document.createElement('button'); wipe.className = 'btn'; wipe.style.cssText = 'margin-top:10px;padding:6px 10px;font-size:13px;background:#5a2a2a';
       wipe.textContent = wipeArm ? 'Tap again to erase ALL progress' : 'Start over';
       wipe.onclick = function () {
@@ -146,6 +160,9 @@
       body.appendChild(wipe);
     }
   }
+  function toggleMenu() { audio(); if (S.mode !== 'surface' || splash) return; menuOpen = !menuOpen; menuPick = null; }
+  $('bMenu').onclick = toggleMenu;
+  $('bClose').onclick = function () { if (menuPick) menuPick = null; else menuOpen = false; };
   $('bDig').onclick = function () { audio(); D.startDig(S, S.world); };
   $('mute').onclick = function () { audio(); setMute(!A.isMuted()); };
 
@@ -232,6 +249,7 @@
     else if (k === 'h') D.goHome(S);
     else if (k === 'enter' && S.mode === 'surface') { audio(); D.startDig(S, S.world); }
     else if (k === 'm') setMute(!A.isMuted());
+    else if (k === 'escape') toggleMenu();
   });
 
   window.addEventListener('keyup', function (e) { delete held[e.key.toLowerCase()]; });
