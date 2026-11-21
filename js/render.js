@@ -319,7 +319,7 @@ var DTWRender = (function () {
       if (l.age < l.delay - 0.15 && l.delay > 0.4) return; // a chest's find waits for the lid to open
       var big = l.item.kind === 'fossil' || l.item.kind === 'relic', pop = Math.min(1, 0.5 + (l.age - (l.delay > 0.4 ? l.delay - 0.15 : 0)) / 0.25 * 0.5);
       var bob = l.rest && !l.pulled ? Math.sin(time * 3 + i * 1.7) * 0.04 : 0, q = P(l.x, l.y + bob, l.z);
-      var held = l.item.kind === 'fossil' && S.carry && S.carry.length && l.item.world !== undefined && !S.museum[l.item.world].pieces[l.item.idx];
+      var held = l.item.kind === 'fossil' && S.carry && S.carry.length >= D.boneCap(S) && l.item.world !== undefined && !S.museum[l.item.world].pieces[l.item.idx];
       drawSprite(findSprite(l.item), q[0], q[1], findScale() * (big ? 1.3 : 1) * pop, held ? 0.6 : 1);
       findGlow(l.item, q[0], q[1], 0.5 + (big ? 0.15 * Math.sin(time * 5 + i) : 0), 1);
     });
@@ -840,7 +840,7 @@ var DTWRender = (function () {
     var T0 = carryTarget(S); if (!T0) return;
     var it = S.carry[0], cr = D.WORLDS[it.world].creatures[Math.floor(it.idx / 5)];
     var q = P(T0.cell[0], 1, T0.cell[1]), size = Math.max(12, TW * 0.24), y = q[1] - TW * 1.25 + Math.sin(time * 2) * TW * 0.03;
-    var text = '🦴 ' + (cr && cr.name ? cr.name : 'Museum');
+    var more = S.carry.length - 1, text = '🦴 ' + (cr && cr.name ? cr.name : 'Museum') + (more > 0 ? '  +' + more : '');
     octx.save(); octx.font = 'bold ' + Math.round(size) + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
     var wd = octx.measureText(text).width + size * 1.1, hgt = size * 1.7, x0 = q[0] - wd / 2, y0 = y - hgt / 2;
     octx.fillStyle = 'rgba(0,0,0,0.25)'; roundRect(octx, x0 + 1, y0 + 2, wd, hgt, hgt * 0.3); octx.fill();

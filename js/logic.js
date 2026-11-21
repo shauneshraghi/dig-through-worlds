@@ -184,7 +184,7 @@ var DTW = (function () {
   var UPGRADES = {
     drill:  { name: 'Drill Power', base: 15, mult: 1.6,  max: 30, text: 'Hits harder' },
     speed:  { name: 'Dig Speed',   base: 8,  mult: 1.7,  max: 20, text: 'Digs faster on its own' },
-    bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy' },
+    bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy, and an extra bone every 6 levels' },
     magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 3,  text: 'Pulls in finds from further away' }
   };
   var WORKERS = {
@@ -196,6 +196,7 @@ var DTW = (function () {
     crewDrill: { name: 'Helper Picks', base: 40, mult: 1.75, max: 30, text: 'Helpers hit harder' },
     crewSpeed: { name: 'Helper Pace',  base: 30, mult: 1.7,  max: 20, text: 'Helpers swing faster' }
   };
+  var BONE_EVERY = 6, BONE_MAX = 4; // bones carried at once: one more every BONE_EVERY bag levels
   var DIGGERS_FIRST = 2; // helpers allowed in the first world; each world unlocked allows one more
   var O2_MAX = 75;
   var ORE_P = 0.11; // chance that a ground block holds ore
@@ -411,11 +412,15 @@ var DTW = (function () {
   }
   function passable(type) { return type === TILE.AIR || type === TILE.BUBBLE || type === TILE.CRATER; }
   function diggable(type) { return !passable(type) && type !== TILE.BEDROCK; }
-  // The miner carries one new bone at a time, on its back, until it is handed in at the museum.
-  // While it carries one, fossil blocks stay in the ground.
+  // The miner carries new bones on its back (one, or a few with a bigger bag) until they are handed in at the museum.
+  // While its hands are full, fossil blocks stay in the ground.
   // (a new bone lying on the floor, not picked up yet, counts as in hand)
+  // Bag Size adds room for one more bone every BONE_EVERY levels, up to BONE_MAX.
+  function boneCap(s) { return Math.min(BONE_MAX, 1 + Math.floor((s.upgrades.bag || 0) / BONE_EVERY)); }
   function handsFull(s) {
-    return !!((s.carry && s.carry.length) || (s.run && s.run.loot && s.run.loot.some(function (l) { return isNewBone(s, l.item); })));
+    var held = {}, n = (s.carry || []).length;
+    if (s.run && s.run.loot) s.run.loot.forEach(function (l) { var it = l.item; if (isNewBone(s, it) && !held[it.world * 100 + it.idx]) { held[it.world * 100 + it.idx] = 1; n++; } });
+    return n >= boneCap(s);
   }
   // The fossil piece at cell i, or null: { idx, y, x0, z0, w, d (its footprint), dx, dz (this cell's place in it),
   // cells: the footprint's cells still in the ground }. A single-cell fossil is a 1×1 footprint.
@@ -909,7 +914,7 @@ var DTW = (function () {
   }
   function collect(s, it, at) { // at: where the find lay (loot picked up off the floor); none for the relic
     var r = s.run;
-    if (isNewBone(s, it) && !s.carry.length) { s.carry.push(it); it.carried = true; }
+    if (isNewBone(s, it) && s.carry.length < boneCap(s)) { s.carry.push(it); it.carried = true; }
     else r.bag.push(it);
     emit(s, { type: 'collect', item: it, name: itemName(it), at: at || null });
     if (it.kind === 'relic') { r.relicTimer = 1.5; emit(s, { type: 'relic', world: it.world }); }
@@ -955,7 +960,7 @@ var DTW = (function () {
   // Reach: the miner picks up loot lying in its layer within PICKUP_BASE cells (about its own cell); each magnet
   // level adds PICKUP_PER_MAGNET cells, and loot inside the reach is pulled toward the miner.
   function pickupReach(magnet) { return PICKUP_BASE + PICKUP_PER_MAGNET * (magnet || 0); }
-  function lootWaits(s, l) { return isNewBone(s, l.item) && s.carry.length > 0; } // a new bone needs free hands
+  function lootWaits(s, l) { return isNewBone(s, l.item) && s.carry.length >= boneCap(s); } // a new bone needs free hands
   function lootReady(s, l) { return l.age > l.delay && l.layer === s.run.y && !lootWaits(s, l); }
   function stepLoot(s, dt) { // moon loot bounces over the open cells of its layer until it settles
     var g = s.run.grid;
@@ -1264,7 +1269,7 @@ var DTW = (function () {
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
-    pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
+    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,

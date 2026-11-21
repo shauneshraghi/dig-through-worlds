@@ -457,6 +457,23 @@ test('a bone is only picked up with free hands; otherwise it stays on the floor'
   assert.equal(s.carry.length, 1);
 });
 
+test('bag upgrades let the miner carry a few more bones at once', () => {
+  assert.equal(D.boneCap({ upgrades: { bag: 0 } }), 1);
+  assert.equal(D.boneCap({ upgrades: { bag: 5 } }), 1);
+  assert.equal(D.boneCap({ upgrades: { bag: 6 } }), 2);
+  assert.equal(D.boneCap({ upgrades: { bag: 20 } }), 4, 'a few, not a ton');
+  const s = digAt(0, 3, 20, 3, { bag: 6 }); D.setAuto(s, false);
+  D._setTile(s, 4, 20, 3, T.FOSSIL, 2); D._setTile(s, 2, 20, 3, T.FOSSIL, 3); D._setTile(s, 3, 20, 4, T.FOSSIL, 4);
+  D.steer(s, 'e'); run(s, 15); D.steer(s, 'e'); run(s, 2);
+  assert.equal(s.carry.length, 1);
+  D.steer(s, 'w'); run(s, 1); D.steer(s, 'w'); run(s, 15); D.steer(s, 'w'); run(s, 2);
+  assert.equal(at(s.run.grid, 2, 20, 3), T.AIR, 'the second bone is dug with one in hand');
+  assert.equal(s.carry.length, 2, 'and carried too');
+  s.events = []; D.steer(s, 'e'); run(s, 1); D.steer(s, 's'); run(s, 15);
+  assert.equal(at(s.run.grid, 3, 20, 4), T.FOSSIL, 'the third waits: hands are full');
+  assert.ok(s.events.some(e => e.type === 'boneFull'));
+});
+
 test('a full bag slows digging but never stops it', () => {
   const s = D.newState(1);
   const cap = D.bagCap(s);
