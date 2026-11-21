@@ -155,6 +155,41 @@ var DTWRender = (function () {
     g.strokeStyle = 'rgba(0,0,0,0.25)'; hexPath(g, 0, 0); g.stroke();
     return (cubes[key] = c);
   }
+  // A cell of a big fossil: a plain cube with its slice of the museum piece set into the top face, and into the
+  // side faces that run along the fossil's length, so the blocks together show the whole bone.
+  function fitPiece(g, pc, A, B) { // pc fitted into the rect [0, A] × [0, B] of the current transform, turned to its long axis
+    var rot = A !== B && (pc.width >= pc.height) !== (A >= B), pw = rot ? pc.height : pc.width, ph = rot ? pc.width : pc.height;
+    var s = Math.min((A - 0.12) / pw, (B - 0.12) / ph);
+    g.translate(A / 2, B / 2); g.scale(s, s); if (rot) g.rotate(Math.PI / 2);
+    g.drawImage(pc, -pc.width / 2, -pc.height / 2);
+  }
+  function darker(pc, a) {
+    var key = 'dk' + a; if (pc[key]) return pc[key];
+    var c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height;
+    var g = c.getContext('2d'); g.drawImage(pc, 0, 0); g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(0,0,0,' + a + ')'; g.fillRect(0, 0, c.width, c.height);
+    return (pc[key] = c);
+  }
+  function bigFossil(w, y, f) {
+    var L = layerOf(y), key = w + '|big|' + L + '|' + f.idx + '|' + f.w + 'x' + f.d + '|' + f.dx + ',' + f.dz + '|' + TW;
+    if (cubes[key]) return cubes[key];
+    var pc = DTWSprites.pieceCanvas(w * 3 + Math.floor(f.idx / D.PIECES), f.idx % D.PIECES);
+    var c = document.createElement('canvas'); c.width = TW; c.height = TW;
+    var g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+    g.drawImage(cube(w, 'dirt' + L, 'dirt' + L), 0, 0);
+    function onFace(poly, m, A, B, pic) {
+      g.save(); g.beginPath(); g.moveTo(poly[0], poly[1]); for (var i = 2; i < poly.length; i += 2) g.lineTo(poly[i], poly[i + 1]); g.closePath(); g.clip();
+      g.setTransform(m[0], m[1], m[2], m[3], m[4], m[5]); fitPiece(g, pic, A, B); g.restore();
+    }
+    var dx = f.dx, dz = f.dz;
+    // top: u along x, v along z, in cells from the footprint's corner
+    onFace([hw, 0, TW, hh, hw, 2 * hh, 0, hh], [hw, hh, -hw, hh, hw - dx * hw + dz * hw, -dx * hh - dz * hh], f.w, f.d, pc);
+    // the +z face (lower left): along x, one block deep
+    if (f.w > 1) onFace([0, hh, hw, 2 * hh, hw, 2 * hh + bh, 0, hh + bh], [hw, hh, 0, bh, -dx * hw, hh - dx * hh], f.w, 1, darker(pc, 0.22));
+    // the +x face (lower right): along z, read left to right on screen
+    if (f.d > 1) onFace([hw, 2 * hh, TW, hh, TW, hh + bh, hw, 2 * hh + bh], [hw, -hh, 0, bh, TW + dz * hw - f.d * hw, hh - dz * hh + f.d * hh], f.d, 1, darker(pc, 0.42));
+    g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1; hexPath(g, 0, 0); g.stroke();
+    return (cubes[key] = c);
+  }
   function hex() {
     if (hexSprite && hexTW === TW) return hexSprite;
     hexSprite = document.createElement('canvas'); hexSprite.width = hexSprite.height = TW; hexTW = TW;
@@ -365,7 +400,7 @@ var DTWRender = (function () {
     if (digging) pose.body = sw.body;
     // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
     var full = r && S.mode !== 'surface' ? Math.min(1, r.bag.length / D.bagCap(S)) : 0;
-    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
+    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: S.mode === 'surface' ? null : full, surface: S.mode === 'surface',
       lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
@@ -1025,6 +1060,7 @@ var DTWRender = (function () {
           var hc = y === 1 && !pit ? D.hubCell(x, z) : '';
           var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : tt === T.CHEST ? 'chestTop' : side;
           spr = cube(w, top, side === 'grass' ? 'dirt0' : side);
+          if (pit && tt === T.FOSSIL) { var fo = D.fossilAt(g, i); if (fo.w * fo.d > 1) spr = bigFossil(w, y, fo); }
           var gh = pit && y === viewTop && S.mode !== 'surface' && ghost[x + ',' + z];
           if (gh) ctx.globalAlpha = 0.32;
           ctx.drawImage(spr, q[0] - hw, q[1]);

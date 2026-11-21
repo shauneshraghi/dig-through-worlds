@@ -19,6 +19,8 @@ const runTapping = (s, secs, tps) => {
   for (let t = 0; t < secs; t += dt) { acc += tps * dt; while (acc >= 1) { D.tap(s); acc--; } if (s.run && s.run.lock) D.lockSmash(s); D.step(s, dt); }
 };
 const at = (g, x, y, z) => g.t[D.idx(x, y, z)];
+// one entry per buried fossil piece (a big piece spans several cells): the fossilAt of its first cell
+const fossilGroups = g => { const out = []; for (let i = 0; i < g.t.length; i++) { const f = D.fossilAt(g, i); if (f && i === f.cells[0]) out.push(f); } return out; };
 const diggable = tt => !D.passable(tt) && tt !== T.BEDROCK;
 const layerLeft = (g, y) => { let n = 0; for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (diggable(at(g, x, y, z))) n++; return n; };
 // start a dig in world w with the miner standing at (x, y, z); layer y is emptied first
@@ -86,8 +88,7 @@ test('world generation is deterministic and has the relic layer, bedrock and bio
     const id = D.WORLDS[w].id;
     assert.ok([...a.t].includes(feature[id]), `${id} has its feature tile`);
     for (let p = 0; p < 5; p++) {
-      let n = 0;
-      for (let i = 0; i < a.t.length; i++) if (a.t[i] === T.FOSSIL && a.v[i] === p) n++;
+      const n = fossilGroups(a).filter(f => f.idx === p).length;
       assert.equal(n, 2, `${id} has two copies of fossil piece ${p}`);
     }
   }
@@ -612,7 +613,7 @@ test('playthrough: each world takes a kid-sized 15–35 minutes, all five finish
 test('each world buries two copies of all 15 fossil pieces, the first creature shallow and the last deep', () => {
   for (let w = 0; w < 5; w++) {
     const g = D.genWorld(w, 31), count = new Array(15).fill(0), depth = [[], [], []];
-    for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.FOSSIL) { count[g.v[i]]++; depth[Math.floor(g.v[i] / 5)].push(Math.floor(i / 49)); }
+    for (const f of fossilGroups(g)) { count[f.idx]++; depth[Math.floor(f.idx / 5)].push(f.y); }
     assert.ok(count.every(c => c === 2), `world ${w}: ${count}`);
     const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
     assert.ok(avg(depth[0]) < avg(depth[1]) && avg(depth[1]) < avg(depth[2]), `world ${w} creature depths`);
@@ -785,4 +786,82 @@ test('going home closes an open lock and leaves the chest in the ground', () => 
   D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2);
   D.goHome(s);
   assert.equal(s.run.lock, null); assert.equal(at(s.run.grid, 4, 10, 3), T.CHEST);
+});
+
+test('the biggest pieces of each skeleton are buried as big fossils spanning several cells of one layer', () => {
+  for (let w = 0; w < 5; w++) {
+    let big = 0;
+    for (let k = 0; k < 15; k++) {
+      const [L, S] = D.fossilForm(w, k);
+      assert.ok((L === 1 && S === 1) || (L === 2 && S === 1) || (L === 3 && S === 1) || (L === 2 && S === 2), `world ${w} piece ${k}: ${L}x${S}`);
+      if (L * S > 1) big++;
+    }
+    assert.equal(big, 6, `world ${w}: two big pieces per creature`);
+    for (const seed of [3, 31]) {
+      const g = D.genWorld(w, seed);
+      for (const f of fossilGroups(g)) {
+        const [L, S] = D.fossilForm(w, f.idx);
+        assert.deepEqual([Math.max(f.w, f.d), Math.min(f.w, f.d)], [L, S], `world ${w} piece ${f.idx} footprint`);
+        assert.equal(f.cells.length, f.w * f.d, 'every cell of it is a fossil block');
+        assert.ok(f.x0 >= 0 && f.z0 >= 0 && f.x0 + f.w <= D.N && f.z0 + f.d <= D.N, 'inside the pit');
+        for (const c of f.cells) {
+          assert.equal(Math.floor(c / 49), f.y, 'all in one layer');
+          const g2 = D.fossilAt(g, c);
+          assert.deepEqual([g2.idx, g2.x0, g2.z0, g2.w, g2.d], [f.idx, f.x0, f.z0, f.w, f.d], 'each cell knows its group');
+        }
+      }
+    }
+  }
+});
+
+// a 3x1 big fossil of piece p of world 0 along x from (2, 20, 3); the miner stands at (1, 20, 3)
+function bigSetup(p = 2) {
+  const s = digAt(0, 1, 20, 3); D.setAuto(s, false);
+  D._setFossil(s, 2, 20, 3, p, 3, 1);
+  return s;
+}
+const digOut = (s, x, z) => { D.digAt(s, x, z); run(s, 15); };
+
+test('a big fossil gives its bone only when its last cell breaks', () => {
+  const s = bigSetup(); s.events = [];
+  digOut(s, 2, 3);
+  assert.equal(at(s.run.grid, 2, 20, 3), T.AIR, 'the first cell broke');
+  assert.equal(s.run.loot.length, 0, 'no bone yet');
+  assert.equal(D.fossilAt(s.run.grid, D.idx(3, 20, 3)).cells.length, 2, 'two cells left');
+  assert.ok(s.events.some(e => e.type === 'bigBone'), 'the player is told there is more of it');
+  digOut(s, 3, 3); assert.equal(s.run.loot.length, 0, 'still no bone');
+  digOut(s, 4, 3);
+  assert.equal(at(s.run.grid, 4, 20, 3), T.AIR, 'the last cell broke');
+  const bones = s.run.loot.map(l => l.item).concat(s.carry).filter(it => it.kind === 'fossil');
+  assert.equal(bones.length, 1, 'one bone for the whole piece');
+  assert.equal(bones[0].idx, 2);
+});
+
+test('a part-dug big fossil waits in the ground while a bone is carried, and digs out after the hand-in', () => {
+  const s = bigSetup(); digOut(s, 2, 3);
+  s.carry = [{ kind: 'fossil', world: 0, idx: 7 }];
+  digOut(s, 3, 3); D.setAuto(s, true); run(s, 10); D.setAuto(s, false);
+  assert.equal(at(s.run.grid, 3, 20, 3), T.FOSSIL, 'it stays in the ground');
+  s.carry = []; // handed in at the museum
+  digOut(s, 3, 3); digOut(s, 4, 3);
+  assert.equal(at(s.run.grid, 3, 20, 3), T.AIR); assert.equal(at(s.run.grid, 4, 20, 3), T.AIR);
+  const bones = s.run.loot.map(l => l.item).concat(s.carry).filter(it => it.kind === 'fossil');
+  assert.equal(bones.length, 1);
+});
+
+test('helpers dig the cells of a big fossil and the bone drops once', () => {
+  const s = digAt(0, 0, 20, 0); s.workers.diggers = 2; D.setAuto(s, false);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(s, x, 20, z, T.AIR, 0);
+  D._setFossil(s, 4, 20, 4, 3, 2, 2);
+  run(s, 60);
+  for (const [x, z] of [[4, 4], [5, 4], [4, 5], [5, 5]]) assert.equal(at(s.run.grid, x, 20, z), T.AIR, `cell ${x},${z} dug`);
+  const bones = s.run.loot.map(l => l.item).concat(s.run.bag, s.carry).filter(it => it.kind === 'fossil');
+  assert.equal(bones.length, 1);
+});
+
+test('a part-dug big fossil survives a save and load', () => {
+  const s = bigSetup(); digOut(s, 2, 3);
+  const s2 = D.deserialize(D.serialize(s));
+  const f = D.fossilAt(s2.sites[0], D.idx(4, 20, 3));
+  assert.deepEqual([f.idx, f.x0, f.z0, f.w, f.d, f.cells.length], [2, 2, 3, 3, 1, 2]);
 });

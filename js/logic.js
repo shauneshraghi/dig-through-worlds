@@ -79,6 +79,16 @@ var DTW = (function () {
   // and a creature's share of the world's exhibit income grows with its depth.
   var CREATURES = 3, PIECES = 5, FOSSILS = CREATURES * PIECES, CREATURE_INCOME = [0.5, 0.75, 1];
   var BAND = [[1, 24], [26, 64], [62, 98]]; // depths where each creature's pieces are buried
+  // Big fossils: the two largest pieces of each creature (by the size of their exhibit shape in sprites.js) are
+  // buried as one fossil spanning several cells of a layer: '2' two in a row, '3' three in a row, '4' a 2×2 square,
+  // '.' a single cell. One string per world, one character per fossil index.
+  var BIG_FORMS = ['2.4...24..4..4.', '.22....4.3..23.', '..24...33...34.', '3.3....33...24.', '.24....43..3.3.'];
+  // A fossil cell's value is idx + 16 * part, where part names its footprint (w × d cells in x × z) and its
+  // offset (dx, dz) in it; part 0 is a single cell. Every cell knows its whole footprint, so saves need nothing new.
+  var FOOT = [[1, 1], [2, 1], [1, 2], [3, 1], [1, 3], [2, 2]], PARTS = [];
+  FOOT.forEach(function (f) { for (var dz = 0; dz < f[1]; dz++) for (var dx = 0; dx < f[0]; dx++) PARTS.push({ w: f[0], d: f[1], dx: dx, dz: dz }); });
+  function partOf(w, d, dx, dz) { for (var p = 0; p < PARTS.length; p++) { var q = PARTS[p]; if (q.w === w && q.d === d && q.dx === dx && q.dz === dz) return p; } return 0; }
+  function fossilForm(w, k) { var c = BIG_FORMS[w].charAt(k); return c === '2' ? [2, 1] : c === '3' ? [3, 1] : c === '4' ? [2, 2] : [1, 1]; }
   var CHEST_EVERY = 3;  // layers between treasure chests
   var CHEST_FOSSIL = 0.6; // chance a chest holds a missing fossil piece of the creature buried at that depth
   // A chest is locked. The miner reaching one opens the lock puzzle (run.lock) and the dig waits: pins sit at one
@@ -309,6 +319,17 @@ var DTW = (function () {
   function handsFull(s) {
     return !!((s.carry && s.carry.length) || (s.run && s.run.loot && s.run.loot.some(function (l) { return isNewBone(s, l.item); })));
   }
+  // The fossil piece at cell i, or null: { idx, y, x0, z0, w, d (its footprint), dx, dz (this cell's place in it),
+  // cells: the footprint's cells still in the ground }. A single-cell fossil is a 1×1 footprint.
+  function fossilAt(g, i) {
+    if (g.t[i] !== TILE.FOSSIL) return null;
+    var k = g.v[i] & 15, p = PARTS[g.v[i] >> 4] || PARTS[0], y = Math.floor(i / NN), x0 = i % N - p.dx, z0 = Math.floor(i / N) % N - p.dz, cells = [];
+    for (var dz = 0; dz < p.d; dz++) for (var dx = 0; dx < p.w; dx++) {
+      var x = x0 + dx, z = z0 + dz, c = idx(x, y, z);
+      if (x >= 0 && x < N && z >= 0 && z < N && g.t[c] === TILE.FOSSIL && g.v[c] === k + 16 * partOf(p.w, p.d, dx, dz)) cells.push(c);
+    }
+    return { idx: k, y: y, x0: x0, z0: z0, w: p.w, d: p.d, dx: p.dx, dz: p.dz, cells: cells };
+  }
   function canDig(s, g, i) { return diggable(g.t[i]) && !(g.t[i] === TILE.FOSSIL && handsFull(s)); }
   function boneHint(s) { var r = s.run; if (!(r.hintT > 0)) { r.hintT = 6; emit(s, { type: 'boneFull' }); } }
   // blocks still to dig in layer y
@@ -406,9 +427,25 @@ var DTW = (function () {
         if (ti === TILE.DIRT || ti === TILE.STONE || ti === TILE.ORE) { set(bx, yy, bz, tt, vv); return; }
       }
     }
+    // a big fossil: a w × d footprint of plain ground in one layer, turned either way; a single cell if none fits
+    function buryBig(y, f, vv) {
+      for (var tries = 0; tries < 200; tries++) {
+        var turn = f[0] !== f[1] && rng() < 0.5, fw = turn ? f[1] : f[0], fd = turn ? f[0] : f[1];
+        var bx = ri(N - fw + 1), bz = ri(N - fd + 1), yy = Math.min(DEPTH - 1, y + Math.floor(tries / 20)), ok = true;
+        for (var dz = 0; dz < fd && ok; dz++) for (var dx = 0; dx < fw && ok; dx++) {
+          var ti = t[idx(bx + dx, yy, bz + dz)]; ok = ti === TILE.DIRT || ti === TILE.STONE || ti === TILE.ORE;
+        }
+        if (!ok) continue;
+        for (dz = 0; dz < fd; dz++) for (dx = 0; dx < fw; dx++) set(bx + dx, yy, bz + dz, TILE.FOSSIL, vv + 16 * partOf(fw, fd, dx, dz));
+        return;
+      }
+      bury(y, TILE.FOSSIL, vv);
+    }
     // fossil pieces: two copies of each; each creature lies in its own band of depth, the first near the top
-    for (var c = 0; c < CREATURES; c++) for (var k = 0; k < PIECES * 2; k++)
-      bury(BAND[c][0] + Math.floor((BAND[c][1] - BAND[c][0]) * k / (PIECES * 2)) + (k ? ri(3) : 0), TILE.FOSSIL, c * PIECES + (k % PIECES));
+    for (var c = 0; c < CREATURES; c++) for (var k = 0; k < PIECES * 2; k++) {
+      var fy = BAND[c][0] + Math.floor((BAND[c][1] - BAND[c][0]) * k / (PIECES * 2)) + (k ? ri(3) : 0), fk = c * PIECES + (k % PIECES), ff = fossilForm(w, fk);
+      if (ff[0] * ff[1] > 1) buryBig(fy, ff, fk); else bury(fy, TILE.FOSSIL, fk);
+    }
     // treasure chests in every world, about one every CHEST_EVERY layers
     // (the first one in layer 2, so a new dig finds treasure straight away)
     for (y = 2; y < DEPTH - 1; y += CHEST_EVERY - 1 + ri(3)) bury(y, TILE.CHEST, 0);
@@ -605,7 +642,11 @@ var DTW = (function () {
     var r = s.run, g = r.grid, w = s.world, tt = g.t[i], vv = g.v[i], it = null;
     var bx = i % N, bz = Math.floor(i / N) % N, by = Math.floor(i / NN);
     if (tt === TILE.ORE) it = { kind: 'ore', world: w, idx: vv };
-    else if (tt === TILE.FOSSIL) it = { kind: 'fossil', world: w, idx: vv };
+    else if (tt === TILE.FOSSIL) { // a big fossil gives its bone when its last cell breaks
+      var fo = fossilAt(g, i);
+      if (fo.cells.length > 1) emit(s, { type: 'bigBone', x: bx, y: by, z: bz, left: fo.cells.length - 1 });
+      else it = { kind: 'fossil', world: w, idx: fo.idx };
+    }
     else if (tt === TILE.CHEST) it = chestLoot(s, w, by, smashed);
     else if (tt === TILE.TRAP && helper) { helper.stun = 2; emit(s, { type: 'trap', helper: true }); }
     else if (tt === TILE.TRAP) { r.stun = 2; s.stats.trapsSprung++; emit(s, { type: 'trap' }); }
@@ -898,6 +939,9 @@ var DTW = (function () {
     var g = s.run.grid; for (var i = y * NN; i < (y + 1) * NN; i++) { g.t[i] = TILE.AIR; g.v[i] = 0; g.hp[i] = 0; }
     if (s.run.path) s.run.path = null;
   }
+  function _setFossil(s, x0, y, z0, k, w, d) { // a big fossil of piece k with a w × d footprint from (x0, y, z0)
+    for (var dz = 0; dz < d; dz++) for (var dx = 0; dx < w; dx++) _setTile(s, x0 + dx, y, z0 + dz, TILE.FOSSIL, k + 16 * partOf(w, d, dx, dz));
+  }
   function _setTile(s, x, y, z, tt, vv) {
     var g = s.run.grid, i = idx(x, y, z); g.t[i] = tt; g.v[i] = vv || 0; g.hp[i] = maxHp(s.world, tt, y);
   }
@@ -907,7 +951,7 @@ var DTW = (function () {
     pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
-    drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _clearLayer: _clearLayer,
+    drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, hubCell: hubCell, hubWalkable: hubWalkable,
     PLINTH_CH: PLINTH_CH, WINGS: WINGS, hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
     topLayer: topLayer, layerHasBlocks: layerHasBlocks, diggable: diggable };
