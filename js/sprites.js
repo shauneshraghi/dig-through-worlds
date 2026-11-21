@@ -222,9 +222,14 @@ var DTWSprites = (function () {
     var behind = back && o.ang != null; // facing away, the pick arm is behind the body
     if (behind) pick(c, X + 14, Y + 3, o.ang, o.tier, P, t);
     else if (!back) { px(c, X + 4, Y + 2, P.q, 2, 6); px(c, X + 4, Y + 8, P.k, 2, 2); }                // far arm
+    // not digging: the pick rests over the back shoulder, held by the hanging near arm
+    var carry = o.carry && o.ang == null && pose.air <= 0.3;
+    function shoulderPick() { var C = PICK[o.tier]; line(c, X + 17, Y + 9, X - 1, Y - 17, C.handle, 2); line(c, X - 5, Y - 13, X + 3, Y - 21, C.head, 2); px(c, X + 3, Y - 22, C.hi); px(c, X - 6, Y - 12, C.hi); }
+    if (carry && !back) shoulderPick();
     stamp(c, LEG_L, P, X0 + sw - ap, legY - (st > 0 ? lift : 0));
     stamp(c, LEG_R, P, X0 - sw + ap, legY - (st < 0 ? lift : 0));
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
+    if (carry && back) shoulderPick();
     if (pose.air > 0.3) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
     stamp(c, head, Pl, X, Y - 17);
     if (!behind && o.ang != null && pose.air <= 0.3) pick(c, X + 12, Y + 3, o.ang, o.tier, P, t);

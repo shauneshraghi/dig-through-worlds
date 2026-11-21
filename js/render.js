@@ -195,7 +195,7 @@ var DTWRender = (function () {
       stride: stride, air: disp.air, blink: disp.blink < 0
     };
     if (digging && f >= 0.72 && f < 0.85) pose.body = 1; // knees give on the impact
-    var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: ang, tier: pickTier(S.upgrades.drill), pose: pose,
+    var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: digging ? ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose,
       lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
@@ -589,6 +589,9 @@ var DTWRender = (function () {
     stepPeople(dt, S);
     var r = S.run, tg = targets(S);
     if (disp.world !== S.world) { disp.world = S.world; disp.x = tg[0]; disp.y = tg[1]; disp.z = tg[2]; cam.init = false; }
+    // a dig started away from the ladder (the Dig! button, Enter) jumps to the ladder top instead of sliding there
+    if (disp.mode === 'surface' && S.mode === 'down' && Math.hypot(disp.x - tg[0], disp.z - tg[2]) > 1.5) { disp.x = tg[0]; disp.z = tg[2]; cam.init = false; }
+    disp.mode = S.mode;
     if (S.mode === 'up' || S.mode === 'down') {
       var sp = Math.max(8, Math.abs(tg[1] - disp.y) / Math.max(0.1, r.elevT));
       disp.y += Math.sign(tg[1] - disp.y) * Math.min(Math.abs(tg[1] - disp.y), sp * dt);
