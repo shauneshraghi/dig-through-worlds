@@ -510,8 +510,17 @@
   ['touchstart', 'touchmove'].forEach(function (ev) { cv.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   document.addEventListener('selectstart', function (e) { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
-  // the Faster button: each press is one extra swing, wherever the miner is digging
-  $('bFast').addEventListener('pointerdown', function (e) { e.preventDefault(); audio(); doTap(); });
+  // the Faster button: a press is one extra swing, and holding it keeps swinging at FAST_TPS swings a second.
+  // The held swings are counted on the game clock in advance(), so slow frames do not lose any.
+  var FAST_TPS = 7, fastHeld = false, fastAcc = 0, bFast = $('bFast');
+  function fastStop() { fastHeld = false; bFast.classList.remove('held'); }
+  bFast.addEventListener('pointerdown', function (e) {
+    e.preventDefault(); audio(); doTap();
+    try { bFast.setPointerCapture(e.pointerId); } catch (er) {}
+    fastHeld = true; fastAcc = 0; bFast.classList.add('held');
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { bFast.addEventListener(ev, fastStop); });
+  bFast.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   // auto-mining on or off
   function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };
@@ -542,7 +551,14 @@
   function advance(dt, noDraw) {
     if (S.mode === 'surface') D.hubInput(S, heldDirs());
     else if (S.mode === 'dig' && S.run.steer === 0) { var hd = heldGrid(); if (hd) D.steer(S, hd); } // held: keep stepping
-    var left = dt; while (left > 0) { var h = Math.min(0.05, left); D.step(S, h); left -= h; }
+    if (fastHeld && (S.mode !== 'dig' || S.run.lock)) fastStop();
+    var left = dt, swung = 0;
+    while (left > 0) {
+      var h = Math.min(0.05, left);
+      if (fastHeld) { fastAcc += h * FAST_TPS; while (fastAcc >= 1) { fastAcc--; if (S.run.stun <= 0) { D.tap(S); swung++; } } }
+      D.step(S, h); left -= h;
+    }
+    if (swung) { A.sfx('tap'); R.swingKick(); }
     drain(); R.update(dt, S);
     if (!noDraw) { R.draw(S); updateHud(); renderPanel(); renderLock(); }
   }

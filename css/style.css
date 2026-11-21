@@ -32,6 +32,7 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 @keyframes homeCall { 50% { transform:scale(1.08); filter:brightness(1.2); } }
 #controls #bFast { width:84px; height:84px; border-radius:50%; padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:36px; line-height:1; font-weight:700; background:linear-gradient(#ffb547,#ff8a1c); color:#3a1d00; opacity:.92; touch-action:none; }
 #controls #bFast small { font-size:14px; margin-top:2px; }
+#controls #bFast.held { transform:translateY(3px) scale(0.96); box-shadow:0 1px 0 #0008, 0 0 16px 4px #ffb547aa; }
 #controls #bAuto { background:#4a4458; color:#ddd; }
 #controls #bAuto.on { background:#2a6fb0; color:#fff; }
 #controls #bHome.dig { background:linear-gradient(#ffb547,#ff8a1c); color:#3a1d00; height:56px; font-size:24px; }
@@ -170,8 +171,8 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
   #hBag { min-width:140px; }
   #o2 { height:30px; border-radius:15px; }
   #bMenu { width:76px; height:70px; font-size:46px; border-radius:18px; }
-  #controls { padding:22px 26px; }
-  #btns { gap:12px; }
+  #controls { padding:22px 26px; justify-content:center; align-items:center; gap:22px; }
+  #btns { gap:16px; flex-direction:row; align-items:center; }
   #controls #bHome, #controls #bAuto { height:70px; padding:0 22px; font-size:28px; border-radius:18px; }
   #controls #bHome.dig { height:80px; font-size:34px; }
   #controls #bHome.full { height:80px; font-size:32px; }
