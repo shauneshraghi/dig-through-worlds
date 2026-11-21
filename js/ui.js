@@ -50,13 +50,16 @@
     var r = S.run, depth = S.mode === 'dig' && r ? r.y : S.mode === 'surface' ? 0 : Math.max(0, Math.round(R.dispY));
     $('hDepth').textContent = '⛏ ' + depth + ' / ' + D.DEPTH + ' m';
     var n = r && S.mode !== 'surface' ? r.bag.length + r.loot.length : 0, cap = D.bagCap(S);
-    var hb = $('hBag'); hb.textContent = (n > cap ? '🎒 Heavy! ' : '🎒 ') + n + '/' + cap; hb.classList.toggle('heavy', n > cap);
+    var hb = $('hBag'), over = n > cap, bf = Math.min(1, n / Math.max(1, cap));
+    hb.lastChild.textContent = (over ? '🎒 Heavy! ' : '🎒 ') + n + '/' + cap; hb.classList.toggle('heavy', over);
+    hb.firstChild.style.width = (bf * 100) + '%'; hb.firstChild.style.background = over ? '#e5483a' : bf > 0.7 ? '#ff9f1c' : '#3fbf63';
     $('hInc').textContent = '🏛 +' + fmtRate(D.museumIncome(S)) + '/s';
     var o2 = $('o2'), isO = D.WORLDS[S.world].rule === 'oxygen' && S.mode === 'dig';
     o2.style.display = isO ? 'block' : 'none';
     if (isO) { var f = r.oxygen / D.O2_MAX; o2.firstChild.style.width = (f * 100) + '%'; o2.firstChild.style.background = f < 0.25 ? '#ff6b6b' : ''; }
     var surf = S.mode === 'surface';
     $('controls').style.visibility = (S.mode === 'dig' || surf) && !splash ? 'visible' : 'hidden';
+    $('bAuto').style.display = surf ? 'none' : '';
     var bh = $('bHome'), label = surf ? '⛏ Dig!' : '⬆ Home';
     if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); }
     // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
@@ -93,7 +96,7 @@
     var body = $('tabBody'); body.innerHTML = ''; body.style.display = dig ? 'none' : '';
     function row(ic, title, sub, btnText, enabled, onClick) {
       var d = document.createElement('div'); d.className = 'row';
-      var i = document.createElement('div'); i.className = 'ic'; i.style.cssText = 'font-size:30px;display:flex;align-items:center;justify-content:center;background:#1a1430;border-radius:10px';
+      var i = document.createElement('div'); i.className = 'ic'; i.style.cssText = 'font-size:42px;display:flex;align-items:center;justify-content:center;background:#1a1430;border-radius:10px';
       i.textContent = ic;
       var t = document.createElement('div'); t.className = 'txt'; t.innerHTML = '<b>' + title + '</b><small>' + sub + '</small>';
       d.appendChild(i); d.appendChild(t);
@@ -116,15 +119,24 @@
       var p = document.createElement('p'); p.className = 'small'; p.textContent = 'Helpers work only while the game is open.'; body.appendChild(p);
     } else if (tab === 'mu') {
       var inc = document.createElement('p'); inc.innerHTML = 'Visitors pay <b style="color:var(--gold)">🪙 ' + fmtRate(D.museumIncome(S)) + ' / second</b>. Finish a skeleton to draw a crowd!'; inc.style.margin = '0 0 8px'; body.appendChild(inc);
+      var ICONS = ['🦴', '🦖', '🦣'];
       D.WORLDS.forEach(function (w, wi) {
         var d = document.createElement('div'); d.className = 'wing' + (S.unlocked[wi] ? '' : ' locked');
-        var done = D.exhibitDone(S, wi);
-        d.innerHTML = '<b>' + (S.unlocked[wi] ? w.name + ' wing' : '🔒 Wing ' + (wi + 1)) + '</b> — ' + (S.unlocked[wi] ? w.exhibit.name : '???') +
-          (done ? ' <span style="color:var(--good)">✓ complete! +' + fmtRate(w.exhibit.income) + '/s</span>' : '') +
+        d.innerHTML = '<b style="font-size:1.15em">' + (S.unlocked[wi] ? '🏛️ ' + w.name + ' wing' : '🔒 Wing ' + (wi + 1)) + '</b> <span class="small">' + D.piecesFound(S, wi) + ' / ' + D.PIECES * D.CREATURES + ' bones</span>' +
           (S.relics[wi] ? '<br><span class="small">✨ Relic on display: ' + w.relic.name + '</span>' : '');
-        var ps = document.createElement('div'); ps.className = 'pieces';
-        w.fossils.forEach(function (fn, pi) { var c = S.museum[wi].pieces[pi]; var s = document.createElement('span'); s.className = 'piece' + (c ? ' have' : ''); s.textContent = c ? '🦴 ' + fn : '? ' + (S.unlocked[wi] ? fn : '???'); ps.appendChild(s); });
-        d.appendChild(ps); body.appendChild(d);
+        w.creatures.forEach(function (cr, ci) {
+          var have = D.piecesFound(S, wi, ci), done = D.exhibitDone(S, wi, ci), cd = document.createElement('div');
+          cd.style.cssText = 'margin-top:8px';
+          cd.innerHTML = '<div style="font-size:1.05em"><b>' + ICONS[ci] + ' ' + (S.unlocked[wi] ? cr.name : '???') + '</b> <span class="small">' + have + ' / ' + D.PIECES + '</span>' +
+            (done ? ' <span style="color:var(--good)">✓ complete! +🪙 ' + fmtRate(cr.income) + '/s</span>' : '') + '</div>';
+          var ps = document.createElement('div'); ps.className = 'pieces';
+          cr.parts.forEach(function (fn, pi) {
+            var c = S.museum[wi].pieces[ci * D.PIECES + pi], sp = document.createElement('span'); sp.className = 'piece' + (c ? ' have' : '');
+            sp.textContent = c ? '🦴 ' + fn : '? ' + (S.unlocked[wi] ? '' : '???'); ps.appendChild(sp);
+          });
+          cd.appendChild(ps); d.appendChild(cd);
+        });
+        body.appendChild(d);
       });
     } else if (tab === 'wo') {
       D.WORLDS.forEach(function (w, wi) {
@@ -155,7 +167,7 @@
       wipe.onclick = function () {
         if (!wipeArm) { wipeArm = 1; setTimeout(function () { wipeArm = 0; }, 3000); return; }
         try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-        S = D.newState(Date.now() % 1e9); NOSAVE = false; wipeArm = 0; lastPanelKey = ''; toast('Fresh start!');
+        S = D.newState(Date.now() % 1e9); NOSAVE = false; wipeArm = 0; lastPanelKey = ''; setAutoBtn(); toast('Fresh start!');
       };
       body.appendChild(wipe);
     }
@@ -179,9 +191,10 @@
         var it = e.item;
         R.floatText(r ? r.x + 0.5 : 3.5, r ? r.y : 0, r ? r.z + 0.5 : 3.5, e.name + (it.kind === 'ore' || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), it.kind === 'fossil' ? '#ffe9a8' : R.itemColor(it), it);
         A.sfx(it.kind === 'fossil' ? 'fossil' : it.kind === 'treasure' ? 'coin' : 'ding');
-        if (it.kind === 'fossil') toast('🦴 Found a fossil: <b>' + e.name + '</b>!');
+        if (it.kind === 'fossil') toast((it.chest ? '💰 A treasure chest! Inside: 🦴 <b>' : '🦴 Found a fossil: <b>') + e.name + '</b>!');
         if (it.kind === 'treasure') toast('💰 Treasure chest!');
-      } else if (e.type === 'trap') { A.sfx('trap'); toast('😵 A trap! Dizzy for a moment…', 1800); R.shake(0.4); }
+      } else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
+      else if (e.type === 'trap') { A.sfx('trap'); toast('😵 A trap! Dizzy for a moment…', 1800); R.shake(0.4); }
       else if (e.type === 'bubble') { A.sfx('bubble'); R.floatText(e.x + 0.5, e.y, e.z + 0.5, 'O₂ full!', '#bff7ff'); R.spawnBreak(e.x, e.y, e.z, '#bff7ff', 10); }
       else if (e.type === 'relic') { A.sfx('relic'); toast('✨ You found the <b>' + D.WORLDS[e.world].relic.name + '</b>! Heading home…', 3500); R.shake(0.5); }
       else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') toast('🫧 Out of air! Bubbles float you home — your bag is safe.', 3200); }
@@ -213,38 +226,71 @@
   }
   function steer(dir) { audio(); if (S.mode === 'dig') { D.steer(S, dir); A.sfx('step'); } }
   var cv = $('cv'), down = null;
-  // directions held down (keys and d-pad buttons) walk the miner about the plaza
-  // Keys are stored as screen directions ('up', 'right', ...) and d-pad buttons as compass ones.
+  // Directions held down (keys and the d-pad) walk the miner about the plaza and keep steering in the pit.
+  // Keys are stored as screen directions ('up', 'right', ...) and the d-pad as compass ones.
   // On the plaza a key walks that way on screen; in the pit a key steers along the grid diagonal shown
   // on the d-pad (Up ↗ north, Right ↘ east, Down ↙ south, Left ↖ west), the only moves a pit cell has.
+  // A press steers once; only a press held longer than REPEAT keeps stepping, so a tap moves one cell.
+  var REPEAT = 0.35;
   var held = {}, SCREEN = { up: ['n', 'w'], right: ['n', 'e'], down: ['s', 'e'], left: ['s', 'w'] }, GRID = { up: 'n', right: 'e', down: 's', left: 'w' };
-  function heldDirs() { var out = []; Object.keys(held).forEach(function (k) { out = out.concat(SCREEN[held[k]] || held[k]); }); return out; }
-  function heldGrid() { var k = Object.keys(held), d = k.length ? held[k[k.length - 1]] : null; return d ? GRID[d] || d : null; }
+  function press(key, dir) { held[key] = { dir: dir, t: performance.now() }; }
+  function heldDirs() { var out = []; Object.keys(held).forEach(function (k) { var d = held[k].dir; out = out.concat(SCREEN[d] || d); }); return out; }
+  function heldGrid() {
+    var k = Object.keys(held), h = k.length ? held[k[k.length - 1]] : null;
+    return h && performance.now() - h.t > REPEAT * 1000 ? GRID[h.dir] || h.dir : null;
+  }
+  // the pit: a tap on a block of the layer being cleared walks there and digs it; a tap elsewhere digs faster.
+  // The plaza: a tap walks to that spot, and dragging keeps walking toward the finger.
   cv.addEventListener('pointerdown', function (e) {
-    audio(); down = { x: e.clientX, y: e.clientY };
+    audio(); down = { x: e.clientX, y: e.clientY, id: e.pointerId };
     if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
+    else if (S.mode === 'dig') {
+      var c = R.cellAt(e.clientX, e.clientY, S.run.y);
+      if (D.digAt(S, c[0], c[1])) { A.sfx('step'); down.picked = true; } else doTap();
+    }
     else doTap();
   });
+  cv.addEventListener('pointermove', function (e) {
+    if (!down || down.id !== e.pointerId || S.mode !== 'surface' || splash) return;
+    var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]);
+  });
   cv.addEventListener('pointerup', function (e) {
-    if (down && S.mode === 'dig') {
+    if (down && S.mode === 'dig' && !down.picked) {
       var dx = e.clientX - down.x, dy = e.clientY - down.y;
       if (dx * dx + dy * dy > 30 * 30) steer(R.screenDir(dx, dy));
     }
     down = null;
   });
-  // the d-pad's four diagonal buttons match the four ways the grid runs on screen
-  document.querySelectorAll('#dpad button').forEach(function (b) {
-    b.onclick = function () { steer(b.dataset.dir); };
-    var key = 'pad' + b.dataset.dir;
-    b.addEventListener('pointerdown', function (e) { audio(); held[key] = b.dataset.dir; try { b.setPointerCapture(e.pointerId); } catch (er) {} });
-    ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { b.addEventListener(ev, function () { delete held[key]; }); });
+  cv.addEventListener('pointercancel', function () { down = null; });
+  // The d-pad is one drag pad: press anywhere on it and slide between the four diagonal arrows,
+  // which match the four ways the grid runs on screen. Whichever arrow is under the finger is held.
+  var pad = $('dpad'), padId = null;
+  function padDir(e) {
+    var rc = pad.getBoundingClientRect(), up = e.clientY < rc.top + rc.height / 2, left = e.clientX < rc.left + rc.width / 2;
+    return up ? (left ? 'w' : 'n') : (left ? 's' : 'e');
+  }
+  function padShow(d) { pad.querySelectorAll('button').forEach(function (b) { b.classList.toggle('held', b.dataset.dir === d); }); }
+  function padRelease() { padId = null; delete held.pad; padShow(null); }
+  pad.addEventListener('pointerdown', function (e) {
+    audio(); padId = e.pointerId; try { pad.setPointerCapture(e.pointerId); } catch (er) {}
+    var d = padDir(e); press('pad', d); padShow(d); steer(d); e.preventDefault();
   });
+  pad.addEventListener('pointermove', function (e) {
+    if (padId !== e.pointerId) return;
+    var d = padDir(e); if (held.pad && held.pad.dir === d) return;
+    press('pad', d); padShow(d); steer(d);
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { pad.addEventListener(ev, function (e) { if (padId === e.pointerId) padRelease(); }); });
+  // auto-mining on or off
+  function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
+  $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };
   $('bHome').onclick = function () { audio(); if (S.mode === 'surface') D.startDig(S, S.world); else D.goHome(S); };
   var KEYS = { arrowup: 'up', w: 'up', arrowright: 'right', d: 'right', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left' };
   window.addEventListener('keydown', function (e) {
     if (splash) { startGame(); return; }
     var k = e.key.toLowerCase();
-    if (KEYS[k]) { delete held[k]; held[k] = KEYS[k]; if (!e.repeat) steer(GRID[KEYS[k]]); e.preventDefault(); }
+    if (KEYS[k]) { if (!e.repeat) { delete held[k]; press(k, KEYS[k]); steer(GRID[KEYS[k]]); } e.preventDefault(); }
+    else if (k === 'q' || k === 'tab') { $('bAuto').onclick(); e.preventDefault(); }
     else if (k === ' ') { if (!e.repeat) doTap(); e.preventDefault(); }
     else if (k === 'h') D.goHome(S);
     else if (k === 'enter' && S.mode === 'surface') { audio(); D.startDig(S, S.world); }
@@ -253,7 +299,7 @@
   });
 
   window.addEventListener('keyup', function (e) { delete held[e.key.toLowerCase()]; });
-  window.addEventListener('blur', function () { held = {}; });
+  window.addEventListener('blur', function () { held = {}; padShow(null); });
   var splash = true;
   function startGame(gesture) { if (!splash) return; splash = false; $('splash').style.display = 'none'; if (gesture !== false) audio(); }
   $('splash').addEventListener('pointerdown', startGame);
@@ -275,7 +321,7 @@
   }
   R.init(cv, $('ov'));
   window.addEventListener('resize', function () { R.resize(); });
-  setMute(A.isMuted()); advance(0); requestAnimationFrame(frame);
+  setMute(A.isMuted()); setAutoBtn(); advance(0); requestAnimationFrame(frame);
 
   window.__game = {
     D: D, get s() { return S; },

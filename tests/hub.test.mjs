@@ -23,12 +23,11 @@ test('the plaza map is rectangular and the pit sits at x, z in [0, N)', () => {
   assert.equal(D.hubCell(H.x0 - 1, 0), '', 'outside the map is nothing');
 });
 
-test('each station has exactly one pad, and the museum has a plinth and a relic case per world', () => {
+test('each station has exactly one pad, and the museum has a plinth per creature and a relic case per world', () => {
   for (const ch of Object.keys(D.HUB_STATIONS)) assert.equal(find(ch).length, 1, ch);
-  for (let w = 0; w < 5; w++) {
-    assert.ok(find(String(w + 1)).length >= 4, `plinth ${w + 1}`);
-    assert.equal(find('abcde'[w]).length, 1, `relic case ${w + 1}`);
-  }
+  assert.equal(D.PLINTH_CH.length, 15);
+  for (let k = 0; k < 15; k++) assert.ok(find(D.PLINTH_CH[k]).length >= 4, `plinth ${k}`);
+  for (let w = 0; w < 5; w++) assert.equal(find('abcde'[w]).length, 1, `relic case ${w + 1}`);
   assert.deepEqual(find('L')[0], [-1, D.LADDER_Z], 'the dig pad is at the top of the ladder');
 });
 
@@ -68,13 +67,15 @@ test('walking to a spot follows a path round the pit into the museum', () => {
 
 test('tapping a blocked cell walks to the nearest open cell beside it', () => {
   const s = D.newState(1);
-  const [px, pz] = find('3')[0];
+  const [px, pz] = find(D.PLINTH_CH[7])[0]; // world 3, second creature
   assert.ok(D.hubWalkTo(s, px + 0.5, pz + 0.5));
   run(s, 30);
   const [x, z] = cellOf(s);
   assert.ok(D.hubWalkable(x, z));
   assert.ok(Math.abs(x - px) + Math.abs(z - pz) <= 2, `ended next to the plinth at ${x},${z}`);
-  assert.equal(D.hubNearExhibit(s), 2, 'standing by the third plinth shows world 3');
+  const near = D.hubNearExhibit(s);
+  assert.equal(near.world, 2, 'standing by a world 3 plinth shows world 3');
+  assert.ok(near.creature >= 0 && near.creature < 3);
 });
 
 test('each pad opens its station', () => {
@@ -105,4 +106,14 @@ test('the plaza position is not saved: a loaded game starts at the ladder', () =
   const s = D.newState(1); D.hubInput(s, 'n'); run(s, 1);
   const t = D.deserialize(D.serialize(s));
   assert.deepEqual(cellOf(t), [-1, D.LADDER_Z]);
+});
+
+test('every plinth and relic case can be reached on foot from the dig pad', () => {
+  const s = D.newState(1);
+  const [lx, lz] = find('L')[0];
+  for (const ch of D.PLINTH_CH + 'abcde') {
+    const [px, pz] = find(ch)[0];
+    const sides = [[-1, 0], [0, -1], [2, 0], [0, 2], [-1, 1], [1, -1], [2, 1], [1, 2]].map(([dx, dz]) => [px + dx, pz + dz]).filter(([x, z]) => D.hubWalkable(x, z));
+    assert.ok(sides.some(([x, z]) => D.hubPath(lx + 0.5, lz + 0.5, x + 0.5, z + 0.5)), `reach ${ch}`);
+  }
 });

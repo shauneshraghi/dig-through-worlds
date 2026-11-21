@@ -178,50 +178,21 @@ var DTWRender = (function () {
     if (f < 0.72) return raised + (strike - raised) * ((f - 0.55) / 0.17);         // strike
     return strike;                                                                 // follow through
   }
-  // ---------- helper diggers (visual only: their work is the extra hit rate in the logic) ----------
-  // Each one works a cell of the miner's layer at least two cells from the miner, off the miner's path, so
-  // the sprites never overlap it: an open cell next to a block, or else standing on top of a block still
-  // to be dug. Helpers keep their cell while it stays free, spread out where they can, and ease between cells.
+  // ---------- helper diggers ----------
+  // The logic gives each helper a block of the miner's layer and a cell to stand on (run.crew); here they
+  // ease between cells and swing at their block.
   var crewPos = [], crewT = 0;
   function helperSpots(S, g, r) {
-    var n = Math.min(S.workers.diggers, 5), y = r.y, mx = Math.round(disp.x), mz = Math.round(disp.z), cells = {}, list = [];
-    if (!n) return [];
-    var busy = {}; busy[r.x + ',' + r.z] = 1; // where the miner is, is digging, and is about to walk
-    if (r.target >= 0) busy[(r.target % N) + ',' + (Math.floor(r.target / N) % N)] = 1;
-    if (r.path && r.path.steps) r.path.steps.forEach(function (c) { busy[c[0] + ',' + c[1]] = 1; });
-    function far(x, z, ax, az, gap) { return Math.max(Math.abs(x - ax), Math.abs(z - az)) >= gap; }
-    for (var z = 0; z < N; z++) for (var x = 0; x < N; x++) {
-      if (busy[x + ',' + z] || !far(x, z, mx, mz, 2) || !far(x, z, r.x, r.z, 2)) continue;
-      var t = g.t[D.idx(x, y, z)], open = D.passable(t), face = null;
-      if (!open && t === T.BEDROCK) continue;
-      ['e', 's', 'w', 'n'].some(function (k) { var d = D.DIRS[k], ax = x + d[0], az = z + d[1]; if (ax < 0 || az < 0 || ax >= N || az >= N) return false; var tt = g.t[D.idx(ax, y, az)]; if (!D.passable(tt) && tt !== T.BEDROCK) { face = k; return true; } return false; });
-      // an open cell with nothing beside it to dig is a last resort, where the helper waits
-      var c = { x: x, z: z, y: open ? y : y - 1, face: face || 'e', idle: open && !face, d: (x - mx) * (x - mx) + (z - mz) * (z - mz) + (open ? (face ? 0 : 100) : 30) };
-      cells[x + ',' + z] = c; list.push(c);
-    }
-    list.sort(function (a, b) { return a.d - b.d; });
-    // keep each helper's cell while it is still free, then hand out the nearest cells, spread apart first
-    var pick = [], taken = {};
-    function clash(c, gap) { return pick.some(function (o) { return o && !far(c.x, c.z, o.x, o.z, gap); }); }
-    for (var k = 0; k < n; k++) { var p = crewPos[k], keep = p && p.layer === y && p.cell && cells[p.cell]; pick[k] = keep && !clash(keep, 1) ? keep : null; if (pick[k]) taken[p.cell] = 1; }
-    [2, 1].forEach(function (gap) {
-      for (var k = 0; k < n; k++) if (!pick[k]) for (var i = 0; i < list.length; i++) {
-        var c = list[i]; if (taken[c.x + ',' + c.z] || clash(c, gap)) continue;
-        pick[k] = c; taken[c.x + ',' + c.z] = 1; break;
-      }
-    });
     var out = [], dt = Math.min(0.1, Math.max(0, time - crewT)); crewT = time;
-    for (var k = 0; k < n; k++) {
-      var c = pick[k];
-      if (!c) continue; // no free cell at all (a nearly walled-in layer): this one sits out
+    (r.crew || []).forEach(function (c, k) {
       var tx = c.x + 0.5, tz = c.z + 0.5, p = crewPos[k];
-      if (!p || p.layer !== y) p = crewPos[k] = { x: tx, z: tz, y: c.y, layer: y };
-      p.cell = c.x + ',' + c.z;
+      if (!p || Math.abs(p.y - c.y) > 2) p = crewPos[k] = { x: tx, z: tz, y: c.y };
       var ex = tx - p.x, ez = tz - p.z, l = Math.sqrt(ex * ex + ez * ez), st = D.WALK * dt;
       if (l <= st) { p.x = tx; p.z = tz; } else { p.x += ex / l * st; p.z += ez / l * st; }
       p.y += Math.max(-st, Math.min(st, c.y - p.y));
-      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: !c.idle && l <= st, walking: l > st });
-    }
+      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, stun: c.stun > 0 });
+    });
+    crewPos.length = out.length;
     return out;
   }
   function drawHelper(h, S) {
@@ -255,8 +226,8 @@ var DTWRender = (function () {
       stride: stride, air: disp.air, blink: disp.blink < 0
     };
     if (digging && f >= 0.72 && f < 0.85) pose.body = 1; // knees give on the impact
-    // a big rucksack on the miner's back says the bag is full and it is time to go home
-    var full = !!(r && S.mode !== 'surface' && r.bag.length + r.loot.length >= D.bagCap(S));
+    // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
+    var full = r && S.mode !== 'surface' ? Math.min(1, (r.bag.length + r.loot.length) / D.bagCap(S)) : 0;
     var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: digging ? ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
       lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
@@ -301,7 +272,7 @@ var DTWRender = (function () {
   // ---------- the plaza: props placed from the hub map ----------
   // A prop that covers a block of cells (a stall, a plinth) is built once from its lowest-x, lowest-z cell.
   // Each item carries its footprint (x0..x1, z0..z1) so depthSort can order it against the characters.
-  var FLOOR_CH = 'm#p12345abcdeDM', INSIDE_CH = 'mp12345abcdeDM';
+  var PL = D.PLINTH_CH, FLOOR_CH = 'm#p' + PL + 'abcdeDM', INSIDE_CH = 'mp' + PL + 'abcdeDM';
   var PADS = { L: ['⛏', 'Dig'], S: ['🛒', 'Shop'], H: ['👷', 'Helpers'], W: ['🗺️', 'Worlds'], M: ['🏛️', 'Museum'] };
   var padLabels = [];
   function groundTex(c, x, z) {
@@ -317,7 +288,7 @@ var DTWRender = (function () {
     HUB_BLOCKS = [];
     for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) {
       var c = D.hubCell(x, z), single = c === '#' || c === 't' || c === 'p' || c === 'w';
-      if ('tTshwp#12345abcdeD'.indexOf(c) < 0) continue;
+      if (('tTshwp#abcdeD' + PL).indexOf(c) < 0) continue;
       if (!single && (D.hubCell(x - 1, z) === c || D.hubCell(x, z - 1) === c)) continue;
       var x1 = x + 1, z1 = z + 1;
       if (!single) { while (D.hubCell(x1, z) === c) x1++; while (D.hubCell(x, z1) === c) z1++; }
@@ -354,7 +325,7 @@ var DTWRender = (function () {
       else if (c === 'p') fn = function () { plant(b.x0, b.z0); };
       else if (c === '#') fn = function () { wall(b.x0, b.z0, S); };
       else if (c === 'D') fn = function () { desk(b); };
-      else if ((k = '12345'.indexOf(c)) >= 0) fn = function () { plinth(k, b, S); };
+      else if ((k = PL.indexOf(c)) >= 0) fn = function () { plinth(k, b, S); };
       else if ((k = 'abcde'.indexOf(c)) >= 0) fn = function () { relicCase(k, b, S); };
       items.push({ x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, fn: fn });
     });
@@ -458,13 +429,14 @@ var DTWRender = (function () {
     return [0, 0];
   })();
   // a plinth per world: a stone step and a slab in the world's colour, the exhibit standing on top
+  // k = world * 3 + creature
   function plinth(k, b, S) {
-    var wd = D.WORLDS[k], open = S.unlocked[k], sx = b.x1 - b.x0, sz = b.z1 - b.z0;
+    var w = Math.floor(k / 3), c = k % 3, wd = D.WORLDS[w], open = S.unlocked[w], sx = b.x1 - b.x0, sz = b.z1 - b.z0;
     blob(b.x0 + sx / 2, b.z0 + sz / 2, sx * 0.6, 0.18);
     box(b.x0 + 0.05, b.z0 + 0.05, sx - 0.1, sz - 0.1, 1, 0.12, '#8a7f6a');
     box(b.x0 + 0.18, b.z0 + 0.18, sx - 0.36, sz - 0.36, 0.88, 0.3, open ? DTWSprites.hexShade(wd.pal.top, -0.3) : '#5a5462');
     var q = P(b.x0 + sx / 2, 0.58, b.z0 + sz / 2);
-    DTWSprites.exhibit(ctx, k, S.museum[k].pieces, open, q[0], q[1], TW / 15);
+    DTWSprites.exhibit(ctx, k, S.museum[w].pieces.slice(c * 5, c * 5 + 5), open, q[0], q[1], TW / 27);
     if (!open) { // roped off
       ctx.strokeStyle = '#c0392b'; ctx.lineWidth = Math.max(2, TW / 18);
       [[b.x1 + 0.1, b.z0 + 0.2], [b.x1 + 0.1, b.z1 - 0.2]].forEach(function (pp) { box(pp[0] - 0.05, pp[1] - 0.05, 0.1, 0.1, 1, 0.55, '#c9a46a'); });
@@ -487,25 +459,26 @@ var DTWRender = (function () {
   // Math.random, never the game's rng, so what is on screen cannot change a dig.
   var visitors = [], visitT = 0, coinT = 0, VSPEED = 1.3;
   var HUT_SPOTS = [[4.5, -3.5, 's'], [0.5, -3.5, 'e'], [4.5, -5.5, 'w'], [1.5, -2.5, 's'], [-0.5, -2.5, 'e'], [3.5, -2.5, 'n']];
-  var GUIDE_SPOTS = [[13.5, 0.5], [18.5, 2.5], [14.5, 6.5], [18.5, 10.5], [20.5, 4.5]];
+  var GUIDE_SPOTS = [[14.5, 0.5], [17.5, 3.5], [20.5, 6.5], [14.5, 9.5], [20.5, 12.5]]; // aisle crossings in the museum
   function faceOf(dx, dz) { return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'e' : 'w') : (dz > 0 ? 's' : 'n'); }
   function museumSpots(S) { // open floor cells beside an exhibit that has at least one piece, else anywhere inside
-    var out = [];
+    var out = [], any = [];
     for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) {
-      if (D.hubCell(x, z) !== 'm') continue;
-      for (var k = 0; k < 5; k++) {
-        if (!S.unlocked[k]) continue;
-        var ch = String(k + 1), near = D.hubCell(x + 1, z) === ch || D.hubCell(x - 1, z) === ch || D.hubCell(x, z + 1) === ch || D.hubCell(x, z - 1) === ch;
-        if (near && S.museum[k].pieces.some(function (c) { return c > 0; })) out.push([x + 0.5, z + 0.5, k]);
+      if (D.hubCell(x, z) !== 'm' || x <= HUB_DOOR[0]) continue;
+      any.push([x + 0.5, z + 0.5, -1]);
+      for (var k = 0; k < 15; k++) {
+        var w = Math.floor(k / 3), c = k % 3;
+        if (!S.unlocked[w]) continue;
+        var ch = PL.charAt(k), near = D.hubCell(x + 1, z) === ch || D.hubCell(x - 1, z) === ch || D.hubCell(x, z + 1) === ch || D.hubCell(x, z - 1) === ch;
+        if (near && S.museum[w].pieces.slice(c * 5, c * 5 + 5).some(function (n) { return n > 0; })) out.push([x + 0.5, z + 0.5, k]);
       }
     }
-    if (!out.length) for (var zz = 0; zz < 10; zz++) for (var xx = 12; xx < 22; xx++) if (D.hubCell(xx, zz) === 'm') out.push([xx + 0.5, zz + 0.5, -1]);
-    return out;
+    return out.length ? out : any;
   }
   function wantVisitors(S) {
     var found = 0, done = 0;
-    for (var k = 0; k < 5; k++) { var n = S.museum[k].pieces.filter(function (c) { return c > 0; }).length; found += n; if (n === 5) done++; }
-    return Math.min(12, (found ? 1 : 0) + Math.floor(found / 2) + 2 * done);
+    for (var w = 0; w < 5; w++) for (var c = 0; c < 3; c++) { var n = D.piecesFound(S, w, c); found += n; if (n === 5) done++; }
+    return Math.min(14, (found ? 1 : 0) + Math.floor(found / 4) + done);
   }
   function stepPeople(dt, S) {
     if (S.mode !== 'surface') return;
@@ -551,7 +524,7 @@ var DTWRender = (function () {
       coinT = 2 + 6 / (1 + visitors.length);
     }
   }
-  function plinthBlock(k) { return hubBlocks().filter(function (bb) { return bb.c === String(k + 1); })[0]; }
+  function plinthBlock(k) { return hubBlocks().filter(function (bb) { return bb.c === PL.charAt(k); })[0]; }
   function drawPerson(kind, seed, x, z, face, moving, walk) {
     var fc = FACE[face] || FACE.e, frame = moving ? Math.floor(walk) & 3 : Math.floor(time * 1.5 + seed) & 3;
     var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time), q = P(x, 1, z), p = charScale();
@@ -705,7 +678,7 @@ var DTWRender = (function () {
       var p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; }
       p.vy += grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     }
-    for (var f = floaters.length - 1; f >= 0; f--) { var fl = floaters[f]; fl.life -= dt; fl.y -= dt * 0.8; if (fl.life <= 0) floaters.splice(f, 1); }
+    for (var f = floaters.length - 1; f >= 0; f--) { var fl = floaters[f]; fl.life -= dt; fl.age = (fl.age || 0) + dt; fl.y -= dt * (fl.icon ? 0.45 : 0.8); if (fl.life <= 0) floaters.splice(f, 1); }
   }
 
   // ---------- the scene ----------
@@ -841,18 +814,24 @@ var DTWRender = (function () {
     }
     motes(id, viewTop);
     if (surfaceView) hubLabels(S);
-    octx.font = 'bold ' + Math.round(TW * 0.3) + 'px Fredoka, sans-serif'; octx.textAlign = 'center';
     for (var fi = 0; fi < floaters.length; fi++) {
       var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z);
       octx.globalAlpha = Math.min(1, fl.life * 2);
-      var tx = fq[0];
-      if (fl.icon) { // icon to the left of the text, the pair centred on the spot
-        var isz = Math.round(TW * 0.42 / 14) * 14 || 14, tw = octx.measureText(fl.text).width;
-        var ix = Math.round(fq[0] - (isz + 4 + tw) / 2); tx = ix + isz + 4 + tw / 2;
-        octx.imageSmoothingEnabled = false; octx.drawImage(fl.icon, ix, Math.round(fq[1] - isz * 0.8), isz, isz);
+      var pop = fl.icon ? 1 + (fl.big ? 0.5 : 0.25) * Math.max(0, Math.sin(Math.min(1, (fl.age || 0) / 0.5) * Math.PI)) : 1; // short bounce
+      var fs = Math.max(fl.icon ? 22 : 16, Math.round(TW * (fl.icon ? (fl.big ? 0.62 : 0.52) : 0.4) * pop));
+      octx.font = '700 ' + fs + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.lineJoin = 'round';
+      var tx = fq[0], ty = fq[1];
+      if (fl.icon) { // big icon above the text, both centred on the spot and kept on screen
+        var isz = Math.max(72, Math.round(TW * (fl.big ? 1.9 : 1.4) * pop / 12) * 12);
+        isz = Math.min(isz, Math.floor(Math.min(vw, vh) * 0.4 / 12) * 12 || 12);
+        tx = Math.max(vw * 0.2, Math.min(vw * 0.8, tx)); ty = Math.max(isz + fs + 20, Math.min(vh - 20, ty));
+        var ix = Math.round(tx - isz / 2), iy = Math.round(ty - fs - isz - 4);
+        octx.imageSmoothingEnabled = false;
+        octx.fillStyle = '#000a'; roundRect(octx, ix - 6, iy - 6, isz + 12, isz + 12, 10); octx.fill();
+        octx.drawImage(fl.icon, ix, iy, isz, isz);
       }
-      octx.fillStyle = '#000'; octx.fillText(fl.text, tx + 2, fq[1] + 2);
-      octx.fillStyle = fl.c; octx.fillText(fl.text, tx, fq[1]); octx.globalAlpha = 1;
+      octx.lineWidth = Math.max(4, fs * 0.22); octx.strokeStyle = '#000'; octx.strokeText(fl.text, tx, ty);
+      octx.fillStyle = fl.c; octx.fillText(fl.text, tx, ty); octx.globalAlpha = 1;
     }
     if (post) composite(S, w, viewTop, surfaceView);
   }
@@ -872,10 +851,27 @@ var DTWRender = (function () {
     var dq = P(HUB_DOOR[0], -1.2, HUB_DOOR[1] + 1);
     tagText(dq[0], dq[1], '🏛️ MUSEUM', sz * 1.25, '#ffe9a8', 'rgba(90,58,36,0.85)');
     if (S.mode !== 'surface') return;
-    var k = D.hubNearExhibit(S); if (k < 0) return;
-    var wd = D.WORLDS[k], have = S.museum[k].pieces.filter(function (c) { return c > 0; }).length;
-    var b = hubBlocks().filter(function (bb) { return bb.c === String(k + 1); })[0], pq = P((b.x0 + b.x1) / 2, -0.9, (b.z0 + b.z1) / 2);
-    var t1 = S.unlocked[k] ? wd.exhibit.name : '🔒 ' + 'Wing ' + (k + 1), t2 = S.unlocked[k] ? (have === 5 ? '✓ Complete' : have + ' / 5 bones') + (S.relics[k] ? ' · ✨ ' + wd.relic.name : '') : 'Bring home the relic from world ' + k;
+    // creature names in front of each plinth of an open wing (a ? until its first bone is found)
+    var nearK = S.mode === 'surface' && D.hubNearExhibit(S);
+    nearK = nearK && nearK.creature >= 0 ? nearK.world * 3 + nearK.creature : -1;
+    for (var pk = 0; pk < 15; pk++) {
+      if (pk === nearK) continue; // the big plaque below names this one
+      var pw = Math.floor(pk / 3), pc = pk % 3, pb = plinthBlock(pk);
+      if (!S.unlocked[pw] || !pb) continue;
+      var n = D.piecesFound(S, pw, pc), lq = P((pb.x0 + pb.x1) / 2, 1, pb.z1 + 0.15);
+      tagText(lq[0], lq[1] + TW * 0.12, n ? (n === 5 ? '✓ ' : '') + D.WORLDS[pw].creatures[pc].name : '?', sz * 0.8, n === 5 ? '#b6f2a0' : n ? '#ffe9a8' : '#b9a9d6', 'rgba(26,19,40,0.6)');
+    }
+    if (S.mode !== 'surface') return;
+    var ne = D.hubNearExhibit(S); if (!ne) return;
+    var k = ne.world, wd = D.WORLDS[k], t1, t2, pq;
+    if (ne.creature < 0) {
+      var rb = hubBlocks().filter(function (bb) { return bb.c === 'abcde'.charAt(k); })[0]; pq = P((rb.x0 + rb.x1) / 2, -0.9, (rb.z0 + rb.z1) / 2);
+      t1 = S.relics[k] ? '✨ ' + wd.relic.name : '🔒 Relic case'; t2 = S.relics[k] ? wd.name + ' relic' : 'Dig to ' + D.DEPTH + ' m in ' + wd.name;
+    } else {
+      var cr = wd.creatures[ne.creature], have = D.piecesFound(S, k, ne.creature), b = plinthBlock(k * 3 + ne.creature); pq = P((b.x0 + b.x1) / 2, -0.9, (b.z0 + b.z1) / 2);
+      t1 = S.unlocked[k] ? cr.name : '🔒 Wing ' + (k + 1);
+      t2 = S.unlocked[k] ? (have === 5 ? '✓ Complete' : have + ' / 5 bones') : 'Bring home the relic from world ' + k;
+    }
     tagText(pq[0], pq[1] - sz * 1.1, t1, sz * 1.05, '#ffe9a8', 'rgba(26,19,40,0.85)');
     tagText(pq[0], pq[1] + sz * 0.6, t2, sz * 0.85, '#b9a9d6', null);
   }
@@ -1046,7 +1042,7 @@ var DTWRender = (function () {
     for (var i = 0; i < n; i++) parts.push({ x: x + 0.5, y: y + 0.4, z: z + 0.5, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 4, vz: (Math.random() - 0.5) * 3, life: 0.5 + Math.random() * 0.4, c: color, s: 0.05 + Math.random() * 0.05 });
   }
   // floating text, with the find's pixel icon in front of it when an item is given
-  function floatText(x, y, z, text, color, it) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: it ? 1.6 : 1.3, icon: it ? itemIcon(it) : null }); }
+  function floatText(x, y, z, text, color, it) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: it ? 2.6 : 1.3, age: 0, big: !!(it && it.kind === 'fossil'), icon: it ? itemIcon(it) : null }); }
   function itemIcon(it) { return DTWSprites.item(it.kind, it.idx || 0, itemColor(it), D.WORLDS[it.world].id === 'moon'); }
   // swipe on screen -> compass direction. In this projection +x runs down-right and +z down-left.
   function screenDir(dx, dy) {
@@ -1076,6 +1072,12 @@ var DTWRender = (function () {
       var rc = cv.getBoundingClientRect(), k = vw / Math.max(1, rc.width);
       var sx = (cx - rc.left) * k, sy = (cy - rc.top) * k, a = (sx - ox) / hw, b = (sy - oy - bh) / hh;
       return [(a + b) / 2, (b - a) / 2];
+    },
+    // the pit cell (x, z) whose top face at depth y is under a pointer
+    cellAt: function (cx, cy, y) {
+      var rc = cv.getBoundingClientRect(), k = vw / Math.max(1, rc.width);
+      var sx = (cx - rc.left) * k, sy = (cy - rc.top) * k, a = (sx - ox) / hw, b = (sy - oy - y * bh) / hh;
+      return [Math.floor((a + b) / 2), Math.floor((b - a) / 2)];
     },
     drawItem: drawItem, itemColor: itemColor, layerOf: layerOf, screenDir: screenDir, pickTier: pickTier,
     get dispY() { return disp.y; }

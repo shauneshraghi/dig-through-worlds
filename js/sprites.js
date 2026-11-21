@@ -214,29 +214,60 @@ var DTWSprites = (function () {
     if (tier === 4 && Math.sin(t * 8) > 0.6) px(c, ex, ey - 3, '#ffffff');
   }
 
-  // ---------- the big rucksack, worn when the bag is full: stuffed so finds poke out of the top ----------
+  // ---------- the miner's rucksack: o.pack is the bag fill 0..1, drawn in five sizes; full it is stuffed and straining ----------
   var PACK = { K: '#8a5a2b', k: '#5e3a1a', F: '#b07840', G: '#ffd23f', peek: ['#2fd56b', '#d9813b', '#6ff0ff', '#ff6f8a'] };
-  // side view, the pack on the miner's back at the left of the sprite: x, y is its top-left corner
-  function packSide(c, x, y) {
-    px(c, x + 2, y, PACK.peek[0], 2, 3); px(c, x + 5, y - 1, PACK.peek[1], 2, 4); px(c, x + 8, y + 1, PACK.peek[2], 2, 2);
-    px(c, x, y + 2, PACK.K, 12, 15); px(c, x, y + 2, PACK.k, 2, 15); px(c, x, y + 16, PACK.k, 12, 1);
-    px(c, x + 1, y + 2, PACK.F, 11, 5); px(c, x + 1, y + 7, PACK.k, 11, 1); px(c, x + 6, y + 6, PACK.G, 2, 2);
-    px(c, x - 2, y + 9, PACK.F, 3, 6); px(c, x - 2, y + 14, PACK.k, 3, 1);
+  // size step 0 (empty) to 4 (full) for a fill fraction
+  function packLevel(f) { return f >= 1 ? 4 : f >= 0.7 ? 3 : f >= 0.45 ? 2 : f >= 0.2 ? 1 : 0; }
+  var PACK_SIDE = [[5, 8], [7, 10], [9, 13], [11, 15]], PACK_BACK = [[7, 8], [10, 10], [13, 13], [15, 15]]; // [width, height] per step below full
+  // side view, the pack on the miner's back at the left of the sprite: x, y is the top-left corner of the full pack
+  function packSide(c, x, y, f) {
+    var L = packLevel(f);
+    if (L === 4) {
+      px(c, x + 2, y, PACK.peek[0], 2, 3); px(c, x + 5, y - 1, PACK.peek[1], 2, 4); px(c, x + 8, y + 1, PACK.peek[2], 2, 2); px(c, x + 10, y + 2, PACK.peek[3], 1, 2);
+      px(c, x, y + 2, PACK.K, 12, 15); px(c, x, y + 2, PACK.k, 2, 15); px(c, x, y + 16, PACK.k, 12, 1);
+      px(c, x + 1, y + 2, PACK.F, 11, 5); px(c, x + 1, y + 7, PACK.k, 11, 1); px(c, x + 6, y + 6, PACK.G, 2, 2);
+      px(c, x - 2, y + 9, PACK.F, 3, 6); px(c, x - 2, y + 14, PACK.k, 3, 1);
+      px(c, x - 1, y + 4, PACK.K, 1, 8); px(c, x - 1, y + 12, PACK.k, 1, 1);   // the sides bulge
+      px(c, x + 2, y + 12, PACK.k, 8, 1); px(c, x + 3, y + 11, PACK.F, 1, 1); px(c, x + 8, y + 11, PACK.F, 1, 1); // strap straining across the belly
+      return;
+    }
+    var wh = PACK_SIDE[L], w = wh[0], h = wh[1], rx = x + 12, lx = rx - w, ty = y + 17 - h;
+    if (L >= 2) px(c, lx + 2, ty - 2, PACK.peek[0], 2, 3);
+    if (L >= 3) { px(c, lx + 5, ty - 3, PACK.peek[1], 2, 4); px(c, lx + 8, ty - 1, PACK.peek[2], 2, 2); }
+    px(c, lx, ty, PACK.K, w, h); px(c, lx, ty, PACK.k, 1, h); px(c, lx, y + 16, PACK.k, w, 1);
+    var fl = L < 1 ? 3 : L < 2 ? 4 : 5;
+    px(c, lx + 1, ty, PACK.F, w - 1, fl); px(c, lx + 1, ty + fl, PACK.k, w - 1, 1);
+    if (L >= 2) px(c, lx + (w >> 1) - 1, ty + fl - 1, PACK.G, 2, 2);
+    if (L >= 1) px(c, lx - 1, ty + h - 5, PACK.F, 2, 4);
   }
   // seen from behind it covers the back, centred at cx
-  function packBack(c, cx, y) {
-    var x = cx - 8;
-    px(c, x + 3, y, PACK.peek[0], 2, 3); px(c, x + 7, y - 1, PACK.peek[1], 3, 4); px(c, x + 12, y + 1, PACK.peek[3], 2, 2);
-    px(c, x, y + 2, PACK.K, 17, 15); px(c, x, y + 2, PACK.k, 1, 15); px(c, x + 16, y + 2, PACK.k, 1, 15); px(c, x, y + 16, PACK.k, 17, 1);
-    px(c, x + 1, y + 2, PACK.F, 15, 6); px(c, x + 1, y + 8, PACK.k, 15, 1); px(c, x + 7, y + 7, PACK.G, 3, 2);
-    px(c, x + 3, y + 11, PACK.F, 4, 4); px(c, x + 10, y + 11, PACK.F, 4, 4);
+  function packBack(c, cx, y, f) {
+    var L = packLevel(f), x = cx - 8;
+    if (L === 4) {
+      px(c, x + 3, y, PACK.peek[0], 2, 3); px(c, x + 7, y - 1, PACK.peek[1], 3, 4); px(c, x + 12, y + 1, PACK.peek[3], 2, 2); px(c, x + 10, y + 1, PACK.peek[2], 1, 2);
+      px(c, x, y + 2, PACK.K, 17, 15); px(c, x, y + 2, PACK.k, 1, 15); px(c, x + 16, y + 2, PACK.k, 1, 15); px(c, x, y + 16, PACK.k, 17, 1);
+      px(c, x + 1, y + 2, PACK.F, 15, 6); px(c, x + 1, y + 8, PACK.k, 15, 1); px(c, x + 7, y + 7, PACK.G, 3, 2);
+      px(c, x + 3, y + 11, PACK.F, 4, 4); px(c, x + 10, y + 11, PACK.F, 4, 4);
+      px(c, x - 1, y + 5, PACK.K, 1, 9); px(c, x + 17, y + 5, PACK.K, 1, 9);   // the sides bulge
+      px(c, x + 2, y + 9, PACK.k, 13, 1); px(c, x + 8, y + 9, PACK.F, 1, 1);    // strap straining across
+      return;
+    }
+    var wh = PACK_BACK[L], w = wh[0], h = wh[1], lx = cx - (w >> 1), ty = y + 17 - h;
+    if (L >= 2) px(c, lx + 2, ty - 2, PACK.peek[0], 2, 3);
+    if (L >= 3) { px(c, lx + 6, ty - 3, PACK.peek[1], 3, 4); px(c, lx + 11, ty - 1, PACK.peek[3], 2, 2); }
+    px(c, lx, ty, PACK.K, w, h); px(c, lx, ty, PACK.k, 1, h); px(c, lx + w - 1, ty, PACK.k, 1, h); px(c, lx, y + 16, PACK.k, w, 1);
+    var fl = L < 1 ? 3 : L < 2 ? 4 : 5;
+    px(c, lx + 1, ty, PACK.F, w - 2, fl); px(c, lx + 1, ty + fl, PACK.k, w - 2, 1);
+    if (L >= 2) px(c, cx - 1, ty + fl - 1, PACK.G, 2, 2);
+    if (L >= 3) { px(c, lx + 2, y + 11, PACK.F, 3, 4); px(c, lx + w - 5, y + 11, PACK.F, 3, 4); }
   }
 
   // ---------- characters ----------
   // o: { back, flip handled by caller, pose: {bob, body, lean, stride, air, blink}, ang (pick angle) or null,
   //      tier, lampOn, climb (null | 0 | 1), P (palette), hair (true: no hard hat), arms ('swing' | 'carry' | 'none'), t }
   function person(o) {
-    var c = cx, P = o.P || BASE, pose = o.pose, back = o.back, t = o.t || 0;
+    var c = cx, P = o.P || BASE, pose = o.pose, back = o.back, t = o.t || 0, hasPack = o.pack != null && o.pack !== false;
+    if (o.pack === true) o.pack = 1;
     c.clearRect(0, 0, W, H);
     var X0 = FX - 12, legY = FY - 7 + Math.round(pose.bob), Y = legY - 11 + Math.round(pose.body), X = X0 + Math.round(pose.lean);
     var head = o.hair ? (back ? HEAD_HAIR_BACK : HEAD_HAIR) : (back ? HEAD_MINER_BACK : HEAD_MINER);
@@ -246,7 +277,7 @@ var DTWSprites = (function () {
     // legs: the stride swings them apart and lifts the one moving forward; in the air they spread
     var st = pose.stride, sw = Math.round(st * 3), lift = Math.round(Math.abs(st) * 2), ap = Math.round(pose.air * 2);
     var behind = back && o.ang != null; // facing away, the pick arm is behind the body
-    if (o.pack && !back) packSide(c, X - 6, Y - 6);
+    if (hasPack && !back) packSide(c, X - 6, Y - 6, o.pack);
     if (behind) pick(c, X + 14, Y + 3, o.ang, o.tier, P, t);
     else if (!back) { px(c, X + 4, Y + 2, P.q, 2, 6); px(c, X + 4, Y + 8, P.k, 2, 2); }                // far arm
     // not digging: the pick rests over the back shoulder, held by the hanging near arm
@@ -258,9 +289,9 @@ var DTWSprites = (function () {
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
     if (carry && back) shoulderPick();
     if (pose.air > 0.3) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
-    if (o.pack && !back) line(c, X + 9, Y + 1, X + 11, Y + 8, PACK.k, 1); // shoulder strap
+    if (hasPack && !back) line(c, X + 9, Y + 1, X + 11, Y + 8, PACK.k, 1); // shoulder strap
     stamp(c, head, Pl, X, Y - 17);
-    if (o.pack && back) packBack(c, X + 12, Y - 4);
+    if (hasPack && back) packBack(c, X + 12, Y - 4, o.pack);
     if (!behind && o.ang != null && pose.air <= 0.3) pick(c, X + 12, Y + 3, o.ang, o.tier, P, t);
     else if (o.arms === 'wave') { var wv = Math.sin(t * 10) > 0 ? 1 : 0; px(c, X + 19, Y - 3 - wv, P.r, 2, 6); px(c, X + 19 + wv, Y - 5 - wv, P.S, 2, 2); }
     else if (o.ang == null && pose.air <= 0.3) { px(c, X + 15, Y + 2, P.r, 3, 6); px(c, X + 15, Y + 8, P.S, 3, 2); } // near arm at the side
@@ -276,7 +307,7 @@ var DTWSprites = (function () {
     px(c, X0 + 4, Y - 8 + b, P.r, 3, 10 - b); px(c, X0 + 17, Y - 8 + a, P.r, 3, 10 - a);
     px(c, X0 + 4, Y - 10 + b, P.S, 3, 2); px(c, X0 + 17, Y - 10 + a, P.S, 3, 2);
     stamp(c, head, Pl, X0, Y - 17);
-    if (o.pack) packBack(c, X0 + 12, Y - 4);
+    if (o.pack != null && o.pack !== false) packBack(c, X0 + 12, Y - 4, o.pack === true ? 1 : o.pack);
     outline(c, W, H, OUT);
     return { cv: cv, fx: FX, fy: FY };
   }
@@ -294,13 +325,23 @@ var DTWSprites = (function () {
     return (cache[key] = { cv: out, fx: FX, fy: FY });
   }
 
-  // ---------- exhibits: five pieces per world, as shapes on a 48×28 grid, facing screen-right ----------
+  // ---------- exhibits: three creatures per world, five pieces each ----------
   // shapes: ['l', x0, y0, x1, y1, thick] line, ['p', [x, y, ...]] polygon, ['c', x, y, r] disc,
   //         ['r', x, y, w, h] rectangle, ['o', x, y, r] ring, ['x', x, y, r] hole
   function ribs(x0, x1, step, top, len) { var out = []; for (var x = x0; x <= x1; x += step) out.push(['l', x, top + (x - x0) * 0.08, x - 1, top + len - (x - x0) * 0.12, 1]); return out; }
   function ticks(x0, x1, step, y, len) { var out = []; for (var x = x0; x <= x1; x += step) out.push(['l', x, y - len, x, y + len, 1]); return out; }
   function wave(x0, x1, y, amp, per, th) { var out = []; for (var x = x0; x < x1; x += 2) out.push(['l', x, y + amp * Math.sin(x / per), x + 2, y + amp * Math.sin((x + 2) / per), th]); return out; }
+  // 15 exhibits, three creatures per world (index world*3 + creature), five pieces each, as shapes on a 48×28 grid, facing screen-right.
+  // Each part is a piece the player finds (skull, ribs, ...); 'rods' are support poles from the plinth; 'color'/'partColor' override the bone colour.
   var EXHIBITS = [
+    { // woolly mammoth: skull, tusks, ribs, legs, tail
+      parts: [
+        [['p', [33, 4, 37, 1, 42, 3, 42, 9, 40, 12, 34, 12, 31, 8]], ['l', 41, 8, 43, 14, 3], ['l', 43, 14, 43, 20, 2], ['l', 43, 20, 45, 23, 2], ['x', 37, 6, 1.2]],
+        [['l', 38, 12, 42, 17, 2], ['l', 42, 17, 47, 17, 1], ['l', 47, 17, 47, 12, 1], ['l', 36, 12, 38, 17, 1]],
+        [['l', 11, 10, 16, 5, 2], ['l', 16, 5, 25, 3, 2], ['l', 25, 3, 31, 7, 2]].concat(ribs(13, 31, 3, 7, 11)).concat([['l', 13, 18, 31, 17, 1]]),
+        [['l', 15, 18, 15, 27, 3], ['l', 21, 18, 21, 27, 2], ['l', 27, 18, 27, 27, 3], ['l', 32, 18, 32, 27, 2], ['r', 13, 26, 5, 2], ['r', 25, 26, 5, 2]],
+        [['l', 11, 10, 9, 15, 2], ['l', 9, 15, 10, 19, 1], ['p', [8, 17, 11, 17, 10, 22]]]
+      ], rods: [] },
     { // forest raptor: skull, ribs, leg, tail, claw
       parts: [
         [['p', [35, 4, 41, 2, 47, 5, 47, 7, 41, 8, 36, 9]], ['l', 37, 9, 45, 10, 1], ['x', 39, 5, 1.2]],
@@ -310,6 +351,22 @@ var DTWSprites = (function () {
         [['l', 20, 12, 12, 9, 2], ['l', 12, 9, 5, 8, 2], ['l', 5, 8, 0, 10, 1]],
         [['l', 32, 11, 34, 15, 1], ['l', 34, 15, 37, 16, 1], ['l', 37, 16, 38, 18, 1], ['l', 30, 11, 31, 15, 1], ['l', 31, 15, 33, 17, 1]]
       ], rods: [[22, 13], [32, 10]] },
+    { // tyrannosaurus rex: skull, arms, ribs, legs, tail
+      parts: [
+        [['p', [29, 3, 41, 1, 47, 4, 47, 8, 42, 10, 30, 11]], ['p', [43, 10, 44, 13, 45, 10]], ['p', [40, 10, 41, 13, 42, 10]], ['p', [37, 10, 38, 12, 39, 10]], ['p', [46, 8, 46, 11, 47, 8]], ['x', 35, 5, 1.3]],
+        [['l', 30, 14, 33, 17, 1], ['l', 33, 17, 35, 16, 1], ['l', 28, 14, 31, 18, 1], ['l', 31, 18, 33, 17, 1]],
+        [['l', 8, 14, 18, 10, 2], ['l', 18, 10, 30, 10, 3], ['l', 28, 10, 30, 13, 2]].concat(ribs(18, 28, 2, 11, 7)),
+        [['l', 20, 12, 23, 19, 3], ['l', 23, 19, 19, 24, 2], ['l', 19, 24, 19, 27, 2], ['l', 16, 27, 24, 27, 1], ['l', 25, 12, 28, 19, 2], ['l', 28, 19, 25, 24, 2], ['l', 25, 24, 25, 27, 1], ['l', 23, 27, 30, 27, 1]],
+        [['l', 8, 14, 4, 16, 2], ['l', 4, 16, 0, 19, 1], ['l', 6, 15, 6, 17, 1]]
+      ], rods: [] },
+    { // giant sea turtle (archelon): skull, shell, front flippers, back flippers, tail
+      parts: [
+        [['p', [37, 9, 43, 8, 47, 11, 47, 14, 44, 15, 38, 15]], ['p', [45, 13, 47, 15, 44, 16]], ['x', 42, 10, 1.2]],
+        [['l', 11, 12, 15, 6, 1], ['l', 15, 6, 24, 4, 1], ['l', 24, 4, 33, 6, 1], ['l', 33, 6, 37, 12, 1], ['l', 37, 12, 33, 18, 1], ['l', 33, 18, 24, 20, 1], ['l', 24, 20, 15, 18, 1], ['l', 15, 18, 11, 12, 1], ['l', 11, 12, 37, 12, 2]].concat(ribs(15, 33, 3, 5, 13)),
+        [['p', [32, 16, 37, 17, 46, 24, 44, 26, 36, 22, 30, 19]]],
+        [['p', [14, 17, 18, 18, 13, 24, 9, 26, 8, 24]]],
+        [['l', 11, 12, 6, 14, 2], ['l', 6, 14, 2, 17, 1]]
+      ], rods: [[20, 20], [30, 18]] },
     { // ocean shark: tooth, jaw, fin, spine, tail
       parts: [
         [['p', [40, 13, 41, 16, 42, 13]], ['p', [42, 13, 43, 16, 44, 13]], ['p', [44, 13, 45, 15, 46, 12]], ['p', [38, 13, 39, 15, 40, 13]]],
@@ -318,6 +375,22 @@ var DTWSprites = (function () {
         [['l', 9, 11, 34, 11, 2]].concat(ticks(11, 33, 2, 11, 2)),
         [['p', [10, 10, 3, 1, 5, 1, 8, 11, 4, 20, 2, 20]]]
       ], rods: [[18, 12], [32, 12]] },
+    { // plesiosaur: skull, neck, ribs, paddles, tail
+      parts: [
+        [['p', [39, 3, 44, 1, 47, 3, 47, 5, 43, 6, 39, 7]], ['x', 42, 3, 0.9]],
+        [['l', 30, 16, 32, 10, 3], ['l', 32, 10, 35, 6, 2], ['l', 35, 6, 39, 5, 2]].concat(ticks(32, 36, 2, 8, 1)),
+        [['l', 13, 15, 31, 16, 2], ['l', 13, 15, 22, 11, 2]].concat(ribs(15, 29, 3, 12, 9)),
+        [['p', [29, 20, 33, 20, 42, 26, 39, 27]], ['p', [25, 21, 28, 21, 34, 27, 31, 27]], ['p', [16, 20, 19, 20, 14, 27, 11, 27]], ['p', [11, 21, 14, 21, 8, 27, 5, 27]]],
+        [['l', 13, 15, 6, 17, 2], ['l', 6, 17, 1, 20, 1]]
+      ], rods: [[22, 20]] },
+    { // sabre-tooth cat: skull, fangs, ribs, legs, tail
+      parts: [
+        [['p', [32, 6, 39, 4, 44, 7, 46, 10, 43, 12, 34, 12]], ['p', [34, 5, 35, 2, 37, 5]], ['x', 38, 7, 1.2]],
+        [['p', [44, 11, 45, 19, 46, 11]], ['p', [40, 12, 41, 19, 42, 12]]],
+        [['l', 12, 12, 20, 9, 2], ['l', 20, 9, 32, 10, 2]].concat(ribs(15, 29, 3, 10, 8)),
+        [['l', 29, 13, 29, 20, 2], ['l', 29, 20, 30, 27, 2], ['l', 25, 13, 25, 20, 1], ['l', 25, 20, 26, 27, 1], ['l', 15, 13, 13, 19, 3], ['l', 13, 19, 15, 27, 2], ['l', 19, 13, 19, 20, 1], ['l', 19, 20, 20, 27, 1], ['r', 28, 27, 4, 1], ['r', 13, 27, 4, 1]],
+        [['l', 12, 12, 6, 9, 2], ['l', 6, 9, 3, 12, 1], ['l', 3, 12, 3, 16, 1]]
+      ], rods: [] },
     { // jungle crocodile: skull, jaw, scales, leg, tail
       parts: [
         [['p', [32, 7, 40, 7, 47, 8, 47, 10, 32, 11]], ['x', 34, 8, 1]],
@@ -326,6 +399,14 @@ var DTWSprites = (function () {
         [['l', 28, 10, 30, 15, 2], ['l', 30, 15, 33, 17, 1], ['l', 30, 15, 28, 17, 1], ['l', 17, 10, 16, 15, 2], ['l', 16, 15, 19, 17, 1], ['l', 16, 15, 14, 17, 1]],
         [['l', 13, 9, 6, 11, 2], ['l', 6, 11, 0, 14, 1]].concat(ticks(3, 11, 3, 10, 1))
       ], rods: [[18, 10], [30, 10]] },
+    { // stegosaurus: skull, plates, ribs, legs, tail spikes
+      parts: [
+        [['p', [38, 15, 44, 14, 47, 16, 46, 19, 40, 19]], ['x', 42, 16, 1]],
+        [['p', [13, 9, 15, 3, 17, 9]], ['p', [18, 8, 21, 0, 24, 8]], ['p', [25, 8, 28, 0, 31, 8]], ['p', [32, 9, 34, 3, 36, 10]], ['p', [10, 11, 11, 6, 13, 10]]],
+        [['l', 8, 13, 16, 10, 2], ['l', 16, 10, 28, 9, 2], ['l', 28, 9, 37, 15, 2]].concat(ribs(14, 32, 3, 11, 8)),
+        [['l', 16, 14, 16, 27, 3], ['l', 21, 14, 21, 27, 2], ['l', 30, 15, 31, 27, 2], ['l', 34, 16, 35, 27, 2], ['r', 14, 26, 5, 1], ['r', 29, 26, 4, 1]],
+        [['l', 8, 13, 4, 18, 2], ['l', 4, 18, 1, 20, 1], ['p', [6, 15, 4, 9, 8, 14]], ['p', [3, 18, 0, 13, 5, 17]], ['p', [5, 20, 0, 22, 5, 17]]]
+      ], rods: [] },
     { // moon rover: wheel, antenna, panel, camera, flag
       color: '#b8bcc8', partColor: [null, null, '#7aa8e0', null, '#e74c3c'],
       parts: [
@@ -334,6 +415,31 @@ var DTWSprites = (function () {
         [['r', 9, 12, 30, 7], ['r', 6, 9, 36, 2], ['l', 12, 9, 12, 11, 1], ['l', 20, 9, 20, 11, 1], ['l', 28, 9, 28, 11, 1], ['l', 36, 9, 36, 11, 1]],
         [['l', 38, 12, 40, 4, 2], ['r', 37, 1, 7, 4], ['x', 43, 3, 1]],
         [['l', 9, 12, 9, 0, 1], ['r', 10, 0, 8, 5]]
+      ], rods: [] },
+    { // pterodactyl: skull, crest, wings, body, legs
+      parts: [
+        [['p', [35, 11, 40, 10, 47, 14, 47, 15, 40, 14, 35, 15]], ['x', 38, 12, 0.9]],
+        [['p', [36, 10, 28, 5, 33, 12]]],
+        [['p', [22, 12, 12, 3, 0, 9, 5, 10, 6, 14, 12, 12, 16, 15, 22, 15]], ['p', [23, 12, 29, 5, 37, 0, 38, 5, 34, 7, 33, 11, 28, 10, 26, 14]], ['l', 22, 12, 12, 3, 2], ['l', 12, 3, 3, 13, 1]],
+        [['c', 24, 15, 3], ['l', 26, 13, 35, 12, 2], ['l', 23, 13, 17, 17, 2]],
+        [['l', 22, 18, 20, 24, 1], ['l', 20, 24, 17, 25, 1], ['l', 25, 18, 25, 24, 1], ['l', 25, 24, 28, 25, 1]]
+      ], rods: [[22, 24]] },
+    { // brachiosaurus: skull, neck, ribs, legs, tail
+      parts: [
+        [['p', [36, 2, 41, 0, 46, 2, 46, 5, 41, 6, 37, 5]], ['p', [37, 1, 39, 0, 40, 2]], ['x', 42, 3, 0.9]],
+        [['l', 27, 12, 30, 6, 3], ['l', 30, 6, 34, 3, 3], ['l', 34, 3, 37, 3, 2]].concat(ticks(29, 33, 2, 6, 1)),
+        [['l', 9, 12, 18, 9, 2], ['l', 18, 9, 29, 11, 2]].concat(ribs(11, 28, 3, 10, 9)),
+        [['l', 27, 14, 27, 27, 3], ['l', 31, 14, 32, 27, 2], ['l', 14, 14, 14, 27, 3], ['l', 19, 14, 20, 27, 2], ['r', 25, 27, 5, 1], ['r', 12, 27, 5, 1]],
+        [['l', 9, 12, 5, 15, 2], ['l', 5, 15, 1, 20, 1]]
+      ], rods: [] },
+    { // glorpatops, an alien triceratops: skull, horns, frill, legs, tail
+      color: '#bff0c8',
+      parts: [
+        [['p', [32, 13, 38, 11, 44, 14, 47, 18, 42, 21, 34, 20]], ['p', [44, 18, 47, 22, 42, 21]]],
+        [['p', [36, 11, 37, 3, 40, 11]], ['p', [40, 12, 43, 5, 43, 13]], ['p', [44, 14, 47, 9, 47, 15]], ['p', [23, 6, 20, 2, 26, 4]], ['p', [29, 2, 30, 0, 33, 2]], ['p', [35, 4, 38, 2, 37, 7]]],
+        [['p', [27, 20, 22, 12, 23, 6, 29, 2, 35, 3, 38, 8, 36, 14, 33, 19]], ['x', 27, 7, 1.3], ['x', 31, 5, 1.3], ['x', 33, 10, 1.3]],
+        [['l', 11, 17, 31, 17, 3], ['l', 14, 18, 14, 27, 3], ['l', 19, 18, 19, 27, 2], ['l', 26, 18, 26, 27, 3], ['l', 31, 18, 31, 27, 2], ['r', 12, 27, 5, 1], ['r', 24, 27, 5, 1]],
+        [['l', 11, 17, 5, 20, 2], ['l', 5, 20, 1, 19, 1]]
       ], rods: [] },
     { // alien sky serpent: skull, fang, wing, coil, tail
       color: '#bff0c8',
@@ -344,6 +450,17 @@ var DTWSprites = (function () {
         wave(12, 38, 16, 5, 4, 2).concat(ticks(14, 36, 3, 16, 1)),
         wave(0, 12, 16, 5, 4, 1).concat([['p', [0, 18, 3, 14, 5, 19]]])
       ], rods: [[15, 21], [31, 21]] }
+,
+    { // space ankylosaur: skull, armour, ribs, legs, club tail
+      color: '#c8b8ff',
+      parts: [
+        [['p', [38, 16, 44, 15, 47, 17, 47, 20, 40, 21]], ['x', 43, 17, 0.9]],
+        [['p', [12, 17, 15, 10, 23, 8, 32, 9, 37, 14, 37, 17]], ['c', 17, 10, 1.4], ['c', 23, 8, 1.4], ['c', 29, 8, 1.4], ['c', 34, 12, 1.4], ['p', [14, 16, 10, 13, 15, 13]], ['p', [36, 15, 40, 12, 38, 17]], ['l', 15, 13, 34, 13, 1]],
+        [['l', 14, 18, 36, 18, 2]].concat(ribs(15, 33, 3, 17, 5)),
+        [['l', 14, 20, 14, 27, 3], ['l', 20, 20, 20, 27, 2], ['l', 29, 20, 29, 27, 3], ['l', 34, 20, 35, 27, 2], ['r', 12, 27, 5, 1], ['r', 27, 27, 5, 1]],
+        [['l', 12, 15, 6, 18, 2], ['c', 4, 19, 3], ['p', [2, 16, 4, 13, 5, 17]], ['p', [0, 20, 0, 24, 3, 22]]]
+      ], rods: [] }
+
   ];
   var EW = 48, EH = 28;
   function shape(c, s) {
@@ -400,7 +517,7 @@ var DTWSprites = (function () {
     }
     return (ecache[key] = out);
   }
-  // draw world k's exhibit standing on a plinth top at screen (x, y); s is screen pixels per art pixel
+  // draw exhibit k (0-14, world*3 + creature) with its five piece counts, standing on a plinth top at screen (x, y); s is screen pixels per art pixel
   function exhibit(c, k, pieces, open, x, y, s) {
     if (!open) return;
     var have = pieces.map(function (n) { return n > 0 ? 1 : 0; }), ec = exhibitCanvas(k, have);

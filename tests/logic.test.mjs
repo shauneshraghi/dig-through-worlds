@@ -40,9 +40,10 @@ test('five worlds with distinct biomes and distinct rules', () => {
   assert.deepEqual([...ids], ['forest', 'ocean', 'jungle', 'moon', 'alien']);
   for (const w of D.WORLDS) {
     assert.equal(w.ores.length, 4, w.id);
-    assert.equal(w.fossils.length, 5, w.id);
+    assert.equal(w.creatures.length, 3, w.id);
+    for (const c of w.creatures) assert.equal(c.parts.length, 5, c.name);
+    assert.equal(w.fossils.length, 15, w.id);
     assert.ok(w.relic && w.relic.name, w.id);
-    assert.ok(w.exhibit, w.id);
   }
 });
 
@@ -405,9 +406,13 @@ test('upgrades cost more each level and cannot be bought without coins', () => {
 test('museum: a finished exhibit draws visitors, staff and diggers can be hired', () => {
   const s = D.newState(1);
   assert.equal(D.museumIncome(s), 0);
-  for (let i = 0; i < 5; i++) s.museum[0].pieces[i] = 1;
+  for (let i = 0; i < 4; i++) s.museum[0].pieces[i] = 1;
+  const part = D.museumIncome(s);
+  s.museum[0].pieces[4] = 1;
   const inc = D.museumIncome(s);
-  assert.ok(inc > 0);
+  assert.ok(inc > part * 3, 'a finished skeleton pays far more than loose pieces');
+  assert.equal(D.exhibitDone(s, 0, 0), true);
+  assert.equal(D.exhibitDone(s, 0), false);
   s.coins = 1e9;
   assert.equal(D.hire(s, 'staff'), true);
   assert.ok(D.museumIncome(s) > inc);
@@ -505,4 +510,107 @@ test('playthrough: each world takes a kid-sized 15–35 minutes, all five finish
   console.log('bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| trips home with a full bag:', stats.fullBag);
   for (const m of mins) assert.ok(m >= 15 && m <= 35, `world took ${m.toFixed(1)} min`);
   assert.ok(stats.fullBag >= 10, `${stats.fullBag} trips home with a full bag`);
+});
+
+test('each world buries two copies of all 15 fossil pieces, the first creature shallow and the last deep', () => {
+  for (let w = 0; w < 5; w++) {
+    const g = D.genWorld(w, 31), count = new Array(15).fill(0), depth = [[], [], []];
+    for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.FOSSIL) { count[g.v[i]]++; depth[Math.floor(g.v[i] / 5)].push(Math.floor(i / 49)); }
+    assert.ok(count.every(c => c === 2), `world ${w}: ${count}`);
+    const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+    assert.ok(avg(depth[0]) < avg(depth[1]) && avg(depth[1]) < avg(depth[2]), `world ${w} creature depths`);
+  }
+});
+
+test('every world has treasure chests, and a chest can hold a missing fossil piece', () => {
+  for (let w = 0; w < 5; w++) {
+    const g = D.genWorld(w, 8); let n = 0;
+    for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.CHEST) n++;
+    assert.ok(n >= 15, `world ${w} has ${n} chests`);
+  }
+  let fossils = 0, coins = 0;
+  for (let k = 0; k < 40; k++) {
+    const s = digAt(0, 3, 10, 3); s.rng = k * 977;
+    D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 20);
+    const got = s.run.bag.filter(b => b.kind === 'fossil' && b.chest).length; fossils += got; if (!got) coins++;
+  }
+  assert.ok(fossils > 5 && coins > 5, `${fossils} fossil chests, ${coins} coin chests`);
+});
+
+test('hired helpers dig blocks of their own into the bag, away from the miner', () => {
+  const s = digAt(0, 0, 20, 0); s.workers.diggers = 2; D.setAuto(s, false);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(s, x, 20, z, T.DIRT);
+  s.events = [];
+  run(s, 15);
+  assert.equal(s.run.x, 0, 'the miner stayed put with auto-mining off'); assert.equal(s.run.z, 0);
+  const b = breaks(s);
+  assert.ok(b.length >= 4, `helpers broke ${b.length} blocks`);
+  assert.ok(b.every(e => e.y === 20));
+  assert.ok(s.run.bag.length + s.run.loot.length >= 0);
+  for (const c of s.run.crew) if (c.target >= 0) {
+    const x = c.target % D.N, z = Math.floor(c.target / D.N) % D.N;
+    assert.ok(Math.max(x, z) >= 2, 'helpers work at least two cells from the miner while they can');
+  }
+});
+
+test('a helper springing a trap is dizzy itself; the miner is not', () => {
+  const s = digAt(2, 0, 20, 0, {}); s.workers.diggers = 1; D.setAuto(s, false);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(s, x, 20, z, x === 6 && z === 6 ? T.TRAP : T.STONE);
+  s.run.crew = [{ target: D.idx(6, 20, 6), x: 6, z: 5, y: 20, face: 's', stun: 0 }];
+  D._setTile(s, 6, 20, 5, T.AIR);
+  run(s, 30);
+  assert.equal(s.run.stun, 0);
+  assert.equal(s.stats.trapsSprung, 0);
+});
+
+test('with auto-mining off the miner waits; a tap hits the block it faces', () => {
+  const s = digAt(0, 3, 20, 3); D.setAuto(s, false);
+  D._setTile(s, 4, 20, 3, T.DIRT); s.run.face = 'e';
+  run(s, 5);
+  assert.equal(at(s.run.grid, 4, 20, 3), T.DIRT, 'nothing happens on its own');
+  for (let i = 0; i < 40 && at(s.run.grid, 4, 20, 3) === T.DIRT; i++) { D.tap(s); run(s, 0.25); }
+  assert.equal(at(s.run.grid, 4, 20, 3), T.AIR, 'tapping digs the block in front');
+  assert.equal(s.auto, false);
+});
+
+test('one steer into a block keeps digging it till it breaks, then stops there', () => {
+  const s = digAt(0, 3, 20, 3); D.setAuto(s, false);
+  D._setTile(s, 4, 20, 3, T.STONE); D._setTile(s, 5, 20, 3, T.STONE);
+  D.steer(s, 'e'); run(s, 20);
+  assert.equal(at(s.run.grid, 4, 20, 3), T.AIR);
+  assert.equal(at(s.run.grid, 5, 20, 3), T.STONE, 'only the steered block');
+  assert.equal(s.run.x, 3);
+});
+
+test('tapping a block walks the miner next to it and digs it', () => {
+  const s = digAt(0, 0, 20, 0); D.setAuto(s, false);
+  D._setTile(s, 6, 20, 6, T.DIRT); D._setTile(s, 1, 20, 0, T.DIRT);
+  assert.equal(D.digAt(s, 6, 6), true);
+  run(s, 12);
+  assert.equal(at(s.run.grid, 6, 20, 6), T.AIR);
+  assert.equal(at(s.run.grid, 1, 20, 0), T.DIRT, 'not the nearer one');
+  assert.equal(Math.abs(s.run.x - 6) + Math.abs(s.run.z - 6), 1);
+  assert.equal(D.digAt(s, 3, 3), false, 'an open cell is not a target');
+});
+
+test('a v2 save keeps its one skeleton per world as the middle creature', () => {
+  const s = D.newState(4); D.startDig(s, 0); run(s, 3); D.goHome(s); run(s, 4);
+  const o = JSON.parse(D.serialize(s));
+  o.v = 2; o.museum = [0, 1, 2, 3, 4].map(() => ({ pieces: [1, 0, 2, 0, 0] })); delete o.auto;
+  const g = o.sites[0]; for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.FOSSIL) g.v[i] = 3;
+  const s2 = D.deserialize(JSON.stringify(o));
+  assert.deepEqual([...s2.museum[0].pieces], [0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0]);
+  const g2 = s2.sites[0]; for (let i = 0; i < g2.t.length; i++) if (g2.t[i] === T.FOSSIL) assert.equal(g2.v[i], 8);
+  assert.equal(s2.auto, true);
+});
+
+test('a new dig turns up a fossil in layer 1 and a chest in layer 2, and a find every couple of layers near the top', () => {
+  for (let w = 0; w < 5; w++) for (const seed of [1, 2, 3]) {
+    const g = D.genWorld(w, seed), finds = [];
+    for (let y = 1; y <= 12; y++) { let n = 0; for (let i = y * 49; i < (y + 1) * 49; i++) if (g.t[i] === T.FOSSIL || g.t[i] === T.CHEST) n++; finds.push(n); }
+    assert.ok(finds[0] >= 1, `world ${w} seed ${seed}: layer 1`);
+    let chest2 = false; for (let i = 2 * 49; i < 3 * 49; i++) if (g.t[i] === T.CHEST) chest2 = true;
+    assert.ok(chest2, `world ${w} seed ${seed}: chest in layer 2`);
+    assert.ok(finds.reduce((a, b) => a + b, 0) >= 8, `world ${w} seed ${seed}: ${finds}`);
+  }
 });

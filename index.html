@@ -14,7 +14,7 @@
   <div id="hud">
     <span class="chip coins" id="hCoins">0</span>
     <span class="chip" id="hDepth">0 m</span>
-    <span class="chip" id="hBag">Bag 0/10</span>
+    <span class="chip" id="hBag"><i></i><span>🎒 0/10</span></span>
     <span class="chip" id="hInc" title="Museum visitors">🏛 +0/s</span>
     <div id="o2" title="Oxygen"><div></div></div>
     <button id="bMenu" title="Menu (Esc)">☰</button>
@@ -30,14 +30,15 @@
     </div>
     <div id="splash">
       <h1>Dig Through Worlds</h1>
-      <p>Dig down through five worlds, collect treasure,</p>
-      <p>fill your museum and find each world's relic!</p>
+      <p>Dig down and find treasure!</p>
+      <p>Fill the museum with bones!</p>
       <div class="go">Tap to play</div>
-      <p class="small" style="margin-top:16px">Walk the plaza with ↖ ↗ ↙ ↘, arrow keys or WASD, or tap where to go · stand on a glowing pad to shop, hire, travel or dig · underground: tap or Space to dig faster, H to go home</p>
-    </div>
+      <p class="help">Walk: arrows, WASD or tap<br>Dig: tap or Space</p>
+      </div>
   </div>
   <div id="controls">
     <button id="bHome">⬆ Home</button>
+    <button id="bAuto" class="on" aria-label="Auto or manual digging">🤖 Auto</button>
     <div id="dpad">
       <button data-dir="w" id="bW" aria-label="Steer west (up-left)">↖</button>
       <button data-dir="n" id="bN" aria-label="Steer north (up-right)">↗</button>
