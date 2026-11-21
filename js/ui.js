@@ -66,7 +66,7 @@
     // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
     if (!surf || splash) { menuOpen = false; menuPick = null; }
     var plaza = surf && !splash;
-    $('bMenu').style.display = $('bShop').style.display = $('hInc').style.display = plaza ? '' : 'none';
+    $('bMenu').style.display = $('hInc').style.display = plaza ? '' : 'none';
     $('hDepth').style.display = hb.style.display = surf ? 'none' : '';
     $('bClose').style.display = menuOpen ? '' : 'none';
     $('bClose').textContent = menuPick ? '‹ Menu' : '✕';
@@ -74,7 +74,7 @@
     if (st !== station) { station = st; lastPanelKey = ''; }
     var showPanel = !!station;
     $('surface').classList.toggle('show', showPanel);
-    $('bShop').classList.toggle('on', station === 'shop');
+    $('bMenu').classList.toggle('on', menuOpen);
     var wide = WIDE.matches;
     $('app').classList.toggle('panel', wide && showPanel);
     R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide, open: showPanel });
@@ -186,11 +186,6 @@
   }
   function toggleMenu() { audio(); if (S.mode !== 'surface' || splash) return; menuOpen = !menuOpen; menuPick = null; }
   $('bMenu').onclick = toggleMenu;
-  // the Shop button opens the shop from anywhere on the plaza; a second tap closes it
-  $('bShop').onclick = function () {
-    audio(); if (S.mode !== 'surface' || splash) return;
-    if (station === 'shop' && menuOpen) { menuOpen = false; menuPick = null; } else { menuOpen = true; menuPick = 'shop'; }
-  };
   $('bClose').onclick = function () { if (menuPick) menuPick = null; else menuOpen = false; };
   $('bDig').onclick = function () { audio(); D.startDig(S, S.world); };
   $('mute').onclick = function () { audio(); setMute(!A.isMuted()); };

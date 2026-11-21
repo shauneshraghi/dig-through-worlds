@@ -12,11 +12,10 @@ html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); font
 @keyframes pulse { 50% { filter:brightness(1.4); } }
 #o2 { flex:1; min-width:60px; height:22px; background:#0b2a40; border-radius:11px; overflow:hidden; display:none; border:1px solid #3fc8ff; }
 #o2 > div { height:100%; background:linear-gradient(90deg,#3fc8ff,#bff7ff); width:100%; transition:width .2s; }
-#bMenu { background:var(--panel2); border:none; border-radius:12px; color:var(--ink); font-size:24px; cursor:pointer; min-width:44px; height:44px; padding:0 8px; }
 #hud .sp { flex:1; }
-#bShop { font:inherit; font-weight:700; font-size:20px; height:44px; padding:0 12px; border:none; border-radius:12px; cursor:pointer; color:#3a1d00; background:linear-gradient(#ffe066,#ffb547); box-shadow:0 3px 0 #7a3b10; white-space:nowrap; }
-#bShop:active { transform:translateY(2px); box-shadow:0 1px 0 #7a3b10; }
-#bShop.on { background:linear-gradient(#fff3b0,#ffd23f); }
+#bMenu { font:inherit; font-weight:700; font-size:34px; line-height:1; width:56px; height:52px; padding:0; border:none; border-radius:14px; cursor:pointer; color:#3a1d00; background:linear-gradient(#ffe066,#ffb547); box-shadow:0 3px 0 #7a3b10; }
+#bMenu:active { transform:translateY(2px); box-shadow:0 1px 0 #7a3b10; }
+#bMenu.on { background:linear-gradient(#fff3b0,#ffd23f); }
 #bClose { float:right; min-height:48px; padding:6px 16px; font-size:20px; }
 #mute { background:var(--panel2); border:none; border-radius:12px; color:var(--ink); font-size:24px; cursor:pointer; min-width:44px; height:44px; padding:0 8px; }
 #stage { position:relative; flex:1; min-height:0; }
@@ -121,6 +120,6 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 @media (max-width: 480px) {
   #hud { font-size:17px; gap:5px; }
   .chip { padding:3px 8px; border-radius:12px; }
-  #bShop { font-size:17px; padding:0 10px; }
-  #bMenu, #mute { min-width:40px; height:40px; font-size:20px; }
+  #bMenu { width:50px; height:48px; font-size:30px; }
+  #mute { min-width:40px; height:40px; font-size:20px; }
 }
