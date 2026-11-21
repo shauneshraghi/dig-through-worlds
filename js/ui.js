@@ -30,7 +30,7 @@
     while (n >= 1000 && i < u.length - 1) { n /= 1000; i++; }
     return (n < 10 ? n.toFixed(1) : Math.floor(n)) + u[i];
   }
-  function audio() { A.init(function () { return S.world; }); }
+  function audio() { A.init(function () { return { world: S.world, mode: S.mode, depth: S.run ? S.run.y : 0 }; }); }
   function setMute(m) { A.setMute(m); $('mute').textContent = m ? '🔇' : '🔊'; }
 
   // ---------- UI: toasts, HUD, surface panel ----------
@@ -49,7 +49,7 @@
     $('hCoins').textContent = '🪙 ' + fmt(S.coins);
     var r = S.run, depth = S.mode === 'dig' && r ? r.y : S.mode === 'surface' ? 0 : Math.max(0, Math.round(R.dispY));
     $('hDepth').textContent = '⛏ ' + depth + ' / ' + D.DEPTH + ' m';
-    var n = r && S.mode !== 'surface' ? r.bag.length + r.loot.length : 0, cap = D.bagCap(S);
+    var n = r && S.mode !== 'surface' ? r.bag.length : 0, cap = D.bagCap(S);
     var hb = $('hBag'), over = n > cap, bf = Math.min(1, n / Math.max(1, cap));
     hb.lastChild.textContent = (over ? '🎒 Heavy! ' : '🎒 ') + n + '/' + cap; hb.classList.toggle('heavy', over);
     hb.firstChild.style.width = (bf * 100) + '%'; hb.firstChild.style.background = over ? '#e5483a' : bf > 0.7 ? '#ff9f1c' : '#3fbf63';
@@ -119,15 +119,23 @@
       var p = document.createElement('p'); p.className = 'small'; p.textContent = 'Helpers work only while the game is open.'; body.appendChild(p);
     } else if (tab === 'mu') {
       var inc = document.createElement('p'); inc.innerHTML = 'Visitors pay <b style="color:var(--gold)">🪙 ' + fmtRate(D.museumIncome(S)) + ' / second</b>. Finish a skeleton to draw a crowd!'; inc.style.margin = '0 0 8px'; body.appendChild(inc);
-      var ICONS = ['🦴', '🦖', '🦣'];
-      D.WORLDS.forEach(function (w, wi) {
-        var d = document.createElement('div'); d.className = 'wing' + (S.unlocked[wi] ? '' : ' locked');
-        d.innerHTML = '<b style="font-size:1.15em">' + (S.unlocked[wi] ? '🏛️ ' + w.name + ' wing' : '🔒 Wing ' + (wi + 1)) + '</b> <span class="small">' + D.piecesFound(S, wi) + ' / ' + D.PIECES * D.CREATURES + ' bones</span>' +
-          (S.relics[wi] ? '<br><span class="small">✨ Relic on display: ' + w.relic.name + '</span>' : '');
-        w.creatures.forEach(function (cr, ci) {
+      D.WINGS.forEach(function (wg) { // one block per wing of the museum, listing the skeletons on show there
+        var d = document.createElement('div'), got = 0, tot = 0;
+        wg.ks.forEach(function (k) { got += D.piecesFound(S, Math.floor(k / 3), k % 3); tot += D.PIECES; });
+        d.className = 'wing' + (wg.ks.length && wg.ks.every(function (k) { return !S.unlocked[Math.floor(k / 3)]; }) ? ' locked' : '');
+        d.innerHTML = '<b style="font-size:1.15em">' + wg.icon + ' ' + wg.name + '</b> <span class="small">' + (wg.ks.length ? got + ' / ' + tot + ' bones' : S.relics.filter(Boolean).length + ' / ' + D.WORLDS.length + ' relics') + '</span>';
+        if (!wg.ks.length) {
+          D.WORLDS.forEach(function (w, wi) {
+            var rd = document.createElement('div'); rd.className = 'small'; rd.style.marginTop = '4px';
+            rd.textContent = S.relics[wi] ? '✨ ' + w.relic.name : '🔒 Relic from ' + (S.unlocked[wi] ? w.name : 'world ' + (wi + 1));
+            d.appendChild(rd);
+          });
+        }
+        wg.ks.forEach(function (k) {
+          var wi = Math.floor(k / 3), ci = k % 3, cr = D.WORLDS[wi].creatures[ci];
           var have = D.piecesFound(S, wi, ci), done = D.exhibitDone(S, wi, ci), cd = document.createElement('div');
           cd.style.cssText = 'margin-top:8px';
-          cd.innerHTML = '<div style="font-size:1.05em"><b>' + ICONS[ci] + ' ' + (S.unlocked[wi] ? cr.name : '???') + '</b> <span class="small">' + have + ' / ' + D.PIECES + '</span>' +
+          cd.innerHTML = '<div style="font-size:1.05em"><b>' + (S.unlocked[wi] ? cr.name : '??? (' + D.WORLDS[wi].name + ' dig)') + '</b> <span class="small">' + have + ' / ' + D.PIECES + '</span>' +
             (done ? ' <span style="color:var(--good)">✓ complete! +🪙 ' + fmtRate(cr.income) + '/s</span>' : '') + '</div>';
           var ps = document.createElement('div'); ps.className = 'pieces';
           cr.parts.forEach(function (fn, pi) {
@@ -181,17 +189,23 @@
   // ---------- events from logic ----------
   function drain() {
     var ev = S.events; S.events = [];
-    var P = D.WORLDS[S.world].pal;
+    var P = D.WORLDS[S.world].pal, lastBreak = null;
     ev.forEach(function (e) {
       var r = S.run;
       if (e.type === 'break') {
         var col = e.tile === T.GOO ? '#5dff7a' : e.tile === T.STONE ? P.stone : P.dirt[R.layerOf(e.y)];
-        R.spawnBreak(e.x, e.y, e.z, col, 8); A.sfx('brk'); R.shake(0.08);
+        R.spawnBreak(e.x, e.y, e.z, col, 8); A.sfx('brk'); R.shake(0.08); lastBreak = e;
+        if (e.tile === T.CHEST) R.spawnFind(e.x, e.y, e.z, { kind: 'treasure', world: S.world, value: 0 }, '', { chest: true, ghost: true }); // the chest hops open; its find lies on the floor
       } else if (e.type === 'collect') {
         var it = e.item;
-        R.floatText(r ? r.x + 0.5 : 3.5, r ? r.y : 0, r ? r.z + 0.5 : 3.5, e.name + (it.kind === 'ore' || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), it.kind === 'fossil' ? '#ffe9a8' : R.itemColor(it), it);
+        // the find appears in the pit where its block was; moon loot that bounced into the miner just sparkles there
+        var lbl = e.name + (it.kind === 'ore' || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), pick = !lastBreak || (D.WORLDS[S.world].rule === 'lowgrav' && it.kind !== 'relic');
+        if (e.at) R.spawnFind(e.at.x - 0.5, e.at.y - 0.4, e.at.z - 0.5, it, lbl, { from: true, carried: !!it.carried }); // flies from where it lay to the miner
+        else if (pick) R.spawnFind(r ? r.x : 3, r ? r.y : 0, r ? r.z : 3, it, lbl, { pickup: true });
+        else R.spawnFind(lastBreak.x, lastBreak.y, lastBreak.z, it, lbl, { chest: lastBreak.tile === T.CHEST, carried: !!it.carried });
+        lastBreak = null;
         A.sfx(it.kind === 'fossil' ? 'fossil' : it.kind === 'treasure' ? 'coin' : 'ding');
-        if (it.kind === 'fossil') toast((it.chest ? '💰 A treasure chest! Inside: 🦴 <b>' : '🦴 Found a fossil: <b>') + e.name + '</b>!');
+        if (it.kind === 'fossil') toast(it.chest ? '💰 Chest! A fossil bone inside!' : '🦴 You found a fossil!');
         if (it.kind === 'treasure') toast('💰 Treasure chest!');
       } else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
       else if (e.type === 'trap') { A.sfx('trap'); toast('😵 A trap! Dizzy for a moment…', 1800); R.shake(0.4); }
@@ -199,11 +213,13 @@
       else if (e.type === 'relic') { A.sfx('relic'); toast('✨ You found the <b>' + D.WORLDS[e.world].relic.name + '</b>! Heading home…', 3500); R.shake(0.5); }
       else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') toast('🫧 Out of air! Bubbles float you home — your bag is safe.', 3200); }
       else if (e.type === 'descend') A.sfx('down');
+      else if (e.type === 'boneFull') toast('🦴 Your hands are full! Take your bone home to the 🏛 museum first.', 3000);
+      else if (e.type === 'delivered') { A.sfx('fossil'); toast('🏛 On show: <b>' + e.names.join(', ') + '</b>!', 3200); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
       else if (e.type === 'buy' || e.type === 'hire') A.sfx('buy');
       else if (e.type === 'banked') {
         var msg = [];
         if (e.coins > 0) msg.push('Sold your finds for <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>');
-        if (e.pieces.length) msg.push('🏛 New in the museum: ' + e.pieces.join(', '));
+        if (e.pieces.length) msg.push('🦴 Carry your new bone' + (e.pieces.length > 1 ? 's' : '') + ' to the 🏛 museum!');
         if (msg.length) { toast(msg.join('<br>'), 3500); A.sfx('coin'); }
         if (e.relic !== null) {
           var nx = e.relic + 1;

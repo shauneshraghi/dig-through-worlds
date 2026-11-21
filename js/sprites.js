@@ -165,7 +165,7 @@ var DTWSprites = (function () {
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
 
   // ---------- drawing into a small canvas ----------
-  var W = 60, H = 66, FX = 30, FY = 64; // canvas size and the feet point
+  var W = 60, H = 74, FX = 30, FY = 64; // canvas size and the feet point (room below the feet for a pick struck down)
   function canvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   var cv = canvas(W, H), cx = cv.getContext('2d');
   function stamp(c, rows, P, x0, y0) {
@@ -200,18 +200,72 @@ var DTWSprites = (function () {
     { head: '#ffcf3f', hi: '#fff3b0', handle: '#6b3f1d' },
     { head: '#6ff0ff', hi: '#e8ffff', handle: '#b45cff' }
   ];
-  function pick(c, sx, sy, ang, tier, P, t) {
-    var C = PICK[tier], ca = Math.cos(ang), sa = Math.sin(ang);
-    var hx = sx + ca * 6, hy = sy + sa * 6;
-    line(c, sx, sy, hx, hy, P.r, 3); line(c, sx, sy, hx, hy, P.R, 2);             // sleeve
-    var ex = hx + ca * 15, ey = hy + sa * 15;
-    line(c, hx - ca, hy - sa, ex, ey, C.handle, 2);
+  // the swing, held in both hands: the handle turns about a point at the chest (X + 11, Y + 3) and points along ang
+  // (0 is forward, negative turns up). The far hand grips low on the handle, the near hand higher up; each arm runs
+  // from its own shoulder to its hand, so the arms stay on the body through the whole swing.
+  function pick(c, X, Y, ang, tier, P, t) {
+    var C = PICK[tier], ca = Math.cos(ang), sa = Math.sin(ang), vx = X + 11, vy = Y + 4;
+    var lx = vx + ca * 4, ly = vy + sa * 4, ux = vx + ca * 7, uy = vy + sa * 7, ex = vx + ca * 21, ey = vy + sa * 21;
+    line(c, X + 7, Y + 3, lx, ly, P.q, 2);                                            // far arm
+    line(c, lx - ca * 3, ly - sa * 3, ex, ey, C.handle, 2);
     var nx = -sa, ny = ca;                                                            // head across the handle end
     line(c, ex - nx * 6, ey - ny * 6, ex + nx * 7, ey + ny * 7, C.head, 2);
     line(c, ex + nx * 7, ey + ny * 7, ex + nx * 9 - ca * 2, ey + ny * 9 - sa * 2, C.head, 1);
     line(c, ex - nx * 6 - ca, ey - ny * 6 - sa, ex + nx * 5 - ca, ey + ny * 5 - sa, C.hi, 1);
-    px(c, hx - 1, hy - 1, P.S, 3, 3); px(c, hx - 1, hy + 1, P.s, 3, 1);             // fist
+    px(c, lx - 1, ly - 1, P.s, 2, 2);                                                 // far hand on the handle
+    line(c, X + 16, Y + 3, ux, uy, P.r, 3); line(c, X + 16, Y + 3, ux, uy, P.R, 2);  // near arm
+    px(c, ux - 1, uy - 1, P.S, 3, 3); px(c, ux - 1, uy + 1, P.s, 3, 1);             // near fist
     if (tier === 4 && Math.sin(t * 8) > 0.6) px(c, ex, ey - 3, '#ffffff');
+  }
+  // the pickaxe swing over one cycle f in 0..1: a slow lift, a cock back at the top, a fast strike that lands at
+  // f = 0.72 (render.js times the hit and the chips to it), a small follow-through into the block, then the lift again.
+  // side: the block is beside the miner (strike forward) rather than underfoot (strike down).
+  function ease(s) { return s * s * (3 - 2 * s); }
+  function swing(f, side) {
+    var strike = side ? 0.1 : 0.75, raised = -2.6, cock = raised - 0.25, ang, body = 0;
+    f = ((f % 1) + 1) % 1;
+    if (f < 0.5 || f >= 0.84) ang = strike + (raised - strike) * ease((f >= 0.84 ? f - 0.84 : f + 0.16) / 0.66);
+    else if (f < 0.6) ang = raised + (cock - raised) * Math.sin((f - 0.5) / 0.1 * Math.PI / 2);
+    else if (f < 0.72) { var s = (f - 0.6) / 0.12; ang = cock + (strike - cock) * s * s; }
+    else { var k = (f - 0.72) / 0.12; ang = strike + 0.18 * Math.sin(k * Math.PI); body = k < 0.6 ? 1 : 0; }
+    return { ang: ang, body: body, lean: f >= 0.42 && f < 0.6 ? -1 : f >= 0.66 && f < 0.84 ? 1 : 0 };
+  }
+  // ---------- the walk cycle ----------
+  // One cycle is two steps; cyc runs 0..1 over it. Each foot spends half the cycle planted, sliding back at a steady
+  // speed (STEP_X sprite pixels per step, so callers advance cyc by one per 2 * STEP_X pixels of ground covered and
+  // the feet do not skate), and half swinging forward, lifted and with the knee bent. The near leg plants at cyc 0,
+  // the far leg at cyc 0.5. Arms swing against the legs.
+  var STEP_X = 8, STRIDE = STEP_X / 2;
+  function foot(p, gait) {
+    var u = ((p % 1) + 1) % 1, A = STRIDE * gait;
+    if (u < 0.5) return { x: A * (1 - 4 * u), lift: 0 };
+    var s = (u - 0.5) * 2;
+    return { x: -A + 2 * A * ease(s), lift: Math.round(2 * gait * Math.sin(Math.PI * s)) };
+  }
+  // the body over one step: contact, down (the torso sinks a pixel), passing, up (the hips rise a pixel)
+  function walkPose(cyc, gait) {
+    var u = (((cyc * 2) % 1) + 1) % 1, on = gait >= 0.3;
+    return { cyc: cyc, gait: gait, bob: on && u >= 0.625 && u < 0.875 ? -1 : 0, body: on && u >= 0.125 && u < 0.375 ? 1 : 0 };
+  }
+  // one leg, hip at (hx, hy) (the left of a 4-pixel-wide trouser leg), the boot sole on row gy; dx moves the foot
+  // forward, lift raises it and bends the knee forward. The far leg is a shade darker so crossed legs stay readable.
+  var LEG_NEAR = ['b', 'B', 'B', 'n'], LEG_FAR = ['n', 'b', 'b', 'n'];
+  function leg(c, P, hx, hy, gy, dx, lift, near) {
+    var cols = near ? LEG_NEAR : LEG_FAR, by = gy - 1 - lift, n = by - hy, kb = lift > 0 ? Math.min(2, lift) : 0;
+    for (var r = 0; r < n; r++) {
+      var tt = (r + 0.5) / Math.max(1, n), x = Math.round(hx + dx * tt + kb * Math.sin(Math.PI * tt));
+      px(c, x - 1, hy + r, OUT); px(c, x + 4, hy + r, OUT);
+      for (var i = 0; i < 4; i++) px(c, x + i, hy + r, P[r === n - 1 ? (i === 0 || i === 3 ? 'n' : 'b') : cols[i]]);
+    }
+    var fx = Math.round(hx + dx);
+    px(c, fx - 1, by, OUT, 7, 2);
+    px(c, fx, by, P[near ? 'T' : 't'], 4, 1); px(c, fx + 4, by, P.t);
+    px(c, fx, by + 1, P[near ? 't' : 'v'], 3, 1); px(c, fx + 3, by + 1, P.v, 2, 1);
+  }
+  // an arm hanging from the shoulder (sx, sy), the hand swung forward by dx
+  function arm(c, sx, sy, dx, sleeve, skin, w) {
+    var hx = sx + dx, hy = sy + 6 - (Math.abs(dx) > 2 ? 1 : 0);
+    line(c, sx, sy, hx, hy, sleeve, w); px(c, hx - (w > 2 ? 1 : 0), hy + 1, skin, w, 2);
   }
 
   // ---------- the miner's rucksack: o.pack is the bag fill 0..1, drawn in five sizes; full it is stuffed and straining ----------
@@ -262,6 +316,30 @@ var DTWSprites = (function () {
     if (L >= 3) { px(c, lx + 2, y + 11, PACK.F, 3, 4); px(c, lx + w - 5, y + 11, PACK.F, 3, 4); }
   }
 
+  // ---------- a fossil piece strapped to the back on the way to the museum ----------
+  // b: { shape: 'bone' | 'skull' | 'tusk', moon }. It runs from (x0, y0), low behind the pack, up to (x1, y1) above the
+  // shoulder. Moon pieces are rover parts, drawn in grey metal.
+  function boneOnBack(c, x0, y0, x1, y1, b) {
+    var L = b.moon ? '#d4d8e2' : '#f3e6c4', D = b.moon ? '#8a90a0' : '#c9b48a', E = '#4a3a2e';
+    var dx = x1 - x0, dy = y1 - y0, n = Math.sqrt(dx * dx + dy * dy), ux = dx / n, uy = dy / n, nx = -uy, ny = ux;
+    function knob(x, y) { px(c, x + nx * 1.5 - 1, y + ny * 1.5 - 1, L, 2, 2); px(c, x - nx * 1.5 - 1, y - ny * 1.5 - 1, D, 2, 2); }
+    if (b.shape === 'tusk') { // a curved tusk or fang: thick at the root, bending to a point
+      var mx = x0 + dx * 0.55 + nx * 2, my = y0 + dy * 0.55 + ny * 2;
+      line(c, x0, y0, mx, my, D, 3); line(c, x0, y0, mx, my, L, 2); line(c, mx, my, x1 + nx * 1, y1 + ny * 1, L, 2); px(c, x1 + nx * 2, y1 + ny * 2 - 1, L);
+      return;
+    }
+    line(c, x0, y0, x1, y1, D, 2); line(c, x0 + nx * 0.6, y0 + ny * 0.6, x1 + nx * 0.6, y1 + ny * 0.6, L, 1);
+    knob(x0, y0);
+    if (b.shape === 'skull') { // a round skull on top, eye holes and teeth
+      var sx = Math.round(x1 - 3), sy = Math.round(y1 - 4);
+      px(c, sx + 1, sy, L, 5, 1); px(c, sx, sy + 1, L, 7, 4); px(c, sx + 1, sy + 5, D, 5, 1); px(c, sx, sy + 4, D, 7, 1);
+      px(c, sx + 1, sy + 2, E, 2, 2); px(c, sx + 4, sy + 2, E, 2, 2); px(c, sx + 2, sy + 5, E); px(c, sx + 4, sy + 5, E);
+    } else knob(x1, y1);
+  }
+  function bone(c, X, Y, b, back) {
+    if (back) boneOnBack(c, X + 8, Y + 5, X - 1, Y - 9, b); else boneOnBack(c, X + 3, Y + 5, X - 7, Y - 10, b);
+  }
+
   // ---------- characters ----------
   // o: { back, flip handled by caller, pose: {bob, body, lean, stride, air, blink}, ang (pick angle) or null,
   //      tier, lampOn, climb (null | 0 | 1), P (palette), hair (true: no hard hat), arms ('swing' | 'carry' | 'none'), t }
@@ -274,27 +352,36 @@ var DTWSprites = (function () {
     var Pl = P; if (!o.lampOn && !o.hair) { Pl = pal(P); Pl.L = '#cfc58a'; }
     if (pose.blink && !back) { Pl = Pl === P ? pal(P) : Pl; Pl.e = Pl.k; Pl.w = Pl.S; }
     if (o.climb != null) return climber(o, P, Pl, X0, legY, head);
-    // legs: the stride swings them apart and lifts the one moving forward; in the air they spread
-    var st = pose.stride, sw = Math.round(st * 3), lift = Math.round(Math.abs(st) * 2), ap = Math.round(pose.air * 2);
-    var behind = back && o.ang != null; // facing away, the pick arm is behind the body
+    // legs: each foot follows the walk cycle (planted, then lifted and swung forward); in the air they spread
+    var gait = pose.gait || 0, cyc = pose.cyc || 0, ap = Math.round(pose.air * 2), gy = FY - 2;
+    var fN = foot(cyc, gait), fF = foot(cyc + 0.5, gait);
+    var air = pose.air > 0.3, digging = o.ang != null && !air;
+    var behind = back && digging; // facing away, the pick and arms are behind the body
+    // arms swing against the legs: the near arm forward while the near foot is back
+    var aN = Math.round(-fN.x * 0.6), aF = Math.round(-fF.x * 0.6);
+    if (o.bone && !back) bone(c, X, Y, o.bone, false);                                    // strapped behind the pack
     if (hasPack && !back) packSide(c, X - 6, Y - 6, o.pack);
-    if (behind) pick(c, X + 14, Y + 3, o.ang, o.tier, P, t);
-    else if (!back) { px(c, X + 4, Y + 2, P.q, 2, 6); px(c, X + 4, Y + 8, P.k, 2, 2); }                // far arm
+    if (behind) pick(c, X, Y, o.ang, o.tier, P, t);
+    else if (!digging && !air) arm(c, X + 4, Y + 2, aF, P.q, P.k, 2);                      // far arm, behind the body
     // not digging: the pick rests over the back shoulder, held by the hanging near arm
-    var carry = o.carry && o.ang == null && pose.air <= 0.3;
-    function shoulderPick() { var C = PICK[o.tier]; line(c, X + 17, Y + 9, X - 1, Y - 17, C.handle, 2); line(c, X - 5, Y - 13, X + 3, Y - 21, C.head, 2); px(c, X + 3, Y - 22, C.hi); px(c, X - 6, Y - 12, C.hi); }
+    var carry = o.carry && o.ang == null && !air, cg = Math.round(aN / 2); // carrying, the hand on the handle sways a little
+    function shoulderPick() { var C = PICK[o.tier]; line(c, X + 17 + cg, Y + 9, X - 1, Y - 17, C.handle, 2); line(c, X - 5, Y - 13, X + 3, Y - 21, C.head, 2); px(c, X + 3, Y - 22, C.hi); px(c, X - 6, Y - 12, C.hi); }
     if (carry && !back) shoulderPick();
-    stamp(c, LEG_L, P, X0 + sw - ap, legY - (st > 0 ? lift : 0));
-    stamp(c, LEG_R, P, X0 - sw + ap, legY - (st < 0 ? lift : 0));
+    leg(c, P, X0 + 7, legY, gy, Math.round(fF.x) - ap, fF.lift, false);
+    leg(c, P, X0 + 13, legY, gy, Math.round(fN.x) + ap, fN.lift, true);
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
     if (carry && back) shoulderPick();
-    if (pose.air > 0.3) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
+    if (air) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
     if (hasPack && !back) line(c, X + 9, Y + 1, X + 11, Y + 8, PACK.k, 1); // shoulder strap
+    // seen from behind the near arm goes on before the head and the pack, which cover it
+    if (back && !digging && !air && o.arms !== 'wave') arm(c, X + 16, Y + 2, carry ? cg : aN, P.r, P.S, 3);
+    // facing on, the swing goes on before the head, so the pick passes behind it when raised and never across the face
+    if (digging && !behind) pick(c, X, Y, o.ang, o.tier, P, t);
     stamp(c, head, Pl, X, Y - 17);
+    if (o.bone && back) bone(c, X, Y, o.bone, true);
     if (hasPack && back) packBack(c, X + 12, Y - 4, o.pack);
-    if (!behind && o.ang != null && pose.air <= 0.3) pick(c, X + 12, Y + 3, o.ang, o.tier, P, t);
-    else if (o.arms === 'wave') { var wv = Math.sin(t * 10) > 0 ? 1 : 0; px(c, X + 19, Y - 3 - wv, P.r, 2, 6); px(c, X + 19 + wv, Y - 5 - wv, P.S, 2, 2); }
-    else if (o.ang == null && pose.air <= 0.3) { px(c, X + 15, Y + 2, P.r, 3, 6); px(c, X + 15, Y + 8, P.S, 3, 2); } // near arm at the side
+    if (o.arms === 'wave' && !digging) { var wv = Math.sin(t * 10) > 0 ? 1 : 0; px(c, X + 19, Y - 3 - wv, P.r, 2, 6); px(c, X + 19 + wv, Y - 5 - wv, P.S, 2, 2); }
+    else if (!back && !digging && !air) arm(c, X + 16, Y + 2, carry ? cg : aN, P.r, P.S, 3); // near arm; carrying, it holds the handle
     outline(c, W, H, OUT);
     return { cv: cv, fx: FX, fy: FY };
   }
@@ -307,18 +394,19 @@ var DTWSprites = (function () {
     px(c, X0 + 4, Y - 8 + b, P.r, 3, 10 - b); px(c, X0 + 17, Y - 8 + a, P.r, 3, 10 - a);
     px(c, X0 + 4, Y - 10 + b, P.S, 3, 2); px(c, X0 + 17, Y - 10 + a, P.S, 3, 2);
     stamp(c, head, Pl, X0, Y - 17);
+    if (o.bone) bone(c, X0, Y, o.bone, true);
     if (o.pack != null && o.pack !== false) packBack(c, X0 + 12, Y - 4, o.pack === true ? 1 : o.pack);
     outline(c, W, H, OUT);
     return { cv: cv, fx: FX, fy: FY };
   }
-  // cached frames for the people walking about the plaza (no pickaxe, four walk frames)
+  // cached frames for the people walking about the plaza (no pickaxe): moving, frame 0..7 is the walk cycle in eighths
   var cache = {};
   function npc(kind, seed, back, frame, moving, t) {
     var key = kind + '|' + seed + '|' + (back ? 1 : 0) + '|' + frame + '|' + (moving ? 1 : 0) + (kind === 'keeper' ? '|' + (Math.sin(t * 10) > 0 ? 1 : 0) : '');
     if (cache[key]) return cache[key];
     var P = kind === 'guide' ? GUIDE : kind === 'keeper' ? KEEPER : visitorPal(seed);
-    var st = moving ? [0, 1, 0, -1][frame & 3] : 0;
-    var pose = { bob: moving && st !== 0 ? -1 : 0, body: !moving && frame & 1 ? 1 : 0, lean: 0, stride: st, air: 0, blink: !moving && frame === 3 };
+    var pose = moving ? walkPose((frame & 7) / 8, 1) : { bob: 0, body: frame & 1 ? 1 : 0, gait: 0, cyc: 0, blink: frame === 3 };
+    pose.lean = 0; pose.air = 0;
     person({ back: back, pose: pose, ang: null, P: P, hair: true, arms: kind === 'keeper' ? 'wave' : '', t: t });
     var out = canvas(W, H); out.getContext('2d').drawImage(cv, 0, 0);
     if (Object.keys(cache).length > 600) cache = {};
@@ -518,11 +606,27 @@ var DTWSprites = (function () {
     return (ecache[key] = out);
   }
   // draw exhibit k (0-14, world*3 + creature) with its five piece counts, standing on a plinth top at screen (x, y); s is screen pixels per art pixel
-  function exhibit(c, k, pieces, open, x, y, s) {
+  // a solid one-colour silhouette of piece i of exhibit k (all five when i < 0), used to light up a missing piece or flash a new one
+  var hcache = {};
+  function hiCanvas(k, i, col) {
+    var key = k + '|' + i + col;
+    if (hcache[key]) return hcache[key];
+    var E = EXHIBITS[k], out = canvas(EW + 2, EH + 2), oc = out.getContext('2d');
+    oc.translate(1, 1); oc.fillStyle = '#fff';
+    E.parts.forEach(function (part, j) { if (i < 0 || j === i) part.forEach(function (sh) { shape(oc, sh); }); });
+    oc.setTransform(1, 0, 0, 1, 0, 0); oc.globalCompositeOperation = 'source-in'; oc.fillStyle = col; oc.fillRect(0, 0, EW + 2, EH + 2);
+    return (hcache[key] = out);
+  }
+  // hi (optional): {i: piece to light (-1 for all), a: 0-1 strength, col: colour}, drawn over the exhibit
+  function exhibit(c, k, pieces, open, x, y, s, hi) {
     if (!open) return;
     var have = pieces.map(function (n) { return n > 0 ? 1 : 0; }), ec = exhibitCanvas(k, have);
     c.save(); c.imageSmoothingEnabled = false;
     c.drawImage(ec, Math.round(x - ec.width * s / 2), Math.round(y - ec.height * s), Math.round(ec.width * s), Math.round(ec.height * s));
+    if (hi && hi.a > 0) {
+      c.globalAlpha = Math.min(1, hi.a);
+      c.drawImage(hiCanvas(k, hi.i, hi.col || '#ffe27a'), Math.round(x - ec.width * s / 2), Math.round(y - ec.height * s), Math.round(ec.width * s), Math.round(ec.height * s));
+    }
     c.restore();
   }
 
@@ -561,7 +665,7 @@ var DTWSprites = (function () {
     PICK: PICK, hexShade: hexShade, item: item,
     miner: function (o) { o.P = BASE; return person(o); },
     helper: function (k, o) { o.P = HELPERS[k % HELPERS.length]; return person(o); },
-    npc: npc, exhibit: exhibit,
+    npc: npc, exhibit: exhibit, swing: swing, walkPose: walkPose, STEP_X: STEP_X,
     BODY_H: 38 // pixel height of a character, feet to hat
   };
 })();

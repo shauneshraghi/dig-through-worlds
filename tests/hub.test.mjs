@@ -67,14 +67,14 @@ test('walking to a spot follows a path round the pit into the museum', () => {
 
 test('tapping a blocked cell walks to the nearest open cell beside it', () => {
   const s = D.newState(1);
-  const [px, pz] = find(D.PLINTH_CH[7])[0]; // world 3, second creature
+  const [px, pz] = find(D.PLINTH_CH[2])[0]; // world 1, third creature (T. rex)
   assert.ok(D.hubWalkTo(s, px + 0.5, pz + 0.5));
   run(s, 30);
   const [x, z] = cellOf(s);
   assert.ok(D.hubWalkable(x, z));
   assert.ok(Math.abs(x - px) + Math.abs(z - pz) <= 2, `ended next to the plinth at ${x},${z}`);
   const near = D.hubNearExhibit(s);
-  assert.equal(near.world, 2, 'standing by a world 3 plinth shows world 3');
+  assert.equal(near.world, 0, 'standing by a world 1 plinth shows world 1');
   assert.ok(near.creature >= 0 && near.creature < 3);
 });
 
@@ -108,12 +108,84 @@ test('the plaza position is not saved: a loaded game starts at the ladder', () =
   assert.deepEqual(cellOf(t), [-1, D.LADDER_Z]);
 });
 
+
+// cells of a plinth (or case) and the open cells that touch it
+const blockOf = ch => find(ch);
+const sidesOf = ch => {
+  const cells = blockOf(ch), key = ([x, z]) => x + ',' + z, set = new Set(cells.map(key)), out = new Map();
+  for (const [x, z] of cells) for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+    const c = [x + dx, z + dz];
+    if (!set.has(key(c)) && D.hubWalkable(c[0], c[1])) out.set(key(c), c);
+  }
+  return [...out.values()];
+};
+
+test('the museum is split into themed wings that list every creature once, with the biggest plinth for the centrepiece', () => {
+  const ks = D.WINGS.flatMap(w => w.ks).sort((a, b) => a - b);
+  assert.equal(ks.join(), [...Array(15).keys()].join());
+  const names = D.WINGS.map(w => w.name);
+  for (const n of ['Dinosaur Hall', 'Ice Age Wing', 'Sea Monsters', 'Space Corner', 'Relic Gallery']) assert.ok(names.includes(n), n);
+  const wingOf = n => D.WINGS.find(w => w.name === n).ks.map(k => D.WORLDS[Math.floor(k / 3)].creatures[k % 3].name);
+  assert.ok(wingOf('Dinosaur Hall').includes('T. rex') && wingOf('Dinosaur Hall').includes('Brachiosaurus'));
+  assert.equal(wingOf('Ice Age Wing').sort().join(), 'Sabre-tooth Cat,Woolly Mammoth');
+  assert.ok(wingOf('Sea Monsters').includes('Giant Shark') && wingOf('Space Corner').includes('Lost Moon Rover'));
+  const sizes = D.PLINTH_CH.split('').map(ch => blockOf(ch).length);
+  assert.equal(Math.max(...sizes), sizes[11], 'Brachiosaurus is the centrepiece');
+  assert.ok(new Set(sizes).size >= 4, 'plinths come in several sizes');
+});
+
+test('each plinth is a solid rectangle with a hand-in cell beside it that names its creature', () => {
+  for (let k = 0; k < 15; k++) {
+    const ch = D.PLINTH_CH[k], cells = blockOf(ch);
+    const xs = cells.map(c => c[0]), zs = cells.map(c => c[1]);
+    assert.equal(cells.length, (Math.max(...xs) - Math.min(...xs) + 1) * (Math.max(...zs) - Math.min(...zs) + 1), `plinth ${k} is a rectangle`);
+    const sides = sidesOf(ch);
+    assert.ok(sides.length > 0, `open cell beside plinth ${k}`);
+    assert.ok(sides.some(([x, z]) => {
+      const s = D.newState(1); s.hub.x = x + 0.5; s.hub.z = z + 0.5;
+      const near = D.hubNearExhibit(s);
+      return near && near.world * 3 + near.creature === k;
+    }), `a cell beside plinth ${k} names it`);
+  }
+});
+
 test('every plinth and relic case can be reached on foot from the dig pad', () => {
   const s = D.newState(1);
   const [lx, lz] = find('L')[0];
   for (const ch of D.PLINTH_CH + 'abcde') {
-    const [px, pz] = find(ch)[0];
-    const sides = [[-1, 0], [0, -1], [2, 0], [0, 2], [-1, 1], [1, -1], [2, 1], [1, 2]].map(([dx, dz]) => [px + dx, pz + dz]).filter(([x, z]) => D.hubWalkable(x, z));
-    assert.ok(sides.some(([x, z]) => D.hubPath(lx + 0.5, lz + 0.5, x + 0.5, z + 0.5)), `reach ${ch}`);
+    const sides = sidesOf(ch);
+    assert.ok(sides.length && sides.every(([x, z]) => D.hubPath(lx + 0.5, lz + 0.5, x + 0.5, z + 0.5)), `reach ${ch}`);
   }
+});
+
+test('the museum desk and the door can be reached from the dig pad', () => {
+  const [lx, lz] = find('L')[0], [mx, mz] = find('M')[0];
+  assert.ok(D.hubPath(lx + 0.5, lz + 0.5, mx + 0.5, mz + 0.5));
+});
+
+test('new bones are carried home and only join the museum when handed in at their plinth or the desk', () => {
+  const s = D.newState(3); D.startDig(s, 0); run(s, 3);
+  s.run.bag.push({ kind: 'fossil', world: 0, idx: 0 }, { kind: 'fossil', world: 0, idx: 7 }, { kind: 'fossil', world: 0, idx: 0 });
+  D.goHome(s); run(s, 4);
+  assert.equal(s.mode, 'surface');
+  assert.equal(s.carry.length, 2, 'two new bones in hand; the copy is sold');
+  assert.equal(s.museum[0].pieces[0], 0, 'not on show yet');
+  // walk to the mammoth's plinth (world 0, creature 0)
+  const [hx, hz] = sidesOf(D.PLINTH_CH[0])[0];
+  assert.ok(D.hubWalkTo(s, hx + 0.5, hz + 0.5)); run(s, 30);
+  assert.equal(s.museum[0].pieces[0], 1, 'the mammoth skull is handed in at its plinth');
+  assert.equal(s.museum[0].pieces[7], 0, 'the raptor bone is still carried');
+  assert.equal(s.carry.length, 1);
+  const [mx, mz] = find('M')[0];
+  assert.ok(D.hubWalkTo(s, mx, mz)); run(s, 30);
+  assert.equal(s.museum[0].pieces[7], 1, 'the desk takes the rest');
+  assert.equal(s.carry.length, 0);
+  assert.ok(s.events.some(e => e.type === 'delivered'));
+});
+
+test('carried bones survive a save and load', () => {
+  const s = D.newState(3); s.carry = [{ kind: 'fossil', world: 0, idx: 4 }];
+  const s2 = D.deserialize(D.serialize(s));
+  assert.equal(s2.carry.length, 1);
+  assert.equal(s2.carry[0].idx, 4);
 });

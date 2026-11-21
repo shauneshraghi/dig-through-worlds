@@ -93,7 +93,7 @@ var DTW = (function () {
     drill:  { name: 'Drill Power', base: 15, mult: 1.75, max: 30, text: 'Hits harder' },
     speed:  { name: 'Dig Speed',   base: 8,  mult: 1.7,  max: 20, text: 'Digs faster on its own' },
     bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy' },
-    magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 3,  text: 'Pulls in ore from nearby blocks' }
+    magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 3,  text: 'Pulls in finds from further away' }
   };
   var WORKERS = {
     diggers: { name: 'Helper Digger', base: 80, mult: 2.5, max: 5, text: 'Digs blocks next to you' },
@@ -104,41 +104,63 @@ var DTW = (function () {
   var WALK = 6;      // cells per second the miner walks between blocks
   var MANUAL_HOLD = 1.5; // seconds auto-walk waits after the player steers
   var HELPER_RATE = 1.6; // swings per second of each hired digger, on its own block
+  var PICKUP_BASE = 0.75, PICKUP_PER_MAGNET = 1, MAG_SPEED = 7, MAG_STOP = 0.4, FLOOR_Y = 0.75; // loot: pick-up reach in cells, magnet pull speed (cells/s), resting height in its cell
   var AUTO_PACE = 0.5; // left alone the miner walks and swings at this fraction of its steered pace
 
   // ---------- the surface plaza (hub) ----------
   // One character per cell, x across, z down the rows, from (x0, z0). The pit is at x, z in [0, N).
   //   .  grass        =  path        m  museum floor    P  pit          #  museum wall
   //   t  tree / prop  T  landmark    p  potted plant    s  shop stall   h  helpers hut   w  world signpost
-  //   plinth (2x2) for creature c (0-2) of world w (0-4): PLINTH_CH[w * 3 + c] = 1-9 A B C E F G, grouped in
-  //   a row per world wing (shallowest creature first); a-e  relic case for world 1-5      D  front desk
+  //   i  low partition between museum wings (gaps are arches)     D  front desk
+  //   plinth for creature c (0-2) of world w (0-4): PLINTH_CH[w * 3 + c] = 1-9 A B C E F G, any rectangle size; a-e  relic case for world 1-5
   //   L S H W M  pads: dig (top of the ladder), shop, helpers, worlds, museum desk
   var PLINTH_CH = '123456789ABCEFG';
+  // The museum is laid out by kind of skeleton, not by world. Each wing lists its creatures as k = world * 3 + creature
+  // (the PLINTH_CH index); sign is where its name hangs, over the arch that leads in.
+  var WINGS = [
+    { id: 'dino', name: 'Dinosaur Hall', icon: '🦖', ks: [11, 2, 1, 8, 10, 12, 14], sign: [20.5, 6.5] },
+    { id: 'ice', name: 'Ice Age Wing', icon: '🦣', ks: [0, 6], sign: [15.5, 0.5] },
+    { id: 'sea', name: 'Sea Monsters', icon: '🦈', ks: [4, 5, 3, 7, 13], sign: [15.5, 12.5] },
+    { id: 'space', name: 'Space Corner', icon: '🚀', ks: [9], sign: [34.5, 0.5] },
+    { id: 'relics', name: 'Relic Gallery', icon: '✨', ks: [], sign: [34.5, 12.5] }
+  ];
   var HUB = { x0: -8, z0: -8, rows: [
-    't....t..t....t..................',
-    '..t.........t..t................',
-    '..TT.....hhh.....t..............',
-    '..TT.....hhh.t..................',
-    't........hhh......##############',
-    '.....w....H.......#MDDmmmmmmmmp#',
-    '..t...W...=.......#m11m22m33mam#',
-    '.......=========..#m11m22m33mmm#',
-    '..sss..=PPPPPPP===mmmmmmmmmmmmm#',
-    't.sssS==PPPPPPP=..#m44m55m66mbm#',
-    '..sss..=PPPPPPP=..#m44m55m66mmm#',
-    '.......LPPPPPPP=..#mmmmmmmmmmmm#',
-    '.......=PPPPPPP=..#m77m88m99mcm#',
-    '.t.....=PPPPPPP=..#m77m88m99mmm#',
-    '....t..=PPPPPPP=..#mmmmmmmmmmmm#',
-    '.......=========..#mAAmBBmCCmdm#',
-    '..................#mAAmBBmCCmmm#',
-    't.t.............t.#mmmmmmmmmmmm#',
-    '...........t......#mEEmFFmGGmem#',
-    '..................#mEEmFFmGGmmm#',
-    '...t..........t...#pmmmmmmmmmmp#',
-    '...t..........t...##############',
-    '..........t..................t..',
-    '......t.........t...t....t.....t'
+    't....t..t....t.....tt....t......tt..t.t......t......',
+    '..t.........t..t...t...........t.............t......',
+    '..TT.....hhh.....t#################################.',
+    '..TT.....hhh.t....#mmmmmmmmmmmmmmmimmmmmmmmmmmmmmm#t',
+    't........hhh......#mp111mmm77mmmpmimmAAmmmmmmmmpmm#.',
+    '.....w....H.......#mm111mmm77mmmmmimmAAmmmmmmmmmmm#t',
+    '..t...W...=.......#mm111mmmmmmmmmmimmmmmmmmmmmmpmm#.',
+    '.......=========..#mmmmmmmmmmmmmmmimmmmmmmmmmmmmmm#.',
+    '..sss..=PPPPPPP=..#iiimmmiiiiiiiiiiiiiiiimmmiiiiii#.',
+    't.sssS==PPPPPPP=..#mmmmmmmmmimmmmmmmmmmmmmmmmmmmmm#.',
+    '..sss..=PPPPPPP=..#mpmmmmmpmim333mmEEmmmmmBBm999mm#.',
+    '.......LPPPPPPP=..#mmmmmMDDmim333mmEEmmmmmBBm999mm#.',
+    '.......=PPPPPPP=..#mmmmmmmmmim333mmmmCCCCCmmmmmmmm#.',
+    '.t.....=PPPPPPP=..#mmmmmmmmmmmmmmmmmmCCCCCmmmmmpmm#t',
+    '....t..=PPPPPPP===mmmmmmmmmmmmmmmmmmmCCCCCmmmmmmmm#.',
+    '.......=========..#mmmmmmmmmmmmmmmmmmCCCCCmmmmmmmm#.',
+    '..................#mmmmmmmmmim22mmmmmmmmmmmmmpmmmm#.',
+    't.t.............t.#mmmmmmmmmim22mmGGGmmmmmmmmmmmmm#t',
+    '...........t......#mpmmmmmpmimmmmmGGGmmmmmmmmmmpmm#t',
+    '..................#mmmmmmmmmimmmmmmmmmmmmmmmpmmmmm#.',
+    '...t..........t...#iiimmmiiiiiiiiiiiiiiiimmmiiiiii#.',
+    '...t..........t...#mmmmmmmmmmmmmmmmmmmmimmmmmmmmmm#.',
+    '..........t.......#m44m555m666m888mFFmmimpmmmmmmmp#.',
+    '......t.........t.#m44m555m666m888mFFmmimmmmmmmmmm#.',
+    '..................#mmmmmmmmmmmmmmmmmmmmimambmcmdme#.',
+    '.................t#mmmmmmmmmmpmmmmmmmpmimmmmmmmmmm#.',
+    '..................#################################.',
+    '...................................t...........tt.t.',
+    '............t......t...........................t...t',
+    '..........................t.....t.t.t..t............',
+    '.....................................t..........t...',
+    '.......t...........t.........t................tt....',
+    '.........................tt....t............t....t..',
+    '.........................t........t....t............',
+    '..t..................t............t.................',
+    '.........................t...........t...........t.t'
   ] };
   var HUB_STATIONS = { L: 'dig', S: 'shop', H: 'helpers', W: 'worlds', M: 'museum' };
   var HUB_OPEN = '.=mLSHWM';
@@ -225,8 +247,22 @@ var DTW = (function () {
     s.hub.path = p; if (p) s.hub.input = null;
     return !!p;
   }
+  // bones carried home are handed in beside their creature's plinth, or all at once at the museum desk
+  function deliver(s) {
+    if (!s.carry.length) return;
+    var desk = hubStation(s) === 'museum', near = desk ? null : hubNearExhibit(s);
+    if (!desk && !(near && near.creature >= 0)) return;
+    var given = [], keep = [];
+    s.carry.forEach(function (it) {
+      var ok = desk || (it.world === near.world && Math.floor(it.idx / PIECES) === near.creature);
+      if (ok) { s.museum[it.world].pieces[it.idx]++; given.push(itemName(it)); } else keep.push(it);
+    });
+    s.carry = keep;
+    if (given.length) emit(s, { type: 'delivered', names: given, world: desk ? -1 : near.world, creature: desk ? -1 : near.creature });
+  }
   function stepHub(s, dt) {
     var h = s.hub, d = HUB_SPEED * dt;
+    deliver(s);
     if (h.input) { hubMove(s, h.input[0], h.input[1], d); return; }
     while (h.path && d > 0) {
       var p = h.path[0], ex = p[0] - h.x, ez = p[1] - h.z, l = Math.sqrt(ex * ex + ez * ez);
@@ -258,6 +294,14 @@ var DTW = (function () {
   }
   function passable(type) { return type === TILE.AIR || type === TILE.BUBBLE || type === TILE.CRATER; }
   function diggable(type) { return !passable(type) && type !== TILE.BEDROCK; }
+  // The miner carries one new bone at a time, on its back, until it is handed in at the museum.
+  // While it carries one, fossil blocks stay in the ground.
+  // (a new bone lying on the floor, not picked up yet, counts as in hand)
+  function handsFull(s) {
+    return !!((s.carry && s.carry.length) || (s.run && s.run.loot && s.run.loot.some(function (l) { return isNewBone(s, l.item); })));
+  }
+  function canDig(s, g, i) { return diggable(g.t[i]) && !(g.t[i] === TILE.FOSSIL && handsFull(s)); }
+  function boneHint(s) { var r = s.run; if (!(r.hintT > 0)) { r.hintT = 6; emit(s, { type: 'boneFull' }); } }
   // blocks still to dig in layer y
   function layerHasBlocks(g, y) {
     for (var i = y * NN, e = i + NN; i < e; i++) if (diggable(g.t[i])) return true;
@@ -375,7 +419,7 @@ var DTW = (function () {
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0 }, workers: { diggers: 0, staff: 0 },
       museum: WORLDS.map(function () { return { pieces: emptyPieces() }; }),
-      sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true,
+      sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
     };
     return s;
@@ -461,7 +505,7 @@ var DTW = (function () {
   function digAt(s, x, z) {
     if (s.mode !== 'dig' || x < 0 || x >= N || z < 0 || z >= N) return false;
     var r = s.run, i = idx(x, r.y, z);
-    if (!diggable(r.grid.t[i])) return false;
+    if (!canDig(s, r.grid, i)) { if (diggable(r.grid.t[i])) boneHint(s); return false; }
     var p = findNearest(r.grid, r.x, r.y, r.z, function (j) { return j === i; });
     if (!p) return false;
     r.goal = i; r.path = p; r.steer = 0; r.manual = MANUAL_HOLD; r.walkAcc = 0;
@@ -479,10 +523,9 @@ var DTW = (function () {
   function bank(s) {
     var r = s.run, coins = 0, pieces = [], relic = null;
     r.bag.forEach(function (it) {
-      if (it.kind === 'fossil') {
-        var m = s.museum[it.world];
-        if (m.pieces[it.idx] === 0) pieces.push(itemName(it)); else coins += itemValue(it);
-        m.pieces[it.idx]++;
+      if (it.kind === 'fossil') { // a new bone is carried to the museum by hand; a copy is sold
+        var have = s.museum[it.world].pieces[it.idx] > 0 || s.carry.some(function (c) { return c.world === it.world && c.idx === it.idx; });
+        if (have) coins += itemValue(it); else { s.carry.push({ kind: 'fossil', world: it.world, idx: it.idx }); pieces.push(itemName(it)); }
       } else if (it.kind === 'relic') {
         if (!s.relics[it.world]) { s.relics[it.world] = true; relic = it.world; if (it.world < 4) s.unlocked[it.world + 1] = true; }
       } else coins += itemValue(it);
@@ -491,10 +534,14 @@ var DTW = (function () {
     emit(s, { type: 'banked', coins: coins, pieces: pieces, relic: relic });
   }
 
-  function collect(s, it) {
+  function isNewBone(s, it) {
+    return it.kind === 'fossil' && !s.museum[it.world].pieces[it.idx] && !s.carry.some(function (c) { return c.world === it.world && c.idx === it.idx; });
+  }
+  function collect(s, it, at) { // at: where the find lay (loot picked up off the floor); none for the relic
     var r = s.run;
-    r.bag.push(it);
-    emit(s, { type: 'collect', item: it, name: itemName(it) });
+    if (isNewBone(s, it) && !s.carry.length) { s.carry.push(it); it.carried = true; }
+    else r.bag.push(it);
+    emit(s, { type: 'collect', item: it, name: itemName(it), at: at || null });
     if (it.kind === 'relic') { r.relicTimer = 1.5; emit(s, { type: 'relic', world: it.world }); }
   }
   // a chest holds a fossil piece still missing from the creature buried at this depth, or coins
@@ -503,7 +550,7 @@ var DTW = (function () {
     var have = s.museum[w].pieces, inBag = {}, miss = [];
     s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })).forEach(function (b) { if (b.kind === 'fossil' && b.world === w) inBag[b.idx] = 1; });
     for (var p = c * PIECES; p < (c + 1) * PIECES; p++) if (!have[p] && !inBag[p]) miss.push(p);
-    if (miss.length && rand(s) < CHEST_FOSSIL) return { kind: 'fossil', world: w, idx: miss[Math.floor(rand(s) * miss.length)], chest: true };
+    if (miss.length && !handsFull(s) && rand(s) < CHEST_FOSSIL) return { kind: 'fossil', world: w, idx: miss[Math.floor(rand(s) * miss.length)], chest: true };
     return { kind: 'treasure', world: w, value: Math.round(25 * WORLDS[w].oreMult) };
   }
   function breakTile(s, i, helper) {
@@ -523,48 +570,67 @@ var DTW = (function () {
     s.stats.digs++;
     emit(s, { type: 'break', x: bx, y: by, z: bz, tile: tt });
     if (!it) return;
-    if (WORLDS[w].rule === 'lowgrav' && it.kind !== 'relic') {
-      r.loot.push({ x: bx + 0.5, y: by + 0.5, z: bz + 0.5, vx: (rand(s) - 0.5) * 3, vy: -3 - rand(s) * 2, vz: (rand(s) - 0.5) * 3,
-                    item: it, age: 0 });
-    } else collect(s, it);
+    if (it.kind === 'relic') { collect(s, it); return; } // the relic is handed over at once
+    // everything else drops on the floor of its cell and waits to be picked up; on the moon it bounces first
+    var moon = WORLDS[w].rule === 'lowgrav';
+    r.loot.push({ x: bx + 0.5, y: moon ? by + 0.5 : FLOOR_Y + by, z: bz + 0.5, layer: by, rest: !moon, item: it, age: 0, delay: tt === TILE.CHEST ? 0.6 : 0.3,
+                  vx: moon ? (rand(s) - 0.5) * 3 : 0, vy: moon ? -3 - rand(s) * 2 : 0, vz: moon ? (rand(s) - 0.5) * 3 : 0 });
   }
-  function magnetPull(s) { // ore in the miner's layer within a square (Chebyshev) radius
-    var r = s.run, g = r.grid, rad = s.upgrades.magnet;
-    if (!rad || r.y >= DEPTH) return;
-    for (var dz = -rad; dz <= rad; dz++) for (var dx = -rad; dx <= rad; dx++) {
-      var x = r.x + dx, z = r.z + dz;
-      if (x < 0 || x >= N || z < 0 || z >= N) continue;
-      var i = idx(x, r.y, z);
-      if (g.t[i] === TILE.ORE) breakTile(s, i);
+  // ---------- loot on the floor ----------
+  // Reach: the miner picks up loot lying in its layer within PICKUP_BASE cells (about its own cell); each magnet
+  // level adds PICKUP_PER_MAGNET cells, and loot inside the reach is pulled toward the miner.
+  function pickupReach(magnet) { return PICKUP_BASE + PICKUP_PER_MAGNET * (magnet || 0); }
+  function lootWaits(s, l) { return isNewBone(s, l.item) && s.carry.length > 0; } // a new bone needs free hands
+  function lootReady(s, l) { return l.age > l.delay && l.layer === s.run.y && !lootWaits(s, l); }
+  function stepLoot(s, dt) { // moon loot bounces over the open cells of its layer until it settles
+    var g = s.run.grid;
+    for (var k = 0; k < s.run.loot.length; k++) {
+      var l = s.run.loot[k];
+      l.age += dt;
+      if (l.rest || l.pulled) continue;
+      l.vy += 4 * dt;
+      var nx = l.x + l.vx * dt, ny = l.y + l.vy * dt, nz = l.z + l.vz * dt, by = l.layer;
+      if (nx < 0 || nx >= N || !passable(g.t[idx(Math.floor(nx), by, Math.floor(l.z))])) { l.vx = -l.vx * 0.6; nx = l.x; }
+      if (nz < 0 || nz >= N || !passable(g.t[idx(Math.floor(l.x), by, Math.floor(nz))])) { l.vz = -l.vz * 0.6; nz = l.z; }
+      if (ny > by + FLOOR_Y) {
+        if (l.vy * 0.6 < 0.8) { l.rest = true; l.vx = l.vy = l.vz = 0; ny = by + FLOOR_Y; }
+        else { l.vy = -l.vy * 0.6; l.vx *= 0.75; l.vz *= 0.75; ny = by + FLOOR_Y; }
+      } else if (ny < 0) { l.vy = -l.vy * 0.6; ny = l.y; }
+      l.x = nx; l.y = ny; l.z = nz;
     }
   }
-  function solidAt(g, fx, fy, fz) {
-    var x = Math.floor(fx), y = Math.floor(fy), z = Math.floor(fz);
-    if (x < 0 || x >= N || z < 0 || z >= N) return true;
-    if (y < 0) return false;
-    return !passable(g.t[idx(x, y, z)]);
-  }
-  function stepLoot(s, dt) {
-    var r = s.run, g = r.grid, grav = 4, reach = 1.2 + s.upgrades.magnet * 0.6;
-    var px = r.x + 0.5, py = r.y + 0.5, pz = r.z + 0.5;
+  function pickLoot(s, dt) { // collect loot in reach; with a magnet, loot in reach slides toward the miner first
+    var r = s.run, reach = pickupReach(s.upgrades.magnet), px = r.x + 0.5, pz = r.z + 0.5, mag = s.upgrades.magnet > 0;
     for (var k = r.loot.length - 1; k >= 0; k--) {
       var l = r.loot[k];
-      l.age += dt;
-      if (l.age > 3) { // drift toward the miner
-        var ddx = px - l.x, ddy = py - l.y, ddz = pz - l.z, d = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz) || 1;
-        l.vx = ddx / d * 4; l.vy = ddy / d * 4; l.vz = ddz / d * 4;
-        l.x += l.vx * dt; l.y += l.vy * dt; l.z += l.vz * dt;
-      } else { // bounce off blocks along each axis
-        l.vy += grav * dt;
-        var nx = l.x + l.vx * dt, ny = l.y + l.vy * dt, nz = l.z + l.vz * dt;
-        if (solidAt(g, nx, l.y, l.z)) { l.vx = -l.vx * 0.6; nx = l.x; }
-        if (solidAt(g, l.x, ny, l.z)) { l.vy = -l.vy * 0.6; ny = l.y; }
-        if (solidAt(g, l.x, l.y, nz)) { l.vz = -l.vz * 0.6; nz = l.z; }
-        l.x = nx; l.y = ny; l.z = nz;
+      if (!lootReady(s, l)) continue;
+      var ex = px - l.x, ez = pz - l.z, d = Math.sqrt(ex * ex + ez * ez);
+      if (d > reach) { l.pulled = false; continue; }
+      if (mag && d > MAG_STOP) {
+        var m = Math.min(d, MAG_SPEED * dt); l.pulled = true; l.x += ex / d * m; l.z += ez / d * m;
+        if (m < d) continue;
       }
-      var ex = px - l.x, ey = py - l.y, ez = pz - l.z;
-      if ((l.age > 0.6 && ex * ex + ey * ey + ez * ez < reach * reach) || l.age > 8) { r.loot.splice(k, 1); collect(s, l.item); }
+      r.loot.splice(k, 1); collect(s, l.item, { x: l.x, y: l.y, z: l.z });
     }
+  }
+  // the nearest loot in the miner's layer that it can walk to over open cells: the steps to its cell
+  function lootPath(s) {
+    var r = s.run, g = r.grid, y = r.y, want = {}, any = false;
+    r.loot.forEach(function (l) { if (l.layer === y && !lootWaits(s, l)) { want[Math.floor(l.z) * N + Math.floor(l.x)] = 1; any = true; } });
+    if (!any) return null;
+    var seen = new Uint8Array(NN), prev = new Int16Array(NN).fill(-1), q = [r.z * N + r.x], DV = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    seen[q[0]] = 1;
+    for (var h = 0; h < q.length; h++) {
+      var c = q[h], cx = c % N, cz = (c - cx) / N;
+      if (want[c]) { var steps = []; for (var b = c; b !== q[0]; b = prev[b]) steps.unshift([b % N, (b - b % N) / N]); return steps; }
+      for (var k = 0; k < 4; k++) {
+        var nx = cx + DV[k][0], nz = cz + DV[k][1];
+        if (nx < 0 || nx >= N || nz < 0 || nz >= N) continue;
+        var nc = nz * N + nx;
+        if (!seen[nc] && passable(g.t[y * NN + nc])) { seen[nc] = 1; prev[nc] = c; q.push(nc); }
+      }
+    }
+    return null;
   }
 
   function faceTo(x0, z0, x1, z1) { return x1 > x0 ? 'e' : x1 < x0 ? 'w' : z1 > z0 ? 's' : 'n'; }
@@ -592,12 +658,12 @@ var DTW = (function () {
     for (var k = 0; k < n; k++) {
       var c = r.crew[k] || (r.crew[k] = { target: -1, x: r.x, z: r.z, y: y, face: 'e', stun: 0 });
       if (c.stun > 0) { c.stun = Math.max(0, c.stun - dt); continue; }
-      if (c.target >= 0 && (!diggable(g.t[c.target]) || Math.floor(c.target / NN) !== y || mine[c.target])) c.target = -1;
+      if (c.target >= 0 && (!canDig(s, g, c.target) || Math.floor(c.target / NN) !== y || mine[c.target])) c.target = -1;
       if (c.target < 0) {
         var others = crewTargets(r), stand = {}, best = -1, bd = Infinity;
         r.crew.forEach(function (o) { if (o !== c && o.target >= 0) stand[o.x + ',' + o.z] = 1; });
         for (var i = y * NN; i < (y + 1) * NN; i++) {
-          if (!diggable(g.t[i]) || others[i] || mine[i]) continue;
+          if (!canDig(s, g, i) || others[i] || mine[i]) continue;
           var bx = i % N, bz = Math.floor(i / N) % N, near = Math.max(Math.abs(bx - r.x), Math.abs(bz - r.z)) < 2;
           var d = Math.abs(bx - c.x) + Math.abs(bz - c.z) + (near ? 20 : 0) + (stand[bx + ',' + bz] ? 40 : 0);
           if (d < bd) { bd = d; best = i; }
@@ -624,38 +690,47 @@ var DTW = (function () {
         if (g.t[oi] === TILE.BUBBLE) { g.t[oi] = TILE.AIR; r.oxygen = O2_MAX; emit(s, { type: 'bubble', x: ox, y: oy, z: oz }); }
       }
     }
-    if (rule === 'lowgrav') stepLoot(s, dt);
+    stepLoot(s, dt);
     if (r.relicTimer > 0) { r.relicTimer -= dt; if (r.relicTimer <= 0) { goHome(s, 'relic'); return; } }
     if (r.stun > 0) { r.stun = Math.max(0, r.stun - dt); r.taps = 0; }
     else {
       var y = r.y, tgt = -1, steered = false, moved = false, auto = s.auto !== false;
       var crewT = crewTargets(r);
       // steering: walk onto an open cell, or pick that block as the next one to dig
-      r.manual = Math.max(0, (r.manual || 0) - dt); r.stepCD = Math.max(0, (r.stepCD || 0) - dt);
+      r.manual = Math.max(0, (r.manual || 0) - dt); r.hintT = Math.max(0, (r.hintT || 0) - dt); r.stepCD = Math.max(0, (r.stepCD || 0) - dt);
       if (r.steer) {
         var sd = DIRS[r.steer], sx = r.x + sd[0], sz = r.z + sd[1];
         var st = sx < 0 || sx >= N || sz < 0 || sz >= N ? TILE.BEDROCK : g.t[idx(sx, y, sz)];
         r.face = r.steer;
         if (passable(st)) { // one cell at a time, at walking pace
-          if (r.stepCD <= 0) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; r.stepCD = 1 / WALK; magnetPull(s); }
+          if (r.stepCD <= 0) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; r.stepCD = 1 / WALK; }
           moved = true;
         }
-        else if (diggable(st)) { tgt = idx(sx, y, sz); steered = true; }
-        else r.steer = 0;
+        else if (canDig(s, g, idx(sx, y, sz))) { tgt = idx(sx, y, sz); steered = true; }
+        else { if (diggable(st)) boneHint(s); r.steer = 0; }
       }
       // a block the player tapped: walk next to it at full pace, then dig it
       if (tgt < 0 && !moved && r.goal >= 0) {
-        if (!diggable(g.t[r.goal]) || Math.floor(r.goal / NN) !== y || !r.path || r.path.target !== r.goal) r.goal = -1;
+        if (!canDig(s, g, r.goal) || Math.floor(r.goal / NN) !== y || !r.path || r.path.target !== r.goal) r.goal = -1;
         else if (r.path.steps.length) {
           r.manual = MANUAL_HOLD; moved = true; r.walkAcc += dt * WALK;
-          while (r.walkAcc >= 1 && r.path.steps.length) { var gc = r.path.steps.shift(); r.face = faceTo(r.x, r.z, gc[0], gc[1]); r.x = gc[0]; r.z = gc[1]; r.walkAcc -= 1; magnetPull(s); }
+          while (r.walkAcc >= 1 && r.path.steps.length) { var gc = r.path.steps.shift(); r.face = faceTo(r.x, r.z, gc[0], gc[1]); r.x = gc[0]; r.z = gc[1]; r.walkAcc -= 1; }
         } else { tgt = r.goal; steered = true; r.manual = MANUAL_HOLD; r.face = faceTo(r.x, r.z, tgt % N, Math.floor(tgt / N) % N); }
       }
       // a tap while standing still hits the block in front; with nothing there auto-mining carries on
       if (tgt < 0 && !moved && r.taps > 0 && (!auto || r.manual > 0)) {
         var fd = DIRS[r.face] || DIRS.e, fx = r.x + fd[0], fz = r.z + fd[1];
-        if (fx >= 0 && fx < N && fz >= 0 && fz < N && diggable(g.t[idx(fx, y, fz)])) { tgt = idx(fx, y, fz); steered = true; r.manual = Math.max(r.manual, MANUAL_HOLD); }
+        if (fx >= 0 && fx < N && fz >= 0 && fz < N && canDig(s, g, idx(fx, y, fz))) { tgt = idx(fx, y, fz); steered = true; r.manual = Math.max(r.manual, MANUAL_HOLD); }
         else r.manual = 0;
+      }
+      // loot on the floor comes first: auto-mining walks to it before the next block, and a cleared layer is swept
+      if (tgt < 0 && !moved && r.stun <= 0 && (!layerHasBlocks(g, y) || (auto && r.manual <= 0))) {
+        var lsteps = lootPath(s);
+        if (lsteps) {
+          r.path = null; r.state = lsteps.length ? 'walk' : 'idle'; r.taps = 0; r.fallAcc = 0; moved = true; // no steps: the find is under the miner's feet, still settling
+          r.walkAcc += dt * WALK * (auto ? AUTO_PACE : 1);
+          while (r.walkAcc >= 1 && lsteps.length) { var lc = lsteps.shift(); r.face = faceTo(r.x, r.z, lc[0], lc[1]); r.x = lc[0]; r.z = lc[1]; r.walkAcc -= 1; }
+        }
       }
       if (tgt < 0 && !moved && !layerHasBlocks(g, y)) {
         // layer cleared: drop into the open cell below, or dig the block underfoot to open the next layer
@@ -664,7 +739,7 @@ var DTW = (function () {
         if (y + 1 < layers && passable(g.t[bi])) {
           r.state = 'fall'; r.fallAcc += dt * (rule === 'lowgrav' ? 4 : 9); r.taps = 0;
           // stop in the first layer that still has blocks: it must be cleared before the next one opens
-          while (r.fallAcc >= 1 && r.y + 1 < layers && passable(g.t[idx(r.x, r.y + 1, r.z)]) && !layerHasBlocks(g, r.y)) { r.fallAcc -= 1; r.y++; magnetPull(s); }
+          while (r.fallAcc >= 1 && r.y + 1 < layers && passable(g.t[idx(r.x, r.y + 1, r.z)]) && !layerHasBlocks(g, r.y)) { r.fallAcc -= 1; r.y++; }
           if (layerHasBlocks(g, r.y)) r.fallAcc = 0;
         } else if (y + 1 < layers && diggable(g.t[bi])) { tgt = bi; steered = !auto || r.manual > 0; }
         else { r.state = 'idle'; r.taps = 0; }
@@ -672,19 +747,20 @@ var DTW = (function () {
       else if (tgt < 0 && !moved) {
         // auto-walk: follow the shortest path over open cells to the nearest block no helper is on, then dig it
         r.fallAcc = 0;
-        if (!r.path || !diggable(g.t[r.path.target])) {
-          r.path = findNearest(g, r.x, y, r.z, function (i) { return !crewT[i]; }) || findNearest(g, r.x, y, r.z);
+        if (!r.path || !canDig(s, g, r.path.target)) {
+          r.path = findNearest(g, r.x, y, r.z, function (i) { return !crewT[i] && canDig(s, g, i); }) || findNearest(g, r.x, y, r.z, function (i) { return canDig(s, g, i); });
+          if (!r.path) boneHint(s); // only fossils left in this layer: the bone in hand must go to the museum first
         }
         if (r.path && r.path.steps.length) {
           r.state = 'walk'; r.taps = 0; r.walkAcc += dt * WALK * AUTO_PACE;
-          while (r.walkAcc >= 1 && r.path.steps.length) { var c = r.path.steps.shift(); r.face = faceTo(r.x, r.z, c[0], c[1]); r.x = c[0]; r.z = c[1]; r.walkAcc -= 1; magnetPull(s); }
+          while (r.walkAcc >= 1 && r.path.steps.length) { var c = r.path.steps.shift(); r.face = faceTo(r.x, r.z, c[0], c[1]); r.x = c[0]; r.z = c[1]; r.walkAcc -= 1; }
         } else if (r.path) { tgt = r.path.target; r.face = faceTo(r.x, r.z, tgt % N, Math.floor(tgt / N) % N); }
         else { r.state = 'idle'; r.taps = 0; }
       }
       if (moved) { r.state = 'walk'; r.taps = 0; }
       if (tgt >= 0) {
         r.walkAcc = 0; r.fallAcc = 0; r.state = 'dig';
-        var wf = weightFactor(s, r.bag.length + r.loot.length);
+        var wf = weightFactor(s, r.bag.length);
         // the miner's own swing is slower on auto-pilot
         var idle = drillDamage(s) * hitRate(s) * (steered || r.manual > 0 ? 1 : AUTO_PACE) * dt * wf;
         var dmg = idle + drillDamage(s) * r.taps * wf;
@@ -701,6 +777,7 @@ var DTW = (function () {
       } else r.target = -1;
       if (r.stun <= 0 && s.mode === 'dig') stepCrew(s, dt, hit);
     }
+    if (s.mode === 'dig') pickLoot(s, dt);
     for (var k in r.goo) {
       var gi = +k;
       if (hit[gi]) continue;
@@ -723,7 +800,7 @@ var DTW = (function () {
   function serialize(s) {
     var bag = s.run && s.mode !== 'surface' ? s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 3, auto: s.auto !== false, seed: s.seed, rng: s.rng, coins: s.coins, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 3, auto: s.auto !== false, carry: s.carry, seed: s.seed, rng: s.rng, coins: s.coins, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0 }; })
     });
@@ -733,7 +810,7 @@ var DTW = (function () {
       var o = JSON.parse(str);
       if (!o || [1, 2, 3].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
-      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
       // before v3 each world had one creature of five pieces: it is now that world's middle creature
       var old = o.v < 3;
       s.museum = s.museum.map(function (m) {
@@ -776,11 +853,11 @@ var DTW = (function () {
 
   return { N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
-    bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
+    pickupReach: pickupReach, bagCap: bagCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, hubCell: hubCell, hubWalkable: hubWalkable,
-    PLINTH_CH: PLINTH_CH, hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
+    PLINTH_CH: PLINTH_CH, WINGS: WINGS, hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
     topLayer: topLayer, layerHasBlocks: layerHasBlocks, diggable: diggable };
 })();

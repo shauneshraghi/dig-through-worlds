@@ -74,7 +74,22 @@ var DTWRender = (function () {
     t.grass = mk(function (c) { noiseFill(c, P_.top, r, 50); for (var i = 0; i < 10; i++) px(c, r() * 16 | 0, r() * 16 | 0, shade(P_.top, 0.25)); });
     t.root = mk(function (c) { noiseFill(c, '#4a2f17', r, 20); for (var x = 0; x < 16; x++) { var y = 7 + Math.round(Math.sin(x * 0.8) * 2); px(c, x, y - 2, '#7a4f2a', 1, 5); px(c, x, y - 2, '#9a6a3a'); } });
     t.trap = mk(function (c) { noiseFill(c, '#8a8268', r, 20); px(c, 1, 1, '#6a6450', 14, 1); px(c, 1, 14, '#6a6450', 14, 1); px(c, 4, 5, '#3a3428', 8, 6); px(c, 5, 6, '#c0392b', 2, 2); px(c, 9, 6, '#c0392b', 2, 2); px(c, 6, 9, '#e8d8a0', 4, 1); });
-    t.chest = mk(function (c) { noiseFill(c, '#8a8268', r, 10); px(c, 2, 4, '#8a4b1c', 12, 10); px(c, 2, 4, '#b8692a', 12, 3); px(c, 2, 8, '#ffd23f', 12, 1); px(c, 7, 7, '#ffd23f', 2, 4); px(c, 2, 4, '#5a2e10', 1, 10); px(c, 13, 4, '#5a2e10', 1, 10); });
+    t.chest = mk(function (c) { // a wooden chest: planks, dark iron bands, a gold lock and trim
+      noiseFill(c, '#a8622a', r, 14);
+      for (var py = 3; py < 16; py += 4) px(c, 0, py, '#7a421a', 16, 1);
+      px(c, 0, 5, '#3a2210', 16, 1); // lid seam
+      px(c, 2, 0, '#34343f', 2, 16); px(c, 12, 0, '#34343f', 2, 16); px(c, 2, 0, '#6a6a7a', 1, 16); px(c, 12, 0, '#6a6a7a', 1, 16);
+      px(c, 2, 2, '#c8c8d4'); px(c, 13, 2, '#c8c8d4'); px(c, 2, 12, '#c8c8d4'); px(c, 13, 12, '#c8c8d4');
+      px(c, 0, 0, '#ffd23f', 16, 1); px(c, 0, 15, '#e0a820', 16, 1); // gold trim
+      px(c, 6, 5, '#7a4f00', 4, 6); px(c, 6, 5, '#ffd23f', 4, 5); px(c, 7, 6, '#fff3b0', 1, 1); px(c, 7, 8, '#3a2210', 2, 2); // lock
+    });
+    t.chestTop = mk(function (c) {
+      noiseFill(c, '#b8742f', r, 14);
+      for (var px_ = 3; px_ < 16; px_ += 4) px(c, 0, px_, '#8a4b1c', 16, 1);
+      px(c, 2, 0, '#34343f', 2, 16); px(c, 12, 0, '#34343f', 2, 16); px(c, 2, 0, '#6a6a7a', 1, 16); px(c, 12, 0, '#6a6a7a', 1, 16);
+      px(c, 0, 0, '#ffd23f', 16, 1); px(c, 0, 15, '#ffd23f', 16, 1); px(c, 0, 0, '#ffd23f', 1, 16); px(c, 15, 0, '#e0a820', 1, 16);
+      px(c, 7, 7, '#fff3b0', 2, 2);
+    });
     t.relic = mk(function (c) { noiseFill(c, '#3a2c5a', r, 20); px(c, 0, 0, '#ffd23f', 16, 1); px(c, 0, 15, '#ffd23f', 16, 1); px(c, 7, 3, W.relic.color, 2, 10); px(c, 3, 7, W.relic.color, 10, 2); px(c, 6, 6, '#fff', 4, 4); });
     t.bed = mk(function (c) { noiseFill(c, P_.bed, r, 25); });
     t.path = mk(function (c) { // cobbles
@@ -164,19 +179,143 @@ var DTWRender = (function () {
     c.restore();
   }
 
+  // ---------- finds: a broken block's ore, bone or chest hops out in the scene, waits, then flies into the rucksack ----------
+  var finds = [], coinCv = null;
+  function coinCanvas() {
+    if (coinCv) return coinCv;
+    var rows = ['  oooo  ', ' oYYGGo ', 'oYYGGGdo', 'oYGGdGdo', 'oGGGdGdo', 'oGGGGddo', ' oGddGo ', '  oooo  '], pal = { o: '#7a4b00', Y: '#fff3b0', G: '#ffd23f', d: '#d9a21b' };
+    coinCv = document.createElement('canvas'); coinCv.width = coinCv.height = 8; var g = coinCv.getContext('2d');
+    rows.forEach(function (row, y) { for (var x = 0; x < 8; x++) if (pal[row[x]]) { g.fillStyle = pal[row[x]]; g.fillRect(x, y, 1, 1); } });
+    return coinCv;
+  }
+  var lidCache = null;
+  function chestParts() { // the chest icon split into lid and body
+    if (lidCache) return lidCache;
+    var src = DTWSprites.item('treasure', 0, '#ffd23f', false), lid = document.createElement('canvas'), body = document.createElement('canvas');
+    lid.width = body.width = src.width; lid.height = 4; body.height = src.height - 4;
+    lid.getContext('2d').drawImage(src, 0, 2, src.width, 4, 0, 0, src.width, 4);
+    body.getContext('2d').drawImage(src, 0, 6, src.width, src.height - 6, 0, 0, src.width, src.height - 6);
+    return (lidCache = { lid: lid, body: body });
+  }
+  function findSprite(it) { return it.kind === 'treasure' ? coinCanvas() : itemIcon(it); }
+  function findScale() { return TW / 26; }
+  function findGlow(it, x, y, a, sc) {
+    var col = it.kind === 'ore' ? (it.idx >= 2 ? itemColor(it) : null) : it.kind === 'relic' ? itemColor(it) : it.kind === 'treasure' ? '#ffd23f' : '#ffe9a8';
+    if (!col) return;
+    var big = it.kind === 'relic' ? 1.6 : 1;
+    glow(x, y, TW * 0.7 * big * sc, col, 0.65 * a); light(x, y, TW * 2.2 * big, 0.4 * a, col);
+  }
+  function drawSprite(cv, x, y, s, a) {
+    ctx.save(); ctx.globalAlpha = a; ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cv, Math.round(x - cv.width * s / 2), Math.round(y - cv.height * s / 2), Math.round(cv.width * s), Math.round(cv.height * s)); ctx.restore();
+  }
+  function cross(x, y, u, col, a) { ctx.fillStyle = col; ctx.globalAlpha = a; ctx.fillRect(x - u, y - u * 0.5, u * 2, u); ctx.fillRect(x - u * 0.5, y - u, u, u * 2); ctx.globalAlpha = 1; }
+  // x, y, z: the broken block's cell (or the miner for a moon pick-up); opts: chest, pickup
+  function spawnFind(x, y, z, it, label, opts) {
+    opts = opts || {};
+    var big = it.kind === 'fossil' || it.kind === 'relic', t0 = opts.chest && !opts.ghost && !opts.from ? 0.55 : 0, from = !!opts.from, ghost = !!opts.ghost;
+    // from: the find flies from where it lay on the floor to the miner; ghost: only a chest hopping open (its find then lies on the floor)
+    finds.push({ x: x + 0.5, y: y, z: z + 0.5, it: it, label: label, age: 0, big: big, chest: !!opts.chest, carried: !!(opts.carried || it.carried), pickup: !!opts.pickup, from: from, ghost: ghost, t0: t0,
+      hop: from ? 0.01 : big ? 0.6 : 0.4, fly: ghost ? 0.9 : from ? 0.02 : opts.pickup ? 0 : t0 + (big ? 2.0 : 1.1), flyDur: ghost ? 0 : from ? 0.35 : opts.pickup ? 0 : 0.42, spark: ghost ? 0.3 : 0.4 });
+    if (finds.length > 24) finds.shift();
+  }
+  function updateFinds(dt, S) {
+    for (var i = finds.length - 1; i >= 0; i--) { var f = finds[i]; f.age += dt; if (f.age > Math.max(f.fly + f.flyDur + f.spark, f.pickup ? 1 : 0, f.from ? f.fly + f.flyDur + 1 : 0) || S.mode === 'surface') finds.splice(i, 1); }
+  }
+  function drawFinds() {
+    for (var i = 0; i < finds.length; i++) {
+      var f = finds[i], it = f.it, s = findScale() * (f.big ? 1.3 : 1), ti = f.age - f.t0, col = itemColor(it), sp = findSprite(it);
+      var cy = f.y + 0.4, h = f.big ? 1.3 : 0.9, wy = cy, a = 1, restQ = P(f.x, cy, f.z), q = restQ, sc = 1, lbl = 0, pix = f.age - f.fly;
+      var mq = lastMiner ? [lastMiner[0], lastMiner[1] - TW * (f.carried ? 0.35 : 0.5)] : restQ; // carried bones land on the miner's back, the rest in the rucksack
+      if (f.chest) { // the chest hops, the lid swings open and the find spills out
+        var cp = chestParts(), cu = Math.min(1, f.age / 0.3), cyy = cy - 0.35 * 4 * cu * (1 - cu) * (f.age < 0.3 ? 1 : 0);
+        var cq = P(f.x, cyy, f.z), ca = f.age > f.fly ? Math.max(0, 1 - (f.age - f.fly) / 0.3) : 1, open = Math.max(0, Math.min(1, (f.age - 0.3) / 0.25));
+        if (ca > 0) {
+          ctx.save(); ctx.globalAlpha = ca; ctx.imageSmoothingEnabled = false;
+          var cw = cp.body.width * s, bx = Math.round(cq[0] - cw / 2), by = Math.round(cq[1] - cp.body.height * s * 0.4);
+          ctx.drawImage(cp.body, bx, by, Math.round(cw), Math.round(cp.body.height * s));
+          ctx.translate(Math.round(cq[0] - cw / 2), by); // hinge at the back top edge of the body
+          ctx.rotate(-open * 0.9); ctx.drawImage(cp.lid, 0, -Math.round(cp.lid.height * s), Math.round(cw), Math.round(cp.lid.height * s));
+          ctx.restore();
+          if (open > 0.2) { glow(cq[0], cq[1] - TW * 0.1, TW * 0.5, '#ffd23f', 0.5 * ca * open); light(cq[0], cq[1], TW * 1.6, 0.3 * ca * open, '#ffd23f'); }
+        }
+        cy -= 0.15;
+      }
+      if (f.pickup) { // moon loot that bounced into the miner: only a sparkle and the name
+        q = mq; pix = f.age; sp = null; lbl = Math.max(0, Math.min(1, (0.95 - f.age) / 0.3));
+      }
+      if (f.ghost) sp = null;
+      if (sp && ti >= 0 && pix < f.flyDur) {
+        var u = Math.min(1, ti / f.hop), v = (ti - f.hop) / 0.22;
+        if (ti < f.hop) wy = cy - h * 4 * u * (1 - u);
+        else if (v >= 0 && v < 1) wy = cy - h * 0.3 * 4 * v * (1 - v);
+        else wy = cy - 0.04 * (1 + Math.sin(time * 6 + i));
+        q = P(f.x, wy, f.z);
+        if (pix > 0) { var fu = pix / f.flyDur, e = fu * fu; q = [restQ[0] + (mq[0] - restQ[0]) * e, restQ[1] + (mq[1] - restQ[1]) * e - Math.sin(fu * Math.PI) * TW * 0.55]; sc = 1 - 0.55 * fu; a = 1 - 0.3 * fu * fu; }
+        var pop = ti < 0.12 ? 0.6 + 0.4 * ti / 0.12 : 1;
+        drawSprite(sp, q[0], q[1], s * sc * pop, a);
+        findGlow(it, q[0], q[1], (it.kind === 'fossil' || it.kind === 'relic') ? 0.6 + 0.4 * Math.sin(time * 5 + i) : 0.7, sc);
+        if (f.big && pix <= 0) for (var k = 0; k < 4; k++) { // twinkles around a fossil or relic while it waits
+          var ph = (time * 1.3 + k * 0.25) % 1, ang = k * 1.7 + time * 0.8, rr = TW * (0.35 + 0.15 * ph);
+          cross(q[0] + Math.cos(ang) * rr, q[1] + Math.sin(ang) * rr * 0.6 - ph * TW * 0.15, Math.max(1, TW * 0.03), '#fff8d0', Math.sin(ph * Math.PI));
+        }
+        // the name: small, outlined, over the find until it leaves
+        var inA = Math.max(0, Math.min(1, (ti - 0.1) / 0.2)), outA = pix > 0 ? 0 : 1; lbl = inA * outA;
+      }
+      if (f.from && pix > f.flyDur) { q = mq; lbl = Math.max(0, Math.min(1, (0.95 - (pix - f.flyDur)) / 0.3)); } // landed: the name floats up from the miner
+      if (pix > f.flyDur - 0.02) { // sparkle where it lands in the rucksack
+        var su = f.pickup ? f.age / f.spark : (pix - f.flyDur) / f.spark;
+        if (su >= 0 && su < 1) {
+          for (var j = 0; j < 6; j++) { var an = j * 1.047 + 0.3, rd = TW * 0.5 * Math.sqrt(su); cross(mq[0] + Math.cos(an) * rd, mq[1] + Math.sin(an) * rd * 0.7, Math.max(1, TW * 0.035) * (1 - su * 0.5), j % 2 ? '#fff8d0' : col, 1 - su); }
+          glow(mq[0], mq[1], TW * 0.6 * (1 - su), '#fff3b0', 0.7 * (1 - su));
+        }
+      }
+      if (lbl > 0 && f.label) {
+        var fs = Math.max(11, Math.round(TW * (f.big ? 0.31 : 0.26))), lx = Math.max(vw * 0.1, Math.min(vw * 0.9, q[0])), ly = Math.max(fs + 4, q[1] - TW * (f.big ? 0.55 : 0.42) - (f.pickup ? f.age : f.from && pix > f.flyDur ? pix - f.flyDur : 0) * TW * 0.5);
+        octx.save(); octx.globalAlpha = lbl; octx.font = '700 ' + fs + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.lineJoin = 'round';
+        octx.lineWidth = Math.max(3, fs * 0.25); octx.strokeStyle = '#000c'; octx.strokeText(f.label, lx, ly);
+        octx.fillStyle = f.it.kind === 'fossil' ? '#ffe9a8' : col; octx.fillText(f.label, lx, ly); octx.restore();
+      }
+    }
+  }
+  // finds lying on the floor of their cells, waiting to be picked up (moon loot bounces first)
+  function drawLoot(r, S) {
+    r.loot.forEach(function (l, i) {
+      if (l.age < l.delay - 0.15 && l.delay > 0.4) return; // a chest's find waits for the lid to open
+      var big = l.item.kind === 'fossil' || l.item.kind === 'relic', pop = Math.min(1, 0.5 + (l.age - (l.delay > 0.4 ? l.delay - 0.15 : 0)) / 0.25 * 0.5);
+      var bob = l.rest && !l.pulled ? Math.sin(time * 3 + i * 1.7) * 0.04 : 0, q = P(l.x, l.y + bob, l.z);
+      var held = l.item.kind === 'fossil' && S.carry && S.carry.length && l.item.world !== undefined && !S.museum[l.item.world].pieces[l.item.idx];
+      drawSprite(findSprite(l.item), q[0], q[1], findScale() * (big ? 1.3 : 1) * pop, held ? 0.6 : 1);
+      findGlow(l.item, q[0], q[1], 0.5 + (big ? 0.15 * Math.sin(time * 5 + i) : 0), 1);
+    });
+  }
+  // a faint ring at the miner's feet showing how far it picks finds up, once the magnet is upgraded
+  function drawReach(r, S) {
+    var m = S.upgrades.magnet; if (!m || S.mode !== 'dig') return;
+    var rad = D.pickupReach(m), cx = disp.x + 0.5, cz = disp.z + 0.5, fy = disp.y + 1;
+    ctx.save(); ctx.strokeStyle = '#8fd8ff'; ctx.globalAlpha = 0.22 + 0.06 * Math.sin(time * 2.5); ctx.lineWidth = Math.max(1.5, TW * 0.03); ctx.setLineDash([TW * 0.12, TW * 0.1]);
+    ctx.beginPath();
+    for (var k = 0; k <= 40; k++) { var a = k / 40 * Math.PI * 2, q = P(cx + Math.cos(a) * rad, fy, cz + Math.sin(a) * rad); if (k) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }
+    ctx.stroke(); ctx.restore();
+  }
+
   // ---------- the miner: a kid with a hard hat, headlamp and pickaxe, pixel art drawn in code ----------
   // The sprites themselves are in js/sprites.js (DTWSprites); this file poses and places them.
   function pickTier(drill) { return Math.min(4, Math.floor(drill / 6)); }
   // screen pixels per sprite pixel: a character stands a little over one block tall
   function charScale() { return TW / 32; }
   var FACE = { e: { back: false, flip: false }, s: { back: false, flip: true }, n: { back: true, flip: false }, w: { back: true, flip: true } };
-  function swingAngle(phase, digging, side) {
-    var rest = -1.0, raised = -2.3, strike = side ? 0.1 : 0.95;
-    if (!digging) return rest + Math.sin(time * 2) * 0.05;
-    var f = phase % 1;
-    if (f < 0.55) return strike + (raised - strike) * (f / 0.55);                  // wind up
-    if (f < 0.72) return raised + (strike - raised) * ((f - 0.55) / 0.17);         // strike
-    return strike;                                                                 // follow through
+  // The walk cycle and the pickaxe swing are shared by everyone (DTWSprites.walkPose, DTWSprites.swing). A walk cycle
+  // is two steps of DTWSprites.STEP_X sprite pixels each; one cell of ground is 16 sprite pixels across the screen at
+  // charScale (hw / charScale() = 16), so the cycle advances CYC_PER_CELL per cell walked (divided by any extra sprite
+  // scale) and the planted foot keeps pace with the ground.
+  var CYC_PER_CELL = 16 / (2 * DTWSprites.STEP_X);
+  // the fossil piece the miner is carrying home, as the sprite draws it on its back
+  function carriedBone(S) {
+    var it = S.carry && S.carry[0];
+    if (!it || it.kind !== 'fossil') return null;
+    var w = D.WORLDS[it.world], cr = w && w.creatures[Math.floor(it.idx / 5)], part = cr ? cr.parts[it.idx % 5] : '';
+    return { shape: /Skull/.test(part) ? 'skull' : /Tusk|Fang|Horn|Antenna/.test(part) ? 'tusk' : 'bone', moon: w && w.id === 'moon' };
   }
   // ---------- helper diggers ----------
   // The logic gives each helper a block of the miner's layer and a cell to stand on (run.crew); here they
@@ -188,18 +327,20 @@ var DTWRender = (function () {
       var tx = c.x + 0.5, tz = c.z + 0.5, p = crewPos[k];
       if (!p || Math.abs(p.y - c.y) > 2) p = crewPos[k] = { x: tx, z: tz, y: c.y };
       var ex = tx - p.x, ez = tz - p.z, l = Math.sqrt(ex * ex + ez * ez), st = D.WALK * dt;
+      p.walk = (p.walk || 0) + Math.min(l, st);
       if (l <= st) { p.x = tx; p.z = tz; } else { p.x += ex / l * st; p.z += ez / l * st; }
       p.y += Math.max(-st, Math.min(st, c.y - p.y));
-      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, stun: c.stun > 0 });
+      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, walk: p.walk, stun: c.stun > 0 });
     });
     crewPos.length = out.length;
     return out;
   }
   function drawHelper(h, S) {
     var fc = FACE[h.face] || FACE.e, phase = time * 1.7 + h.k * 0.37, q = P(h.x, h.y + 1, h.z), p = charScale() * 0.85;
-    var st = h.walking ? Math.sin(time * 12 + h.k) : 0;
-    var spr = DTWSprites.helper(h.k, { back: fc.back, ang: h.dig ? swingAngle(phase, true, true) : null, carry: !h.dig, tier: 0,
-      pose: { bob: h.walking ? -Math.round(Math.abs(st)) : 0, body: 0, lean: 0, stride: st, air: 0, blink: false }, lampOn: S.mode !== 'surface', t: time });
+    // helpers are drawn at 0.85 scale, so they take more steps per cell
+    var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / 0.85, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
+    pose.lean = sw ? sw.lean : 0; pose.air = 0; pose.blink = false; if (sw) pose.body = sw.body;
+    var spr = DTWSprites.helper(h.k, { back: fc.back, ang: sw ? sw.ang : null, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
     if (fc.flip) ctx.scale(-1, 1);
@@ -214,21 +355,17 @@ var DTWRender = (function () {
     var side = !!(r && r.target >= 0 && Math.floor(r.target / (N * N)) === r.y);
     var climbing = S.mode === 'up' || S.mode === 'down';
     var fc = FACE[disp.face] || FACE.e;
-    var ang = swingAngle(disp.phase, digging, side);
+    var sw = DTWSprites.swing(disp.phase, side);
     var walking = disp.spd > 0.6 && disp.air < 0.5 && !climbing;
-    var stride = walking ? Math.sin(disp.walk * Math.PI) * Math.min(1, disp.spd / 2) : 0;
-    var f = disp.phase % 1, pose = {
-      // walking bounces on each step; standing breathes
-      bob: walking ? -Math.round(Math.abs(stride) * 1.4) : 0,
-      body: walking || disp.air > 0.3 ? 0 : (Math.sin(time * 2.4) > 0.55 ? 1 : 0),
-      // lean back while raising the pick, forward into the strike
-      lean: digging && !side ? (f < 0.55 ? -1 : f < 0.85 ? 1 : 0) : (walking ? 1 : 0),
-      stride: stride, air: disp.air, blink: disp.blink < 0
-    };
-    if (digging && f >= 0.72 && f < 0.85) pose.body = 1; // knees give on the impact
+    // walking steps through the shared cycle (it sinks and rises on each step); standing breathes
+    var pose = DTWSprites.walkPose(disp.walk, walking ? Math.min(1, disp.spd / 1.5) : 0);
+    if (!walking) pose.body = disp.air > 0.3 ? 0 : (Math.sin(time * 2.4) > 0.55 ? 1 : 0);
+    // digging: lean back while cocking the pick, forward into the strike, and the knees give on the impact
+    pose.lean = digging ? sw.lean : walking ? 1 : 0; pose.air = disp.air; pose.blink = disp.blink < 0;
+    if (digging) pose.body = sw.body;
     // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
-    var full = r && S.mode !== 'surface' ? Math.min(1, (r.bag.length + r.loot.length) / D.bagCap(S)) : 0;
-    var spr = DTWSprites.miner({ back: climbing ? true : fc.back, ang: digging ? ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
+    var full = r && S.mode !== 'surface' ? Math.min(1, r.bag.length / D.bagCap(S)) : 0;
+    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, ang: digging ? sw.ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
       lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
@@ -272,7 +409,7 @@ var DTWRender = (function () {
   // ---------- the plaza: props placed from the hub map ----------
   // A prop that covers a block of cells (a stall, a plinth) is built once from its lowest-x, lowest-z cell.
   // Each item carries its footprint (x0..x1, z0..z1) so depthSort can order it against the characters.
-  var PL = D.PLINTH_CH, FLOOR_CH = 'm#p' + PL + 'abcdeDM', INSIDE_CH = 'mp' + PL + 'abcdeDM';
+  var PL = D.PLINTH_CH, FLOOR_CH = 'm#ip' + PL + 'abcdeDM', INSIDE_CH = 'mp' + PL + 'abcdeDM';
   var PADS = { L: ['⛏', 'Dig'], S: ['🛒', 'Shop'], H: ['👷', 'Helpers'], W: ['🗺️', 'Worlds'], M: ['🏛️', 'Museum'] };
   var padLabels = [];
   function groundTex(c, x, z) {
@@ -287,8 +424,8 @@ var DTWRender = (function () {
     if (HUB_BLOCKS) return HUB_BLOCKS;
     HUB_BLOCKS = [];
     for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) {
-      var c = D.hubCell(x, z), single = c === '#' || c === 't' || c === 'p' || c === 'w';
-      if (('tTshwp#abcdeD' + PL).indexOf(c) < 0) continue;
+      var c = D.hubCell(x, z), single = c === '#' || c === 'i' || c === 't' || c === 'p' || c === 'w';
+      if (('tTshwp#iabcdeD' + PL).indexOf(c) < 0) continue;
       if (!single && (D.hubCell(x - 1, z) === c || D.hubCell(x, z - 1) === c)) continue;
       var x1 = x + 1, z1 = z + 1;
       if (!single) { while (D.hubCell(x1, z) === c) x1++; while (D.hubCell(x, z1) === c) z1++; }
@@ -324,6 +461,7 @@ var DTWRender = (function () {
       else if (c === 'w') fn = function () { signpost(b.x0, b.z0, S); };
       else if (c === 'p') fn = function () { plant(b.x0, b.z0); };
       else if (c === '#') fn = function () { wall(b.x0, b.z0, S); };
+      else if (c === 'i') fn = function () { partition(b.x0, b.z0); };
       else if (c === 'D') fn = function () { desk(b); };
       else if ((k = PL.indexOf(c)) >= 0) fn = function () { plinth(k, b, S); };
       else if ((k = 'abcde'.indexOf(c)) >= 0) fn = function () { relicCase(k, b, S); };
@@ -424,6 +562,15 @@ var DTWRender = (function () {
     else box(x, z, 1, 1, 1 - h, 0.07, '#c9a46a');
     ctx.globalAlpha = 1;
   }
+  // a low partition between wings; where it ends at an arch it rises into a gold-capped post
+  function partition(x, z) {
+    var n = 0;
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) { var c = D.hubCell(x + d[0], z + d[1]); if (c === 'i' || c === '#') n++; });
+    if (n <= 1) { // an arch post
+      blob(x + 0.5, z + 0.5, 0.6, 0.2);
+      box(x + 0.1, z + 0.1, 0.8, 0.8, 1, 1.25, '#e6d7b8'); box(x + 0.05, z + 0.05, 0.9, 0.9, 1, 0.18, '#c9a46a'); box(x + 0.05, z + 0.05, 0.9, 0.9, 1 - 1.25, 0.14, '#c9a46a');
+    } else { box(x, z, 1, 1, 1, 0.4, '#e6d7b8'); box(x, z, 1, 1, 1 - 0.4, 0.07, '#c9a46a'); }
+  }
   var HUB_DOOR = (function () { // the first open cell in the museum's outer wall
     for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) if (D.hubCell(x, z) === 'm' && D.hubCell(x - 1, z) === '=') return [x, z];
     return [0, 0];
@@ -436,7 +583,18 @@ var DTWRender = (function () {
     box(b.x0 + 0.05, b.z0 + 0.05, sx - 0.1, sz - 0.1, 1, 0.12, '#8a7f6a');
     box(b.x0 + 0.18, b.z0 + 0.18, sx - 0.36, sz - 0.36, 0.88, 0.3, open ? DTWSprites.hexShade(wd.pal.top, -0.3) : '#5a5462');
     var q = P(b.x0 + sx / 2, 0.58, b.z0 + sz / 2);
-    DTWSprites.exhibit(ctx, k, S.museum[w].pieces.slice(c * 5, c * 5 + 5), open, q[0], q[1], TW / 27);
+    var ct = carryTarget(S), hi = null, ce = null;
+    celebs.forEach(function (cc) { if (cc.k === k) ce = cc; });
+    if (ct && ct.k === k) { // aura around the plinth the bone belongs to, and its missing piece shimmering
+      var pu = 0.5 + 0.5 * Math.sin(time * 3.5), ay = q[1] - TW * 0.55;
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      var ag = ctx.createRadialGradient(q[0], ay, 0, q[0], ay, TW * 1.6); ag.addColorStop(0, rgba(GOLD, 0.2 + 0.1 * pu)); ag.addColorStop(0.5, rgba(GOLD, 0.07 + 0.05 * pu)); ag.addColorStop(1, rgba(GOLD, 0));
+      ctx.fillStyle = ag; ctx.fillRect(q[0] - TW * 1.6, ay - TW * 1.6, TW * 3.2, TW * 3.2); ctx.restore();
+      glow(q[0], ay, TW * 1.6, GOLD, 0.18 + 0.12 * pu); light(q[0], ay, TW * 2.6, 0.22 + 0.15 * pu, '#ffd96a');
+      if (ct.piece >= 0) hi = { i: ct.piece, a: 0.3 + 0.5 * pu, col: '#ffe27a' };
+    }
+    if (ce) hi = { i: -1, a: Math.max(0, 1 - ce.t / 1.0), col: '#ffffff' }; // the new bone flashes in
+    DTWSprites.exhibit(ctx, k, S.museum[w].pieces.slice(c * 5, c * 5 + 5), open, q[0], q[1], TW / 27 * Math.max(1, Math.min(2, Math.min(sx, sz * 1.25) / 2)), hi);
     if (!open) { // roped off
       ctx.strokeStyle = '#c0392b'; ctx.lineWidth = Math.max(2, TW / 18);
       [[b.x1 + 0.1, b.z0 + 0.2], [b.x1 + 0.1, b.z1 - 0.2]].forEach(function (pp) { box(pp[0] - 0.05, pp[1] - 0.05, 0.1, 0.1, 1, 0.55, '#c9a46a'); });
@@ -459,7 +617,7 @@ var DTWRender = (function () {
   // Math.random, never the game's rng, so what is on screen cannot change a dig.
   var visitors = [], visitT = 0, coinT = 0, VSPEED = 1.3;
   var HUT_SPOTS = [[4.5, -3.5, 's'], [0.5, -3.5, 'e'], [4.5, -5.5, 'w'], [1.5, -2.5, 's'], [-0.5, -2.5, 'e'], [3.5, -2.5, 'n']];
-  var GUIDE_SPOTS = [[14.5, 0.5], [17.5, 3.5], [20.5, 6.5], [14.5, 9.5], [20.5, 12.5]]; // aisle crossings in the museum
+  var GUIDE_SPOTS = [[15.5, 7.5], [28.5, 6.5], [21.5, 13.5], [17.5, -1.5], [37.5, 14.5]]; // aisle crossings in the museum
   function faceOf(dx, dz) { return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? 'e' : 'w') : (dz > 0 ? 's' : 'n'); }
   function museumSpots(S) { // open floor cells beside an exhibit that has at least one piece, else anywhere inside
     var out = [], any = [];
@@ -495,9 +653,9 @@ var DTWRender = (function () {
         while (v.path && d > 0) {
           var p = v.path[0], ex = p[0] - v.x, ez = p[1] - v.z, l = Math.sqrt(ex * ex + ez * ez);
           if (l > 0.01) v.face = faceOf(ex, ez);
+          v.walk += Math.min(l, d); // cells walked, for the walk cycle
           if (l <= d) { v.x = p[0]; v.z = p[1]; d -= l; v.path.shift(); if (!v.path.length) v.path = null; }
           else { v.x += ex / l * d; v.z += ez / l * d; d = 0; }
-          v.walk += VSPEED * dt * 2;
         }
         if (!v.path) {
           if (v.leaving) { visitors.splice(i, 1); continue; }
@@ -526,7 +684,7 @@ var DTWRender = (function () {
   }
   function plinthBlock(k) { return hubBlocks().filter(function (bb) { return bb.c === PL.charAt(k); })[0]; }
   function drawPerson(kind, seed, x, z, face, moving, walk) {
-    var fc = FACE[face] || FACE.e, frame = moving ? Math.floor(walk) & 3 : Math.floor(time * 1.5 + seed) & 3;
+    var fc = FACE[face] || FACE.e, frame = moving ? Math.floor(walk * CYC_PER_CELL * 8) & 7 : Math.floor(time * 1.5 + seed) & 3;
     var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time), q = P(x, 1, z), p = charScale();
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.4, hh * 0.4, 0, 0, 7); ctx.fill();
@@ -546,10 +704,116 @@ var DTWRender = (function () {
       items.push(feet(sp[0], sp[1], function () { drawHelper({ k: k, x: sp[0], z: sp[1], y: 0, face: sp[2], dig: false, walking: false }, S); }));
     });
   }
+  // ---------- hand-in guide: where to take the bone being carried ----------
+  var GOLD = '#ffd23f', trail = { t: 0, pts: [] }, celebs = [], sparks = [];
+  // the plinth the carried bone belongs to and the open floor cell beside it to stand on, or null
+  function carryTarget(S) {
+    if (S.mode !== 'surface' || !S.carry || !S.carry.length) return null;
+    var it = S.carry[0], k = it.world * 3 + Math.floor(it.idx / 5), b = plinthBlock(k);
+    if (!b || !S.unlocked[it.world]) return null;
+    var cand = [[b.x0, b.z1], [b.x1 - 1, b.z1], [b.x0, b.z0 - 1], [b.x1 - 1, b.z0 - 1], [b.x0 - 1, b.z0], [b.x1, b.z0]], cell = null;
+    for (var i = 0; i < cand.length && !cell; i++) if (D.hubWalkable(cand[i][0], cand[i][1])) cell = [cand[i][0] + 0.5, cand[i][1] + 0.5];
+    if (!cell) return null;
+    var missing = (S.museum[it.world].pieces[it.idx] | 0) === 0;
+    return { k: k, b: b, cell: cell, piece: missing ? it.idx % 5 : -1 };
+  }
+  function deskCell() {
+    for (var z = HZ0; z < HZ1; z++) for (var x = HX0; x < HX1; x++) if (D.hubCell(x, z) === 'M') return [x + 0.5, z + 0.5];
+    return null;
+  }
+  function ringAt(cx, cz, rad, a, pulse) {
+    var q = P(cx, 1, cz);
+    ctx.save(); // plain blending with a dark edge, so it reads on the pale museum floor too
+    ctx.fillStyle = rgba('#ffc400', (0.3 + 0.15 * pulse) * a); ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rad, hh * rad, 0, 0, 7); ctx.fill();
+    ctx.lineWidth = Math.max(5, TW / 6); ctx.strokeStyle = rgba('#8a5200', 0.7 * a);
+    ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rad, hh * rad, 0, 0, 7); ctx.stroke();
+    ctx.lineWidth = Math.max(3, TW / 11); ctx.strokeStyle = rgba('#ffe45c', (0.8 + 0.2 * pulse) * a);
+    ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rad, hh * rad, 0, 0, 7); ctx.stroke();
+    for (var r = 0; r < 2; r++) { // rings spreading outwards
+      var ph = (time * 0.8 + r * 0.5) % 1, rr = rad * (0.6 + 0.9 * ph);
+      ctx.lineWidth = Math.max(2, TW / 16); ctx.strokeStyle = rgba('#ffb300', 0.8 * (1 - ph) * a);
+      ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * rr, hh * rr, 0, 0, 7); ctx.stroke();
+    }
+    ctx.restore();
+    glow(q[0], q[1], TW * 1.3 * rad, GOLD, (0.25 + 0.15 * pulse) * a);
+    light(q[0], q[1] - TW * 0.2, TW * 2.2, (0.3 + 0.15 * pulse) * a, '#ffd96a');
+  }
+  function sparkle(x, y, r, a, col) {
+    ctx.save(); ctx.fillStyle = rgba(col, a); ctx.strokeStyle = rgba('#8a5200', a * 0.8); ctx.lineWidth = Math.max(1.5, r * 0.3); ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.3, y - r * 0.3); ctx.lineTo(x + r, y); ctx.lineTo(x + r * 0.3, y + r * 0.3);
+    ctx.lineTo(x, y + r); ctx.lineTo(x - r * 0.3, y + r * 0.3); ctx.lineTo(x - r, y); ctx.lineTo(x - r * 0.3, y - r * 0.3); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
+    glow(x, y, r * 2.2, col, a * 0.5);
+  }
+  // the floor effects, drawn under the props: the ring, the trail of sparkles to it, the glowing door and desk
+  function handInFloor(S) {
+    var T0 = carryTarget(S); if (!T0) return;
+    var pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    ringAt(T0.cell[0], T0.cell[1], 1.0, 1, pulse);
+    var dq = P(HUB_DOOR[0] + 0.5, 1, HUB_DOOR[1] + 0.5), desk = deskCell();
+    glow(dq[0], dq[1], TW * 1.0, GOLD, 0.12 + 0.1 * pulse);
+    if (desk) { var kq = P(desk[0], 1, desk[1]); glow(kq[0], kq[1], TW * 1.0, GOLD, 0.15 + 0.1 * pulse); }
+    if (time - trail.t > 1 || !trail.pts.length) {
+      trail.t = time; trail.pts = [];
+      var path = D.hubPath(S.hub.x, S.hub.z, T0.cell[0], T0.cell[1]) || [], px = S.hub.x, pz = S.hub.z, acc = 0, run = 0;
+      for (var i = 0; i < path.length; i++) {
+        var sx = path[i][0] - px, sz = path[i][1] - pz, seg = Math.hypot(sx, sz), at = 0;
+        while (acc + (seg - at) >= 0.7) { at += 0.7 - acc; acc = 0; run += 0.7; trail.pts.push([px + sx * at / seg, pz + sz * at / seg, run]); }
+        acc += seg - at; px = path[i][0]; pz = path[i][1];
+      }
+    }
+    var n = trail.pts.length;
+    for (var j = 0; j < n; j++) {
+      var p = trail.pts[j]; if (p[2] < 1.0 || p[2] > 12) continue;
+      var fade = Math.min(1, (p[2] - 1.0) / 1.2) * Math.min(1, (n - j) / 2 + 0.4) * Math.max(0, 1 - (time - trail.t) * 0.55);
+      var wave = 0.5 + 0.5 * Math.sin(time * 6 - p[2] * 1.6), tq = P(p[0], 1, p[1]);
+      sparkle(tq[0], tq[1], TW * (0.12 + 0.08 * wave), fade * (0.5 + 0.5 * wave), '#fff0a0');
+    }
+  }
+  function handInTop(S) { // the arrow over the ring, on top of everything
+    var T0 = carryTarget(S); if (!T0) return;
+    var q = P(T0.cell[0], 1, T0.cell[1]), bob = Math.abs(Math.sin(time * 4)) * TW * 0.25, y = q[1] - TW * 1.45 + bob, a = TW * 0.3;
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineWidth = Math.max(3, TW / 12); ctx.strokeStyle = '#7a4a00'; ctx.fillStyle = GOLD;
+    ctx.beginPath(); ctx.moveTo(q[0] - a * 0.45, y - a * 1.1); ctx.lineTo(q[0] + a * 0.45, y - a * 1.1); ctx.lineTo(q[0] + a * 0.45, y - a * 0.3);
+    ctx.lineTo(q[0] + a, y - a * 0.3); ctx.lineTo(q[0], y + a * 0.7); ctx.lineTo(q[0] - a, y - a * 0.3); ctx.lineTo(q[0] - a * 0.45, y - a * 0.3); ctx.closePath();
+    ctx.stroke(); ctx.fill(); ctx.restore();
+    tagText(q[0], y - a * 1.5, '🦴 Bring it here!', Math.max(12, TW * 0.26), '#fff2a8', 'rgba(90,58,0,0.85)');
+  }
+  // a short celebration at the plinth (or the desk when world < 0) once a bone is handed in
+  function celebrate(world, creature) {
+    var x, z, k = -1;
+    if (world >= 0 && creature >= 0) { var b = plinthBlock(world * 3 + creature); if (b) { k = world * 3 + creature; x = (b.x0 + b.x1) / 2; z = (b.z0 + b.z1) / 2; } }
+    if (k < 0) { var d = deskCell(); if (!d) return; x = d[0]; z = d[1]; }
+    celebs.push({ k: k, x: x, z: z, t: 0 });
+    for (var i = 0; i < 46; i++) {
+      var a = Math.random() * 6.283, v = 1 + Math.random() * 2.6;
+      sparks.push({ x: x, y: k < 0 ? 0.8 : 0.1, z: z, vx: Math.cos(a) * v, vz: Math.sin(a) * v, vy: -1.5 - Math.random() * 3, life: 0.9 + Math.random() * 0.8, age: 0, s: 0.09 + Math.random() * 0.1, c: ['#fff2a8', '#ffd23f', '#ffffff', '#ffb347'][i & 3] });
+    }
+  }
+  function celebUpdate(dt) {
+    for (var i = celebs.length - 1; i >= 0; i--) { celebs[i].t += dt; if (celebs[i].t > 1.6) celebs.splice(i, 1); }
+    for (var j = sparks.length - 1; j >= 0; j--) {
+      var p = sparks[j]; p.age += dt; p.x += p.vx * dt; p.z += p.vz * dt; p.y += p.vy * dt; p.vy += 5 * dt; p.vx *= 0.97; p.vz *= 0.97;
+      if (p.age > p.life) sparks.splice(j, 1);
+    }
+  }
+  function celebTop() { // sparkle burst and expanding ring, over the scene
+    celebs.forEach(function (c) {
+      var q = P(c.x, 1, c.z), f = c.t / 1.6;
+      ctx.save(); ctx.lineWidth = Math.max(4, TW / 8); ctx.strokeStyle = rgba('#ffc400', 0.9 * (1 - f));
+      ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * (0.6 + 2.2 * f), hh * (0.6 + 2.2 * f), 0, 0, 7); ctx.stroke(); ctx.restore();
+      glow(q[0], q[1] - TW * 0.5, TW * (1 + 2 * f), '#fff2a8', 0.7 * (1 - f));
+      light(q[0], q[1] - TW * 0.5, TW * 3, 0.9 * (1 - f), '#ffe9a0');
+    });
+    sparks.forEach(function (p) {
+      var q = P(p.x, Math.min(1, p.y + 0.5), p.z), f = 1 - p.age / p.life;
+      sparkle(q[0], q[1] - (p.y < 0.5 ? 0 : 0), TW * p.s * (0.6 + f), f, p.c);
+    });
+  }
   // a stone disc on each station pad; the miner standing on it lights it up
   function pad(x, z, c, S) {
     var q = P(x + 0.5, 1, z + 0.5), on = S.mode === 'surface' && Math.floor(S.hub.x) === x && Math.floor(S.hub.z) === z;
     var pulse = 0.5 + 0.5 * Math.sin(time * 4);
+    if (c === 'M' && carryTarget(S)) { ringAt(x + 0.5, z + 0.5, 0.8, 0.6, pulse); }
     ctx.save(); ctx.lineWidth = Math.max(2, TW / 16);
     ctx.strokeStyle = on ? '#ffffff' : 'rgba(255,210,63,' + (0.55 + 0.45 * pulse) + ')';
     ctx.fillStyle = on ? 'rgba(255,210,63,0.45)' : 'rgba(255,210,63,0.16)';
@@ -626,6 +890,7 @@ var DTWRender = (function () {
   }
   function update(dt, S) {
     time += dt; shakeT = Math.max(0, shakeT - dt);
+    celebUpdate(dt);
     stepPeople(dt, S);
     var r = S.run, tg = targets(S);
     if (disp.world !== S.world) { disp.world = S.world; disp.x = tg[0]; disp.y = tg[1]; disp.z = tg[2]; cam.init = false; }
@@ -646,10 +911,10 @@ var DTWRender = (function () {
     }
     var k = Math.min(1, dt * 12), moved = Math.hypot(mx, mz) * k;
     disp.x += mx * k; disp.z += mz * k;
-    // walk cycle: two steps per cell, easing out when the miner stops
+    // walk cycle: counted in cells walked so the steps match the ground covered
     var spd = dt > 0 ? moved / dt : 0;
     disp.spd += (spd - disp.spd) * Math.min(1, dt * 10);
-    disp.walk += moved * 2;
+    disp.walk += moved * CYC_PER_CELL;
     // falling, and a squash on landing
     var air = S.mode !== 'up' && S.mode !== 'down' && (tg[1] - disp.y > 0.25 || (r && r.state === 'fall'));
     if (disp.air > 0.5 && !air) disp.land = 1;
@@ -678,7 +943,8 @@ var DTWRender = (function () {
       var p = parts[i]; p.life -= dt; if (p.life <= 0) { parts.splice(i, 1); continue; }
       p.vy += grav * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     }
-    for (var f = floaters.length - 1; f >= 0; f--) { var fl = floaters[f]; fl.life -= dt; fl.age = (fl.age || 0) + dt; fl.y -= dt * (fl.icon ? 0.45 : 0.8); if (fl.life <= 0) floaters.splice(f, 1); }
+    for (var f = floaters.length - 1; f >= 0; f--) { var fl = floaters[f]; fl.life -= dt; fl.y -= dt * 0.8; if (fl.life <= 0) floaters.splice(f, 1); }
+    updateFinds(dt, S);
   }
 
   // ---------- the scene ----------
@@ -755,7 +1021,7 @@ var DTWRender = (function () {
           var side = texKey(tt, pit ? g.v[i] : 0, y);
           if (!pit && y > 1) side = 'dirt' + layerOf(y);
           var hc = y === 1 && !pit ? D.hubCell(x, z) : '';
-          var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : side;
+          var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : tt === T.CHEST ? 'chestTop' : side;
           spr = cube(w, top, side === 'grass' ? 'dirt0' : side);
           var gh = pit && y === viewTop && S.mode !== 'surface' && ghost[x + ',' + z];
           if (gh) ctx.globalAlpha = 0.32;
@@ -775,6 +1041,7 @@ var DTWRender = (function () {
       }
       if (last && y === 1) { // things standing on the surface: scenery and (at the surface) the miner
         var items = [];
+        if (surfaceView) handInFloor(S);
         if (P(xlo, 0, zlo)[1] < vh && P(xhi, 1, zhi)[1] > -TW * 3) hubProps(S, items, surfaceView);
         if (surfaceView) hubPeople(S, items);
         if (viewTop === 0 && !minerDrawn) items.push(feet(disp.x + 0.5, disp.z + 0.5, drawMinerNow));
@@ -787,8 +1054,10 @@ var DTWRender = (function () {
     if (split) { drawMinerNow(); drawCrew(-Infinity, sMid); layer(minerLayer, sMid + 1, sEnd, true, 'front'); }
     else drawCrew(-Infinity, Infinity);
     drawMinerNow();
-    // moon loot, particles and floating text on top
-    if (r && r.loot) r.loot.forEach(function (l) { var q = P(l.x, l.y, l.z), sz = TW * 0.34; ctx.imageSmoothingEnabled = false; ctx.drawImage(itemIcon(l.item), Math.round(q[0] - sz / 2), Math.round(q[1] - sz / 2), sz, sz); });
+    // finds, particles and floating text on top
+    if (r) drawReach(r, S);
+    if (r && r.loot) drawLoot(r, S);
+    drawFinds();
     for (var k = 0; k < parts.length; k++) { var p = parts[k], pq = P(p.x, p.y, p.z); ctx.fillStyle = p.c; ctx.fillRect(pq[0], pq[1], p.s * TW, p.s * TW); }
     // headlamp: darkness grows with depth, with a pool of light around the miner
     if (lastMiner && post) lamp(S, viewTop);
@@ -813,25 +1082,13 @@ var DTWRender = (function () {
       for (var b = 0; b < 12; b++) { var bx2 = ((b * 0.61) % 1) * vw, by2 = vh - ((time * (14 + b * 2) * TW / 32 + b * 71) % (vh + 20)); ctx.fillStyle = '#9dff8a66'; ctx.fillRect(bx2, by2, TW * 0.06, TW * 0.06); }
     }
     motes(id, viewTop);
-    if (surfaceView) hubLabels(S);
-    for (var fi = 0; fi < floaters.length; fi++) {
-      var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z);
+    if (surfaceView) { hubLabels(S); handInTop(S); celebTop(); }
+    for (var fi = 0; fi < floaters.length; fi++) { // short notes (O2 full, hearts) on the overlay
+      var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z), fs = Math.max(16, Math.round(TW * 0.4));
       octx.globalAlpha = Math.min(1, fl.life * 2);
-      var pop = fl.icon ? 1 + (fl.big ? 0.5 : 0.25) * Math.max(0, Math.sin(Math.min(1, (fl.age || 0) / 0.5) * Math.PI)) : 1; // short bounce
-      var fs = Math.max(fl.icon ? 22 : 16, Math.round(TW * (fl.icon ? (fl.big ? 0.62 : 0.52) : 0.4) * pop));
       octx.font = '700 ' + fs + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.lineJoin = 'round';
-      var tx = fq[0], ty = fq[1];
-      if (fl.icon) { // big icon above the text, both centred on the spot and kept on screen
-        var isz = Math.max(72, Math.round(TW * (fl.big ? 1.9 : 1.4) * pop / 12) * 12);
-        isz = Math.min(isz, Math.floor(Math.min(vw, vh) * 0.4 / 12) * 12 || 12);
-        tx = Math.max(vw * 0.2, Math.min(vw * 0.8, tx)); ty = Math.max(isz + fs + 20, Math.min(vh - 20, ty));
-        var ix = Math.round(tx - isz / 2), iy = Math.round(ty - fs - isz - 4);
-        octx.imageSmoothingEnabled = false;
-        octx.fillStyle = '#000a'; roundRect(octx, ix - 6, iy - 6, isz + 12, isz + 12, 10); octx.fill();
-        octx.drawImage(fl.icon, ix, iy, isz, isz);
-      }
-      octx.lineWidth = Math.max(4, fs * 0.22); octx.strokeStyle = '#000'; octx.strokeText(fl.text, tx, ty);
-      octx.fillStyle = fl.c; octx.fillText(fl.text, tx, ty); octx.globalAlpha = 1;
+      octx.lineWidth = Math.max(4, fs * 0.22); octx.strokeStyle = '#000'; octx.strokeText(fl.text, fq[0], fq[1]);
+      octx.fillStyle = fl.c; octx.fillText(fl.text, fq[0], fq[1]); octx.globalAlpha = 1;
     }
     if (post) composite(S, w, viewTop, surfaceView);
   }
@@ -850,6 +1107,10 @@ var DTWRender = (function () {
     });
     var dq = P(HUB_DOOR[0], -1.2, HUB_DOOR[1] + 1);
     tagText(dq[0], dq[1], '🏛️ MUSEUM', sz * 1.25, '#ffe9a8', 'rgba(90,58,36,0.85)');
+    D.WINGS.forEach(function (wg) { // each wing's name hangs over the arch into it
+      var wq = P(wg.sign[0], -1.1, wg.sign[1]);
+      tagText(wq[0], wq[1], wg.icon + ' ' + wg.name, sz * 0.95, '#ffe9a8', 'rgba(90,58,36,0.85)');
+    });
     if (S.mode !== 'surface') return;
     // creature names in front of each plinth of an open wing (a ? until its first bone is found)
     var nearK = S.mode === 'surface' && D.hubNearExhibit(S);
@@ -1022,7 +1283,11 @@ var DTWRender = (function () {
       if (tt === T.ORE) { var oc = D.WORLDS[w].ores[g.v[i]].color, k = 0.25 + 0.2 * g.v[i]; glow(cq[0], cq[1], TW * (0.4 + 0.1 * g.v[i]), oc, k * (0.8 + 0.2 * Math.sin(time * 2 + x + z))); if (g.v[i] >= 2) light(cq[0], cq[1], TW * 1.5, 0.35, oc); }
       else if (tt === T.GOO) { glow(cq[0], cq[1], TW * 0.45, '#5dff7a', 0.16); light(cq[0], cq[1], TW * 1.3, 0.12, '#5dff7a'); }
       else if (tt === T.RELIC) { glow(cq[0], cq[1], TW * 1.2, D.WORLDS[w].relic.color, 0.8); light(cq[0], cq[1], TW * 3, 0.9, D.WORLDS[w].relic.color); }
-      else if (tt === T.CHEST || tt === T.FOSSIL) glow(cq[0], cq[1], TW * 0.35, '#ffe9a8', 0.3);
+      else if (tt === T.FOSSIL) glow(cq[0], cq[1], TW * 0.35, '#ffe9a8', 0.3);
+      else if (tt === T.CHEST) { // chests shine gold and twinkle
+        var tw = 0.5 + 0.5 * Math.sin(time * 3 + x * 2 + z); glow(cq[0], cq[1], TW * 0.85, '#ffd23f', 0.35 + 0.25 * tw); light(cq[0], cq[1], TW * 2.2, 0.35, '#ffd23f');
+        if (tw > 0.7) cross(cq[0] + Math.sin(time * 1.3 + z) * hw * 0.5, cq[1] - hh * 0.7, Math.max(1, TW * 0.035), '#fff8d0', (tw - 0.7) * 3);
+      }
     }
     if (tt === T.RELIC && !S.relics[w]) { ctx.globalAlpha = 0.15 + 0.15 * Math.sin(time * 3); ctx.fillStyle = '#ffd23f'; hexPath(ctx, q[0] - hw, q[1]); ctx.fill(); ctx.globalAlpha = 1; }
     if (!isTarget) return;
@@ -1041,8 +1306,8 @@ var DTWRender = (function () {
   function spawnBreak(x, y, z, color, n) {
     for (var i = 0; i < n; i++) parts.push({ x: x + 0.5, y: y + 0.4, z: z + 0.5, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 4, vz: (Math.random() - 0.5) * 3, life: 0.5 + Math.random() * 0.4, c: color, s: 0.05 + Math.random() * 0.05 });
   }
-  // floating text, with the find's pixel icon in front of it when an item is given
-  function floatText(x, y, z, text, color, it) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: it ? 2.6 : 1.3, age: 0, big: !!(it && it.kind === 'fossil'), icon: it ? itemIcon(it) : null }); }
+  // short floating text over a spot (finds use spawnFind instead)
+  function floatText(x, y, z, text, color) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: 1.3 }); }
   function itemIcon(it) { return DTWSprites.item(it.kind, it.idx || 0, itemColor(it), D.WORLDS[it.world].id === 'moon'); }
   // swipe on screen -> compass direction. In this projection +x runs down-right and +z down-left.
   function screenDir(dx, dy) {
@@ -1065,7 +1330,8 @@ var DTWRender = (function () {
     get hd() { return post; },
     resize: resize, update: update, draw: draw,
     setView: function (v) { view = v; },
-    spawnBreak: spawnBreak, floatText: floatText, shake: function (t) { shakeT = Math.max(shakeT, t); },
+    celebrate: celebrate,
+    spawnBreak: spawnBreak, floatText: floatText, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
     // the point on the ground (y = 1) under a pointer, in plaza cells
     groundAt: function (cx, cy) {

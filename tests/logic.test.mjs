@@ -258,19 +258,95 @@ test('a block breaks quickly, and tapping makes it quicker', () => {
   assert.ok(hp / perSec < 1, `a dirt block halfway down takes ${(hp / perSec).toFixed(2)} s with modest upgrades`);
 });
 
-test('the magnet pulls ore from the same layer within a square radius', () => {
-  const s = digAt(0, 3, 10, 3, { magnet: 1 });
-  D._clearLayer(s, 11);
-  D._setTile(s, 3, 12, 3, T.BEDROCK);
-  D._setTile(s, 4, 11, 4, T.ORE, 0); D._setTile(s, 2, 11, 2, T.ORE, 1); D._setTile(s, 5, 11, 3, T.ORE, 2);
-  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) D._setTile(s, x, 12, z, T.BEDROCK);
-  const before = s.run.bag.length;
-  for (let i = 0; i < 100 && s.run.y < 11; i++) D.step(s, 0.05);
-  assert.equal(s.run.y, 11, 'fell into the open layer below');
-  assert.equal(at(s.run.grid, 4, 11, 4), T.AIR, 'diagonal ore pulled');
-  assert.equal(at(s.run.grid, 2, 11, 2), T.AIR, 'other diagonal ore pulled');
-  assert.equal(at(s.run.grid, 5, 11, 3), T.ORE, 'ore two blocks away stays');
-  assert.equal(s.run.bag.length, before + 2);
+// layer 10 with the miner at (3, 10, 3), one far dirt block so the layer stays open, and an ore at (4, 10, 3) to dig
+function oreSetup(up = {}, w = 0) {
+  const s = digAt(w, 3, 10, 3, Object.assign({ drill: 16 }, up));
+  D._setTile(s, 0, 10, 0, T.DIRT);
+  D._setTile(s, 4, 10, 3, T.ORE, 0);
+  D.setAuto(s, false);
+  return s;
+}
+const digEast = s => { D.steer(s, 'e'); for (let i = 0; i < 200 && at(s.run.grid, 4, 10, 3) === T.ORE; i++) { D.tap(s); D.step(s, 0.05); } };
+
+test('a find drops on the floor where its block was and stays out of reach', () => {
+  const s = oreSetup();
+  digEast(s);
+  assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
+  assert.equal(s.run.bag.length, 0, 'not in the bag yet');
+  assert.equal(s.run.loot.length, 1);
+  const l = s.run.loot[0];
+  assert.equal(Math.floor(l.x), 4); assert.equal(Math.floor(l.z), 3); assert.equal(l.item.kind, 'ore');
+  run(s, 1);
+  assert.equal(s.run.loot.length, 1, 'a cell away is out of the base reach');
+  assert.equal(s.run.bag.length, 0);
+});
+
+test('going home sweeps up loot left on the floor, and a save keeps it in the bag', () => {
+  const s = oreSetup();
+  digEast(s);
+  assert.equal(JSON.parse(D.serialize(s)).bag.length, 1, 'saved with the bag');
+  D.goHome(s);
+  assert.equal(s.run.loot.length, 0); assert.equal(s.run.bag.length, 1);
+  run(s, 6);
+  assert.ok(s.coins > 0, 'and it was sold');
+});
+
+test('walking onto loot picks it up', () => {
+  const s = oreSetup();
+  digEast(s);
+  D.steer(s, 'e'); run(s, 1);
+  assert.equal(s.run.x, 4);
+  assert.equal(s.run.loot.length, 0);
+  assert.equal(s.run.bag.length, 1);
+  assert.ok(s.events.some(e => e.type === 'collect' && e.at), 'the pick-up says where the loot was');
+});
+
+test('a better magnet pulls loot in from further away', () => {
+  const left = m => {
+    const s = oreSetup({ magnet: m });
+    digEast(s); s.events = [];
+    D._teleport(s, 1, 10, 3); // three cells west of the loot
+    run(s, 2);
+    return s.run.loot.length;
+  };
+  assert.equal(D.pickupReach(0), 0.75); assert.equal(D.pickupReach(3), 3.75);
+  assert.equal(left(0), 1); assert.equal(left(1), 1); assert.equal(left(2), 1);
+  assert.equal(left(3), 0, 'magnet 3 reaches the loot three cells away (3.75)');
+  const s = oreSetup({ magnet: 1 }); digEast(s);
+  run(s, 1);
+  assert.equal(s.run.loot.length, 0, 'magnet 1 pulls in the find from the next cell');
+  assert.equal(s.run.bag.length, 1); assert.equal(s.run.x, 3, 'without the miner moving');
+});
+
+test('auto-mining collects the loot before it goes for the next block', () => {
+  const s = oreSetup(); D.setAuto(s, true);
+  for (let i = 0; i < 4000 && s.run.bag.length === 0; i++) D.step(s, 0.05);
+  assert.equal(s.run.bag.length, 1, 'ore collected');
+  assert.equal(at(s.run.grid, 0, 10, 0), T.DIRT, 'before the far block was touched');
+});
+
+test('a cleared layer is swept for loot before the miner goes down', () => {
+  const s = digAt(0, 3, 10, 3, { drill: 16 });
+  D._setTile(s, 4, 10, 3, T.ORE, 0); D.setAuto(s, false);
+  digEast(s);
+  assert.equal(s.run.loot.length, 1);
+  assert.equal(s.run.y, 10);
+  for (let i = 0; i < 400 && s.run.bag.length === 0; i++) D.step(s, 0.05);
+  assert.equal(s.run.bag.length, 1, 'picked up even with auto-mining off');
+  assert.equal(s.run.y, 10, 'still in the cleared layer');
+});
+
+test('a bone is only picked up with free hands; otherwise it stays on the floor', () => {
+  const s = oreSetup();
+  D._setTile(s, 4, 10, 3, T.AIR);
+  s.carry = [{ kind: 'fossil', world: 0, idx: 4 }];
+  s.run.loot.push({ x: 4.5, y: 10.75, z: 3.5, vx: 0, vy: 0, vz: 0, layer: 10, rest: true, age: 5, delay: 0.3, item: { kind: 'fossil', world: 0, idx: 0 } });
+  D.steer(s, 'e'); run(s, 1);
+  assert.equal(s.run.x, 4);
+  assert.equal(s.run.loot.length, 1, 'new bone stays with hands full');
+  s.carry = []; run(s, 0.5);
+  assert.equal(s.run.loot.length, 0);
+  assert.equal(s.carry.length, 1);
 });
 
 test('a full bag slows digging but never stops it', () => {
@@ -372,12 +448,11 @@ test('alien: goo you leave half-dug heals back', () => {
   assert.ok(s.run.grid.hp[i] > hit, 'goo regrew');
 });
 
-test('moon: ore pops out as loot that bounces in 3D and is collected afterwards', () => {
-  const s = digAt(3, 3, 10, 3, { drill: 16 });
-  D._clearLayer(s, 11); D._setTile(s, 3, 11, 3, T.ORE, 0);
-  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) D._setTile(s, x, 12, z, T.BEDROCK);
-  for (let i = 0; i < 4000 && s.run.loot.length === 0 && s.run.bag.length === 0; i++) { D.tap(s); D.step(s, 0.05); }
+test('moon: ore pops out as loot that bounces in 3D, settles and waits to be picked up', () => {
+  const s = oreSetup({}, 3);
+  digEast(s);
   assert.equal(s.run.loot.length, 1, 'loot is floating');
+  assert.ok(!s.run.loot[0].rest, 'still bouncing');
   const l = s.run.loot[0];
   for (const k of ['x', 'y', 'z', 'vx', 'vy', 'vz']) assert.equal(typeof l[k], 'number', k);
   let moved = false;
@@ -386,9 +461,10 @@ test('moon: ore pops out as loot that bounces in 3D and is collected afterwards'
     if (s.run.loot.length && (s.run.loot[0].z !== z0 || s.run.loot[0].x !== x0)) moved = true;
   }
   assert.ok(moved, 'loot moves sideways');
-  run(s, 8);
-  assert.equal(s.run.loot.length, 0);
-  assert.ok(s.run.bag.some(b => b.kind === 'ore'));
+  run(s, 12);
+  assert.equal(s.run.loot.length, 1, 'no drifting to the miner and no auto-collect');
+  assert.equal(s.run.bag.length, 0);
+  assert.ok(s.run.loot[0].rest, 'settled on the floor');
 });
 
 test('upgrades cost more each level and cannot be bought without coins', () => {
@@ -468,9 +544,21 @@ function botSteer(s) {
     if (!diggable(at(g, x, r.y, z))) continue;
     const d = Math.abs(x - r.x) + Math.abs(z - r.z); if (d < bd) { bd = d; best = [x, z]; }
   }
+  for (const l of r.loot) { // walk onto finds lying in this layer first (a new bone waits while the hands are full)
+    if (l.layer !== r.y || (l.item.kind === 'fossil' && s.carry.length)) continue;
+    const x = Math.floor(l.x), z = Math.floor(l.z), d = Math.abs(x - r.x) + Math.abs(z - r.z);
+    if (d > 0 && d - 0.5 < bd) { bd = d - 0.5; best = [x, z]; }
+  }
   if (!best) return;
   const dx = best[0] - r.x, dz = best[1] - r.z;
   D.steer(s, Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? 'e' : 'w') : (dz > 0 ? 's' : 'n'));
+}
+// the bot hands its bone in at the museum desk (walking there is the plaza's job, tested in hub.test.mjs)
+function handIn(s) {
+  if (!s.carry.length) return;
+  const H = D.HUB, row = H.rows.findIndex(r => r.includes('M'));
+  s.hub.x = H.rows[row].indexOf('M') + H.x0 + 0.5; s.hub.z = row + H.z0 + 0.5; D.step(s, 0.05);
+  s.hub = { x: -0.5, z: D.LADDER_Z + 0.5, input: null, path: null };
 }
 function botPlay(s, w, stats) {
   const dt = 0.1; let t = 0, acc = 0, lastHome = 0;
@@ -481,9 +569,10 @@ function botPlay(s, w, stats) {
       botSteer(s);
       if (s.run.bag.length >= D.bagCap(s)) { D.goHome(s); stats.fullBag++; }
       else if (t - lastHome > 150) D.goHome(s);
+      else if (s.events.some(e => e.type === 'boneFull')) D.goHome(s); // blocked by a bone in hand: take it to the museum
     }
-    D.step(s, dt); t += dt;
-    if (s.mode === 'surface' && !s.relics[w]) { lastHome = t; shop(s); D.startDig(s, w); }
+    s.events = []; D.step(s, dt); t += dt;
+    if (s.mode === 'surface' && !s.relics[w]) { lastHome = t; handIn(s); shop(s); D.startDig(s, w); }
   }
   return t;
 }
@@ -532,21 +621,23 @@ test('every world has treasure chests, and a chest can hold a missing fossil pie
   for (let k = 0; k < 40; k++) {
     const s = digAt(0, 3, 10, 3); s.rng = k * 977;
     D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 20);
-    const got = s.run.bag.filter(b => b.kind === 'fossil' && b.chest).length; fossils += got; if (!got) coins++;
+    const got = s.run.bag.concat(s.carry).filter(b => b.kind === 'fossil' && b.chest).length; fossils += got; if (!got) coins++;
   }
   assert.ok(fossils > 5 && coins > 5, `${fossils} fossil chests, ${coins} coin chests`);
 });
 
 test('hired helpers dig blocks of their own into the bag, away from the miner', () => {
   const s = digAt(0, 0, 20, 0); s.workers.diggers = 2; D.setAuto(s, false);
-  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(s, x, 20, z, T.DIRT);
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(s, x, 20, z, (x + z) % 2 ? T.ORE : T.DIRT, 0);
   s.events = [];
   run(s, 15);
   assert.equal(s.run.x, 0, 'the miner stayed put with auto-mining off'); assert.equal(s.run.z, 0);
   const b = breaks(s);
   assert.ok(b.length >= 4, `helpers broke ${b.length} blocks`);
   assert.ok(b.every(e => e.y === 20));
-  assert.ok(s.run.bag.length + s.run.loot.length >= 0);
+  assert.equal(s.run.bag.length, 0, 'nothing reached the bag from across the pit');
+  assert.ok(s.run.loot.length >= 1, 'finds lie where the helpers broke their blocks');
+  for (const l of s.run.loot) assert.ok(b.some(e => e.x === Math.floor(l.x) && e.z === Math.floor(l.z)), 'loot sits at its block');
   for (const c of s.run.crew) if (c.target >= 0) {
     const x = c.target % D.N, z = Math.floor(c.target / D.N) % D.N;
     assert.ok(Math.max(x, z) >= 2, 'helpers work at least two cells from the miner while they can');
@@ -613,4 +704,20 @@ test('a new dig turns up a fossil in layer 1 and a chest in layer 2, and a find 
     assert.ok(chest2, `world ${w} seed ${seed}: chest in layer 2`);
     assert.ok(finds.reduce((a, b) => a + b, 0) >= 8, `world ${w} seed ${seed}: ${finds}`);
   }
+});
+
+test('a new bone is carried on its own; while it is carried fossil blocks stay in the ground', () => {
+  const s = digAt(0, 3, 20, 3); D.setAuto(s, false);
+  D._setTile(s, 4, 20, 3, T.FOSSIL, 2); D._setTile(s, 2, 20, 3, T.FOSSIL, 3);
+  D.steer(s, 'e'); run(s, 15);
+  assert.equal(s.carry.length, 0, 'the bone lies on the floor first');
+  D.steer(s, 'e'); run(s, 2);
+  assert.equal(s.carry.length, 1, 'the first bone is in hand');
+  assert.equal(s.run.bag.length, 0, 'not in the bag');
+  s.events = []; D.steer(s, 'w'); run(s, 1); D.steer(s, 'w'); run(s, 15);
+  assert.equal(at(s.run.grid, 2, 20, 3), T.FOSSIL, 'the second stays in the ground');
+  assert.ok(s.events.some(e => e.type === 'boneFull'), 'the player is told to hand the bone in');
+  D.setAuto(s, true); run(s, 10);
+  assert.equal(at(s.run.grid, 2, 20, 3), T.FOSSIL, 'auto-mining leaves it too');
+  assert.equal(s.run.y, 20, 'the layer is not finished while a fossil is left');
 });
