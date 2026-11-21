@@ -165,7 +165,7 @@ var DTWSprites = (function () {
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
 
   // ---------- drawing into a small canvas ----------
-  var W = 60, H = 74, FX = 30, FY = 64; // canvas size and the feet point (room below the feet for a pick struck down)
+  var W = 72, H = 80, FX = 36, FY = 66; // canvas size and the feet point (room below the feet for a pick struck down)
   function canvas(w, h) { var c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   var cv = canvas(W, H), cx = cv.getContext('2d');
   function stamp(c, rows, P, x0, y0) {
@@ -200,47 +200,84 @@ var DTWSprites = (function () {
     { head: '#ffcf3f', hi: '#fff3b0', handle: '#6b3f1d' },
     { head: '#6ff0ff', hi: '#e8ffff', handle: '#b45cff' }
   ];
-  // the swing, held in both hands: the handle turns about a point at the chest (X + 11, Y + 3) and points along ang
-  // (0 is forward, negative turns up). The far hand grips low on the handle, the near hand higher up; each arm runs
-  // from its own shoulder to its hand, so the arms stay on the body through the whole swing.
-  function pick(c, X, Y, ang, tier, P, t) {
-    var C = PICK[tier], ca = Math.cos(ang), sa = Math.sin(ang), vx = X + 11, vy = Y + 4;
-    var lx = vx + ca * 4, ly = vy + sa * 4, ux = vx + ca * 7, uy = vy + sa * 7, ex = vx + ca * 21, ey = vy + sa * 21;
-    line(c, X + 7, Y + 3, lx, ly, P.q, 2);                                            // far arm
-    line(c, lx - ca * 3, ly - sa * 3, ex, ey, C.handle, 2);
-    var nx = -sa, ny = ca;                                                            // head across the handle end
-    line(c, ex - nx * 6, ey - ny * 6, ex + nx * 7, ey + ny * 7, C.head, 2);
-    line(c, ex + nx * 7, ey + ny * 7, ex + nx * 9 - ca * 2, ey + ny * 9 - sa * 2, C.head, 1);
-    line(c, ex - nx * 6 - ca, ey - ny * 6 - sa, ex + nx * 5 - ca, ey + ny * 5 - sa, C.hi, 1);
-    px(c, lx - 1, ly - 1, P.s, 2, 2);                                                 // far hand on the handle
-    line(c, X + 16, Y + 3, ux, uy, P.r, 3); line(c, X + 16, Y + 3, ux, uy, P.R, 2);  // near arm
-    px(c, ux - 1, uy - 1, P.S, 3, 3); px(c, ux - 1, uy + 1, P.s, 3, 1);             // near fist
-    if (tier === 4 && Math.sin(t * 8) > 0.6) px(c, ex, ey - 3, '#ffffff');
+  // The swing, held in both hands. The hands move together on an arc about the shoulders, at angle sw.arm and
+  // distance sw.reach from (X + 12, Y + 2) (0 points forward, negative turns up); the handle runs from the hands
+  // along sw.ang, so the pick turns about the grip, not the chest. The far hand grips the butt, the near hand
+  // three pixels up; each arm runs from its own shoulder to its fist. Drawn in two parts so the fists can go on
+  // after the head: pickTool (arms behind, handle, head) and pickFists.
+  function grip(X, Y, sw) {
+    var a = sw.arm, r = sw.reach, ca = Math.cos(sw.ang), sa = Math.sin(sw.ang);
+    var gx = X + 12 + Math.cos(a) * r, gy = Y + 2 + Math.sin(a) * r;
+    return { ca: ca, sa: sa, fx: gx - ca * 1.5, fy: gy - sa * 1.5, nx: gx + ca * 1.5, ny: gy + sa * 1.5,
+             bx: gx - ca * 4, by: gy - sa * 4, ex: gx + ca * 15, ey: gy + sa * 15 };
   }
-  // the pickaxe swing over one cycle f in 0..1: a slow lift, a cock back at the top, a fast strike that lands at
-  // f = 0.72 (render.js times the hit and the chips to it), a small follow-through into the block, then the lift again.
-  // side: the block is beside the miner (strike forward) rather than underfoot (strike down).
+  function pickTool(c, X, Y, sw, tier, P, t) {
+    var C = PICK[tier], g = grip(X, Y, sw), ca = g.ca, sa = g.sa, ex = g.ex, ey = g.ey;
+    if (sw.smear) { // a pale arc where the head has just been: one or two frames of the strike
+      var h0 = sw.smear.from, h1 = sw.ang, k;
+      for (k = 0; k < 6; k++) {
+        var aa = h0 + (h1 - h0) * k / 6, ab = h0 + (h1 - h0) * (k + 1) / 6, rr = 15 + 6;
+        line(c, g.nx + Math.cos(aa) * rr, g.ny + Math.sin(aa) * rr, g.nx + Math.cos(ab) * rr, g.ny + Math.sin(ab) * rr, k < 2 ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)', k < 3 ? 1 : 2);
+      }
+    }
+    line(c, X + 8, Y + 3, g.fx, g.fy, P.q, 2);                                        // far arm
+    line(c, g.bx, g.by, ex, ey, C.handle, 2);
+    var nx = -sa, ny = ca;                                                            // head across the handle end, point on the +n side
+    line(c, ex - nx * 5, ey - ny * 5, ex + nx * 6, ey + ny * 6, C.head, 2);
+    line(c, ex + nx * 6, ey + ny * 6, ex + nx * 8 - ca * 2, ey + ny * 8 - sa * 2, C.head, 1);
+    line(c, ex - nx * 5 - ca, ey - ny * 5 - sa, ex + nx * 4 - ca, ey + ny * 4 - sa, C.hi, 1);
+    if (tier === 4 && Math.sin(t * 8) > 0.6) px(c, ex, ey - 3, '#ffffff');
+    line(c, X + 15, Y + 3, g.nx, g.ny, P.r, 3); line(c, X + 15, Y + 3, g.nx, g.ny, P.R, 2); // near arm
+    pickFists(c, X, Y, sw, P);
+  }
+  // over the head the fists go on again only where they are clear of it (raised behind the hat, or out in front)
+  function fistsClearOfHead(X, Y, sw) {
+    var g = grip(X, Y, sw), inside = function (x, y) { return x > X + 2 && x < X + 23 && y > Y - 18 && y < Y + 1; };
+    return !inside(g.fx, g.fy) && !inside(g.nx, g.ny);
+  }
+  function pickFists(c, X, Y, sw, P) {
+    var g = grip(X, Y, sw);
+    px(c, g.fx - 1, g.fy - 1, P.s, 3, 3);                                             // far fist
+    px(c, g.nx - 1, g.ny - 1, P.S, 3, 3); px(c, g.nx - 1, g.ny + 1, P.s, 3, 1);       // near fist
+  }
   function ease(s) { return s * s * (3 - 2 * s); }
+  // The pickaxe swing over one cycle f in 0..1, as key poses after the HD-2D sword swings: the pick comes out of the
+  // block and is lifted (0 to 0.42), held cocked high over the head (0.42 to 0.62), struck down in two quick
+  // frames with a smear (0.62 to 0.72; render.js times the hit and the chips to 0.72), and held low in the block
+  // with the knees bent (0.72 to 1). side: the block is beside the miner (strike forward) rather than underfoot.
+  // Each key: [f, arm angle, reach, handle angle, body drop, lean, stance].
+  var SWING_SIDE = [
+    [0.00, 0.30, 9, 0.10, 1, 1, 2], [0.18, -0.20, 8, -1.20, 0, 0, 1], [0.42, -2.45, 14, -2.30, -1, -1, 2],
+    [0.62, -2.55, 14, -2.75, -1, -1, 2], [0.67, -0.90, 9, -0.95, 0, 0, 2], [0.72, 0.30, 9, 0.12, 2, 1, 3],
+    [0.86, 0.32, 9, 0.18, 2, 1, 3]
+  ];
+  var SWING_DOWN = [
+    [0.00, 0.85, 9, 0.70, 1, 1, 2], [0.18, -0.20, 8, -1.20, 0, 0, 1], [0.42, -2.45, 14, -2.30, -1, -1, 2],
+    [0.62, -2.55, 14, -2.75, -1, -1, 2], [0.67, -0.60, 9, -0.55, 0, 0, 2], [0.72, 0.90, 9, 0.75, 2, 1, 3],
+    [0.86, 0.92, 9, 0.80, 2, 1, 3]
+  ];
   function swing(f, side) {
-    var strike = side ? 0.1 : 0.75, raised = -2.6, cock = raised - 0.25, ang, body = 0;
+    var K = side ? SWING_SIDE : SWING_DOWN, i = 0, n = K.length;
     f = ((f % 1) + 1) % 1;
-    if (f < 0.5 || f >= 0.84) ang = strike + (raised - strike) * ease((f >= 0.84 ? f - 0.84 : f + 0.16) / 0.66);
-    else if (f < 0.6) ang = raised + (cock - raised) * Math.sin((f - 0.5) / 0.1 * Math.PI / 2);
-    else if (f < 0.72) { var s = (f - 0.6) / 0.12; ang = cock + (strike - cock) * s * s; }
-    else { var k = (f - 0.72) / 0.12; ang = strike + 0.18 * Math.sin(k * Math.PI); body = k < 0.6 ? 1 : 0; }
-    return { ang: ang, body: body, lean: f >= 0.42 && f < 0.6 ? -1 : f >= 0.66 && f < 0.84 ? 1 : 0 };
+    while (i < n - 1 && K[i + 1][0] <= f) i++;
+    var a = K[i], b = K[(i + 1) % n], span = (i + 1 < n ? b[0] : 1) - a[0], s = span > 0 ? (f - a[0]) / span : 0;
+    var striking = a[0] === 0.62 || a[0] === 0.67;
+    var e = striking ? s : ease(s), lerp = function (j) { return a[j] + (b[j] - a[j]) * e; };
+    var held = function (j) { return s < 0.5 ? a[j] : b[j]; }; // whole pixels snap at the halfway point
+    return { arm: lerp(1), reach: lerp(2), ang: lerp(3), body: held(4), lean: held(5), stance: held(6),
+             smear: striking ? { from: a[0] === 0.62 ? a[3] : K[3][3] } : null };
   }
   // ---------- the walk cycle ----------
   // One cycle is two steps; cyc runs 0..1 over it. Each foot spends half the cycle planted, sliding back at a steady
   // speed (STEP_X sprite pixels per step, so callers advance cyc by one per 2 * STEP_X pixels of ground covered and
   // the feet do not skate), and half swinging forward, lifted and with the knee bent. The near leg plants at cyc 0,
   // the far leg at cyc 0.5. Arms swing against the legs.
-  var STEP_X = 8, STRIDE = STEP_X / 2;
+  var STEP_X = 10, STRIDE = STEP_X / 2;
   function foot(p, gait) {
     var u = ((p % 1) + 1) % 1, A = STRIDE * gait;
     if (u < 0.5) return { x: A * (1 - 4 * u), lift: 0 };
     var s = (u - 0.5) * 2;
-    return { x: -A + 2 * A * ease(s), lift: Math.round(2 * gait * Math.sin(Math.PI * s)) };
+    return { x: -A + 2 * A * ease(s), lift: Math.round(3 * gait * Math.sin(Math.PI * s)) };
   }
   // the body over one step: contact, down (the torso sinks a pixel), passing, up (the hips rise a pixel)
   function walkPose(cyc, gait) {
@@ -355,20 +392,28 @@ var DTWSprites = (function () {
     // legs: each foot follows the walk cycle (planted, then lifted and swung forward); in the air they spread
     var gait = pose.gait || 0, cyc = pose.cyc || 0, ap = Math.round(pose.air * 2), gy = FY - 2;
     var fN = foot(cyc, gait), fF = foot(cyc + 0.5, gait);
-    var air = pose.air > 0.3, digging = o.ang != null && !air;
+    var air = pose.air > 0.3, sw = o.swing || null, digging = sw != null && !air, st = digging ? sw.stance : 0;
     var behind = back && digging; // facing away, the pick and arms are behind the body
     // arms swing against the legs: the near arm forward while the near foot is back
-    var aN = Math.round(-fN.x * 0.6), aF = Math.round(-fF.x * 0.6);
+    var aN = Math.round(-fN.x * 0.8), aF = Math.round(-fF.x * 0.8);
     if (o.bone && !back) bone(c, X, Y, o.bone, false);                                    // strapped behind the pack
     if (hasPack && !back) packSide(c, X - 6, Y - 6, o.pack);
-    if (behind) pick(c, X, Y, o.ang, o.tier, P, t);
+    if (behind) pickTool(c, X, Y, sw, o.tier, P, t);
     else if (!digging && !air) arm(c, X + 4, Y + 2, aF, P.q, P.k, 2);                      // far arm, behind the body
-    // not digging: the pick rests over the back shoulder, held by the hanging near arm
-    var carry = o.carry && o.ang == null && !air, cg = Math.round(aN / 2); // carrying, the hand on the handle sways a little
-    function shoulderPick() { var C = PICK[o.tier]; line(c, X + 17 + cg, Y + 9, X - 1, Y - 17, C.handle, 2); line(c, X - 5, Y - 13, X + 3, Y - 21, C.head, 2); px(c, X + 3, Y - 22, C.hi); px(c, X - 6, Y - 12, C.hi); }
-    if (carry && !back) shoulderPick();
-    leg(c, P, X0 + 7, legY, gy, Math.round(fF.x) - ap, fF.lift, false);
-    leg(c, P, X0 + 13, legY, gy, Math.round(fN.x) + ap, fN.lift, true);
+    // not digging: facing on, the pick hangs from the near hand by its neck; facing away, it rests on the shoulder
+    var carry = o.carry && !sw && !air, cg = Math.round(aN / 3); // carrying, the hand on the handle sways a little
+    function shoulderPick(front) {
+      var C = PICK[o.tier], hx = X + 19 + cg, hy = Y + 6;
+      if (!front) { line(c, X - 5, Y - 13, X + 3, Y - 21, C.head, 2); px(c, X + 3, Y - 22, C.hi); px(c, X - 6, Y - 12, C.hi); line(c, X + 17 + cg, Y + 9, X - 1, Y - 17, C.handle, 2); return; }
+      // facing on: held by the neck at the hip, the head upright in front of the hand, the handle trailing back
+      // across the legs
+      var gx = X + 19 + cg, gy = Y + 8;
+      line(c, gx, gy, X + 7 + cg, Y + 13, C.handle, 2);
+      line(c, gx + 2, gy - 6, gx + 2, gy + 5, C.head, 2); line(c, gx + 2, gy + 5, gx + 1, gy + 7, C.head, 1);
+      px(c, gx + 2, gy - 6, C.hi, 1, 9);
+    }
+    leg(c, P, X0 + 7, legY, gy, Math.round(fF.x) - ap - st, fF.lift, false);
+    leg(c, P, X0 + 13, legY, gy, Math.round(fN.x) + ap + st, fN.lift, true);
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
     if (carry && back) shoulderPick();
     if (air) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
@@ -376,12 +421,18 @@ var DTWSprites = (function () {
     // seen from behind the near arm goes on before the head and the pack, which cover it
     if (back && !digging && !air && o.arms !== 'wave') arm(c, X + 16, Y + 2, carry ? cg : aN, P.r, P.S, 3);
     // facing on, the swing goes on before the head, so the pick passes behind it when raised and never across the face
-    if (digging && !behind) pick(c, X, Y, o.ang, o.tier, P, t);
+    if (carry && !back) shoulderPick(true);
+    if (digging && !behind) pickTool(c, X, Y, sw, o.tier, P, t);
     stamp(c, head, Pl, X, Y - 17);
+    if (digging && !behind && fistsClearOfHead(X, Y, sw)) pickFists(c, X, Y, sw, P);
     if (o.bone && back) bone(c, X, Y, o.bone, true);
     if (hasPack && back) packBack(c, X + 12, Y - 4, o.pack);
     if (o.arms === 'wave' && !digging) { var wv = Math.sin(t * 10) > 0 ? 1 : 0; px(c, X + 19, Y - 3 - wv, P.r, 2, 6); px(c, X + 19 + wv, Y - 5 - wv, P.S, 2, 2); }
-    else if (!back && !digging && !air) arm(c, X + 16, Y + 2, carry ? cg : aN, P.r, P.S, 3); // near arm; carrying, it holds the handle
+    else if (!back && !digging && !air && carry) { // near arm bent up, the fist round the handle at the chest
+      var hx = X + 19 + cg; line(c, X + 15, Y + 3, hx, Y + 7, P.r, 3); line(c, X + 15, Y + 3, hx, Y + 7, P.R, 2);
+      px(c, hx - 1, Y + 7, P.S, 3, 3); px(c, hx - 1, Y + 9, P.s, 3, 1);
+    }
+    else if (!back && !digging && !air) arm(c, X + 16, Y + 2, aN, P.r, P.S, 3);
     outline(c, W, H, OUT);
     return { cv: cv, fx: FX, fy: FY };
   }

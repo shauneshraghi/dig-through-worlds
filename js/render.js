@@ -340,7 +340,7 @@ var DTWRender = (function () {
     // helpers are drawn at 0.85 scale, so they take more steps per cell
     var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / 0.85, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
     pose.lean = sw ? sw.lean : 0; pose.air = 0; pose.blink = false; if (sw) pose.body = sw.body;
-    var spr = DTWSprites.helper(h.k, { back: fc.back, ang: sw ? sw.ang : null, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', t: time });
+    var spr = DTWSprites.helper(h.k, { back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
     if (fc.flip) ctx.scale(-1, 1);
@@ -365,7 +365,7 @@ var DTWRender = (function () {
     if (digging) pose.body = sw.body;
     // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
     var full = r && S.mode !== 'surface' ? Math.min(1, r.bag.length / D.bagCap(S)) : 0;
-    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, ang: digging ? sw.ang : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
+    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: full,
       lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
