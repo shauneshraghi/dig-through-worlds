@@ -79,6 +79,129 @@ var DTW = (function () {
   var ORE_P = 0.11; // chance that a ground block holds ore
   var WALK = 6;      // cells per second the miner walks between blocks
 
+  // ---------- the surface plaza (hub) ----------
+  // One character per cell, x across, z down the rows, from (x0, z0). The pit is at x, z in [0, N).
+  //   .  grass        =  path        m  museum floor    P  pit          #  museum wall
+  //   t  tree / prop  T  landmark    p  potted plant    s  shop stall   h  helpers hut   w  world signpost
+  //   1-5  plinth for world 1-5      a-e  relic case for world 1-5      D  front desk
+  //   L S H W M  pads: dig (top of the ladder), shop, helpers, worlds, museum desk
+  var HUB = { x0: -8, z0: -8, rows: [
+    't....t..t....t..................',
+    '..t.........t..t................',
+    '..TT.....hhh.....t..............',
+    '..TT.....hhh.t..................',
+    't........hhh......##############',
+    '.....w....H.......#pmmmmmmmmmmp#',
+    '..t...W...=.......#mmm111mm222m#',
+    '.......=========..#mmm111am222b#',
+    '..sss..=PPPPPPP=..#mmmmmmmmmmmm#',
+    't.sssS==PPPPPPP=..#mmmmmmmmmmmm#',
+    '..sss..=PPPPPPP===mmmmmmmmmmmmm#',
+    '.......LPPPPPPP===mmmmm333mmmmm#',
+    '.......=PPPPPPP=..#mmmm333cmmmm#',
+    '.t.....=PPPPPPP=..#mDMmmmmmmmmm#',
+    '....t..=PPPPPPP=..#mDmmmmmmmmmm#',
+    '.......=========..#mmmmmmmmmmmm#',
+    '..................#mmm444mm555m#',
+    't.t.............t.#mmm444dm555e#',
+    '...........t......#mmmmmmmmmmmm#',
+    '..................#pmmmmmmmmmmp#',
+    '...t..........t...##############',
+    '..........t..................t..',
+    '......t.........t...t....t.....t'
+  ] };
+  var HUB_STATIONS = { L: 'dig', S: 'shop', H: 'helpers', W: 'worlds', M: 'museum' };
+  var HUB_OPEN = '.=mLSHWM';
+  var HUB_SPEED = 4;     // cells per second on the plaza
+  var HUB_R = 0.3;       // the miner's radius for bumping into things
+  var LADDER_Z = 3;      // the ladder hangs on the x = 0 pit wall at this z; its pad is at (-1, LADDER_Z)
+  var HUB_W = HUB.rows[0].length, HUB_H = HUB.rows.length;
+  function hubCell(x, z) {
+    var r = HUB.rows[z - HUB.z0];
+    return r ? r.charAt(x - HUB.x0) : '';
+  }
+  function hubWalkable(x, z) { var c = hubCell(x, z); return c !== '' && HUB_OPEN.indexOf(c) >= 0; }
+  function hubHome() { return { x: -0.5, z: LADDER_Z + 0.5, input: null, path: null }; }
+  function hubStation(s) { return HUB_STATIONS[hubCell(Math.floor(s.hub.x), Math.floor(s.hub.z))] || null; }
+  // the world whose plinth or relic case is next to the miner, or -1
+  function hubNearExhibit(s) {
+    var cx = Math.floor(s.hub.x), cz = Math.floor(s.hub.z);
+    for (var dz = -1; dz <= 1; dz++) for (var dx = -1; dx <= 1; dx++) {
+      var c = hubCell(cx + dx, cz + dz), k = '12345'.indexOf(c);
+      if (c && k < 0) k = 'abcde'.indexOf(c);
+      if (c && k >= 0) return k;
+    }
+    return -1;
+  }
+  // held keys: one direction or a list of them ('n', 's', 'e', 'w'), or null to stop
+  function hubInput(s, dirs) {
+    var v = [0, 0];
+    (dirs == null ? [] : [].concat(dirs)).forEach(function (d) { var k = dirKey(d); if (k) { v[0] += DIRS[k][0]; v[1] += DIRS[k][1]; } });
+    s.hub.input = v[0] || v[1] ? v : null;
+    if (s.hub.input) s.hub.path = null;
+  }
+  // can a circle of radius HUB_R stand at (x, z)?
+  function hubFree(x, z) {
+    for (var cz = Math.floor(z - HUB_R); cz <= Math.floor(z + HUB_R); cz++)
+      for (var cx = Math.floor(x - HUB_R); cx <= Math.floor(x + HUB_R); cx++)
+        if (!hubWalkable(cx, cz)) return false;
+    return true;
+  }
+  function hubMove(s, vx, vz, dist) { // slide along walls: x and z separately
+    var h = s.hub, len = Math.sqrt(vx * vx + vz * vz) || 1, n = Math.ceil(dist / 0.05), ux = vx / len * dist / n, uz = vz / len * dist / n;
+    for (var i = 0; i < n; i++) { // small sub-steps so the miner stops right at the edge
+      if (hubFree(h.x + ux, h.z)) h.x += ux;
+      if (hubFree(h.x, h.z + uz)) h.z += uz;
+    }
+  }
+  // shortest path over open cells (8 neighbours, no corner cutting) to the cell at (x, z),
+  // or to the nearest open cell when that one is blocked. Returns false if there is none.
+  function hubPath(fx, fz, x, z) {
+    var tx = Math.floor(x), tz = Math.floor(z), sx = Math.floor(fx), sz = Math.floor(fz);
+    if (!hubWalkable(tx, tz)) {
+      var best = null, bd = Infinity;
+      for (var r = 1; r <= 3 && !best; r++) for (var dz = -r; dz <= r; dz++) for (var dx = -r; dx <= r; dx++) {
+        if (!hubWalkable(tx + dx, tz + dz)) continue;
+        var d = dx * dx + dz * dz + ((tx + dx - sx) * (tx + dx - sx) + (tz + dz - sz) * (tz + dz - sz)) * 1e-3;
+        if (d < bd) { bd = d; best = [tx + dx, tz + dz]; }
+      }
+      if (!best) return null;
+      tx = best[0]; tz = best[1];
+    }
+    var key = function (cx, cz) { return (cz - HUB.z0) * HUB_W + (cx - HUB.x0); };
+    var prev = new Int32Array(HUB_W * HUB_H).fill(-2), q = [key(sx, sz)], goal = key(tx, tz);
+    prev[q[0]] = -1;
+    var NB = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    for (var i = 0; i < q.length && prev[goal] === -2; i++) {
+      var k = q[i], cx = k % HUB_W + HUB.x0, cz = Math.floor(k / HUB_W) + HUB.z0;
+      for (var n = 0; n < 8; n++) {
+        var ax = cx + NB[n][0], az = cz + NB[n][1];
+        if (!hubWalkable(ax, az)) continue;
+        if (NB[n][0] && NB[n][1] && (!hubWalkable(ax, cz) || !hubWalkable(cx, az))) continue;
+        var ak = key(ax, az); if (prev[ak] !== -2) continue;
+        prev[ak] = k; q.push(ak);
+      }
+    }
+    if (prev[goal] === -2) return null;
+    var out = [];
+    for (var c = goal; c !== -1 && c !== q[0]; c = prev[c]) out.unshift([c % HUB_W + HUB.x0 + 0.5, Math.floor(c / HUB_W) + HUB.z0 + 0.5]);
+    return out.length ? out : [[tx + 0.5, tz + 0.5]];
+  }
+  function hubWalkTo(s, x, z) {
+    var p = hubPath(s.hub.x, s.hub.z, x, z);
+    s.hub.path = p; if (p) s.hub.input = null;
+    return !!p;
+  }
+  function stepHub(s, dt) {
+    var h = s.hub, d = HUB_SPEED * dt;
+    if (h.input) { hubMove(s, h.input[0], h.input[1], d); return; }
+    while (h.path && d > 0) {
+      var p = h.path[0], ex = p[0] - h.x, ez = p[1] - h.z, l = Math.sqrt(ex * ex + ez * ez);
+      if (l <= d) { h.x = p[0]; h.z = p[1]; d -= l; h.path.shift(); if (!h.path.length) h.path = null; }
+      else { h.x += ex / l * d; h.z += ez / l * d; d = 0; }
+    }
+  }
+
   function mulberry32(a) {
     return function () {
       a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -213,7 +336,7 @@ var DTW = (function () {
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0 }, workers: { diggers: 0, staff: 0 },
       museum: WORLDS.map(function () { return { pieces: [0, 0, 0, 0, 0] }; }),
-      sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [],
+      sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(),
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
     };
     return s;
@@ -305,7 +428,7 @@ var DTW = (function () {
         if (!s.relics[it.world]) { s.relics[it.world] = true; relic = it.world; if (it.world < 4) s.unlocked[it.world + 1] = true; }
       } else coins += itemValue(it);
     });
-    s.coins += coins; r.bag = [];
+    s.coins += coins; r.bag = []; s.hub = hubHome();
     emit(s, { type: 'banked', coins: coins, pieces: pieces, relic: relic });
   }
 
@@ -452,6 +575,7 @@ var DTW = (function () {
     s.stats.timePlayed += dt;
     s.coins += museumIncome(s) * dt;
     if (s.mode === 'dig') stepDig(s, dt);
+    else if (s.mode === 'surface') stepHub(s, dt);
     else if (s.mode === 'down') { s.run.elevT -= dt; if (s.run.elevT <= 0) { s.mode = 'dig'; emit(s, { type: 'arrive' }); } }
     else if (s.mode === 'up') { s.run.elevT -= dt; if (s.run.elevT <= 0) { s.mode = 'surface'; bank(s); } }
   }
@@ -505,5 +629,7 @@ var DTW = (function () {
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _clearLayer: _clearLayer,
+    HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, hubCell: hubCell, hubWalkable: hubWalkable,
+    hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
     topLayer: topLayer, layerHasBlocks: layerHasBlocks, diggable: diggable };
 })();
