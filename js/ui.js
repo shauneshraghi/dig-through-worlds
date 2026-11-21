@@ -469,7 +469,7 @@
   }
   // A tap on the pit: on a block of the layer being cleared it walks there and digs it, on an open cell it
   // walks there; on the ladder wall it climbs home; elsewhere it digs faster (as does the Faster button).
-  // On the plaza a tap on the pit walks to the ladder pad and climbs down.
+  // On the plaza a tap on the pit next to the ladder walks to the pad and climbs down; elsewhere it walks to the edge.
   // A tap on the plaza walks to that spot. Holding (or dragging) anywhere on the screen brings up a joystick
   // rooted where the finger went down; it is hidden again when the finger lifts. Outside a small dead zone
   // the pit takes the screen quadrant of the drag, which is one of the four ways the grid runs on screen

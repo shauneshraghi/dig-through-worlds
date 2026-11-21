@@ -267,6 +267,10 @@ var DTW = (function () {
   var LADDER_Z = 3;      // the ladder hangs on the x = 0 pit wall at this z; its pad is at (-1, LADDER_Z)
   var LADDER_REACH = 2;  // pushing into the x = 0 wall this many cells either side of the ladder still climbs it
   function nearLadder(z) { return Math.abs(Math.floor(z) - LADDER_Z) <= LADDER_REACH; }
+  // going down is easier to trigger by accident (the plaza path runs along the pit), so it is stricter: the push
+  // must come within LADDER_DOWN cells of the pad and be held for CLIMB_PUSH seconds, and a tap on the pit
+  // climbs down only on the cells next to the ladder (x < TAP_DOWN_X, within LADDER_DOWN of its z)
+  var LADDER_DOWN = 1, CLIMB_PUSH = 0.35, TAP_DOWN_X = 2;
   var HUB_W = HUB.rows[0].length, HUB_H = HUB.rows.length;
   function hubCell(x, z) {
     var r = HUB.rows[z - HUB.z0];
@@ -344,7 +348,7 @@ var DTW = (function () {
   }
   // A tap on a plaza spot walks there; a tap on the pit walks to the ladder pad and climbs down.
   function hubWalkTo(s, x, z) {
-    var dig = hubCell(Math.floor(x), Math.floor(z)) === 'P';
+    var dig = hubCell(Math.floor(x), Math.floor(z)) === 'P' && Math.floor(x) < TAP_DOWN_X && Math.abs(Math.floor(z) - LADDER_Z) <= LADDER_DOWN;
     if (dig) { x = -0.5; z = LADDER_Z + 0.5; }
     var p = hubPath(s.hub.x, s.hub.z, x, z);
     s.hub.path = p && p.length ? p : null; s.hub.dig = !!p && dig;
@@ -371,9 +375,10 @@ var DTW = (function () {
       var got = Math.floor(s.pile); s.coins += got; s.pile -= got; emit(s, { type: 'museumCash', coins: got });
     }
     // pushing down the ladder (mostly +x, down-right on screen) from its pad climbs into the pit
-    if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && nearLadder(h.z) && s.unlocked[s.world]) {
-      h.input = null; startDig(s, s.world); return;
-    }
+    if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && Math.abs(Math.floor(h.z) - LADDER_Z) <= LADDER_DOWN && s.unlocked[s.world]) {
+      h.push = (h.push || 0) + dt;
+      if (h.push >= CLIMB_PUSH) { h.input = null; h.push = 0; startDig(s, s.world); return; }
+    } else h.push = 0;
     if (h.input) { h.dig = false; hubMove(s, h.input[0], h.input[1], d); return; }
     while (h.path && d > 0) {
       var p = h.path[0], ex = p[0] - h.x, ez = p[1] - h.z, l = Math.sqrt(ex * ex + ez * ez);
@@ -1263,7 +1268,7 @@ var DTW = (function () {
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
-    HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, hubCell: hubCell, hubWalkable: hubWalkable,
+    HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, LADDER_DOWN: LADDER_DOWN, CLIMB_PUSH: CLIMB_PUSH, hubCell: hubCell, hubWalkable: hubWalkable,
     PLINTH_CH: PLINTH_CH, WINGS: WINGS, hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
     topLayer: topLayer, layerHasBlocks: layerHasBlocks, diggable: diggable };
 })();

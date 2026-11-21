@@ -196,7 +196,9 @@ test('pushing toward the ladder from the dig pad climbs down, but walking past t
   assert.equal(s.mode, 'surface');
   s.hub = { x: -0.5, z: D.LADDER_Z + 0.5, input: null, path: null };
   D.hubInput(s, 'e'); D.step(s, 0.05);
-  assert.equal(s.mode, 'down');
+  assert.equal(s.mode, 'surface', 'a brief push does not climb down');
+  run(s, D.CLIMB_PUSH + 0.1);
+  assert.equal(s.mode, 'down', 'a push held for CLIMB_PUSH does');
 });
 
 test('steering west on the cell beside the ladder climbs home; elsewhere on the wall it does not', () => {
@@ -211,11 +213,15 @@ test('steering west on the cell beside the ladder climbs home; elsewhere on the 
   assert.equal(s.mode, 'up');
 });
 
-test('the ladder can be reached from two cells either side of it, up and down', () => {
+test('the ladder is climbed down from a cell either side of the pad, and up from two either side of it', () => {
+  const far = D.newState(1);
+  far.hub = { x: -0.5, z: D.LADDER_Z + 2.5, input: null, path: null };
+  D.hubInput(far, 'e'); run(far, 2);
+  assert.equal(far.mode, 'surface', 'two cells from the pad: no climb');
   const s = D.newState(1);
-  s.hub = { x: -0.5, z: D.LADDER_Z + 2.5, input: null, path: null };
-  D.hubInput(s, 'e'); D.step(s, 0.05);
-  assert.equal(s.mode, 'down', 'pushing into the pit two cells from the pad climbs down');
+  s.hub = { x: -0.5, z: D.LADDER_Z + 1.5, input: null, path: null };
+  D.hubInput(s, 'e'); run(s, D.CLIMB_PUSH + 0.1);
+  assert.equal(s.mode, 'down', 'pushing into the pit a cell from the pad climbs down');
   D.step(s, 3); assert.equal(s.mode, 'dig');
   const y = s.run.y;
   D._clearLayer(s, y); D._setTile(s, 3, y, 3, 1, 5);
@@ -223,16 +229,20 @@ test('the ladder can be reached from two cells either side of it, up and down', 
   assert.equal(s.mode, 'up', 'steering into the wall two cells from the ladder climbs home');
 });
 
-test('a tap on the pit from the plaza walks to the ladder and climbs down', () => {
+test('a tap on the pit beside the ladder walks there and climbs down; elsewhere on the pit it does not', () => {
+  const o = D.newState(1);
+  const [x, z] = find('S')[0]; D.hubWalkTo(o, x + 0.5, z + 0.5); run(o, 20);
+  D.hubWalkTo(o, 3.5, 3.5); run(o, 30);
+  assert.equal(o.mode, 'surface', 'the middle of the pit only walks to its edge');
   const s = D.newState(1);
-  const [x, z] = find('S')[0]; D.hubWalkTo(s, x + 0.5, z + 0.5); run(s, 20);
-  assert.equal(D.hubWalkTo(s, 3.5, 3.5), true, 'the pit is a target');
+  D.hubWalkTo(s, x + 0.5, z + 0.5); run(s, 20);
+  assert.equal(D.hubWalkTo(s, 0.5, D.LADDER_Z + 0.5), true, 'the pit beside the ladder is a target');
   for (let i = 0; i < 600 && s.mode === 'surface'; i++) D.step(s, 0.05);
   assert.equal(s.mode, 'down');
   const t = D.newState(1); // already on the pad: climbs straight down
-  assert.equal(D.hubWalkTo(t, 5.5, 1.5), true); D.step(t, 0.05);
+  assert.equal(D.hubWalkTo(t, 0.5, D.LADDER_Z - 0.5), true); D.step(t, 0.05);
   assert.equal(t.mode, 'down');
   const u = D.newState(1); u.hub = { x: x + 0.5, z: z + 0.5, input: null, path: null };
-  D.hubWalkTo(u, 3.5, 3.5); D.hubInput(u, 'n'); run(u, 3); D.hubInput(u, null); run(u, 10);
+  D.hubWalkTo(u, 0.5, D.LADDER_Z + 0.5); D.hubInput(u, 'n'); run(u, 3); D.hubInput(u, null); run(u, 10);
   assert.equal(u.mode, 'surface', 'steering away cancels the climb');
 });
