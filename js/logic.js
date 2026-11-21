@@ -263,6 +263,10 @@ var DTW = (function () {
   function stepHub(s, dt) {
     var h = s.hub, d = HUB_SPEED * dt;
     deliver(s);
+    // pushing down the ladder (mostly +x, down-right on screen) from its pad climbs into the pit
+    if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && Math.floor(h.z) === LADDER_Z && s.unlocked[s.world]) {
+      h.input = null; startDig(s, s.world); return;
+    }
     if (h.input) { hubMove(s, h.input[0], h.input[1], d); return; }
     while (h.path && d > 0) {
       var p = h.path[0], ex = p[0] - h.x, ez = p[1] - h.z, l = Math.sqrt(ex * ex + ez * ez);
@@ -702,6 +706,7 @@ var DTW = (function () {
         var sd = DIRS[r.steer], sx = r.x + sd[0], sz = r.z + sd[1];
         var st = sx < 0 || sx >= N || sz < 0 || sz >= N ? TILE.BEDROCK : g.t[idx(sx, y, sz)];
         r.face = r.steer;
+        if (r.steer === 'w' && sx < 0 && r.z === LADDER_Z) { r.steer = 0; goHome(s, 'ladder'); return; } // onto the ladder: climb home
         if (passable(st)) { // one cell at a time, at walking pace
           if (r.stepCD <= 0) { r.x = sx; r.z = sz; r.steer = 0; r.path = null; r.stepCD = 1 / WALK; }
           moved = true;

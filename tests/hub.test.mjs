@@ -42,8 +42,8 @@ test('holding a direction walks at HUB_SPEED, and the pit, walls and stalls bloc
   D.hubInput(s, 'n'); run(s, 1);
   assert.ok(Math.abs(s.hub.z - (D.LADDER_Z + 0.5 - D.HUB_SPEED)) < 0.1, `walked north: z = ${s.hub.z}`);
   assert.equal(s.hub.x, -0.5);
-  // back to the ladder pad, then into the pit: blocked at the pit edge
-  const t = D.newState(1);
+  // into the pit away from the ladder: blocked at the pit edge
+  const t = D.newState(1); t.hub.z = D.LADDER_Z + 2.5;
   D.hubInput(t, 'e'); run(t, 2);
   assert.ok(t.hub.x < 0 && t.hub.x > -0.5, `stops at the pit edge: x = ${t.hub.x}`);
   assert.equal(D.hubWalkable(Math.floor(t.hub.x), Math.floor(t.hub.z)), true);
@@ -188,4 +188,25 @@ test('carried bones survive a save and load', () => {
   const s2 = D.deserialize(D.serialize(s));
   assert.equal(s2.carry.length, 1);
   assert.equal(s2.carry[0].idx, 4);
+});
+
+test('pushing toward the ladder from the dig pad climbs down, but walking past the pad does not', () => {
+  const s = D.newState(1);
+  D.hubInput(s, ['e', 'n']); D.step(s, 0.05); // screen-right: slides along the pit edge
+  assert.equal(s.mode, 'surface');
+  s.hub = { x: -0.5, z: D.LADDER_Z + 0.5, input: null, path: null };
+  D.hubInput(s, 'e'); D.step(s, 0.05);
+  assert.equal(s.mode, 'down');
+});
+
+test('steering west on the cell beside the ladder climbs home; elsewhere on the wall it does not', () => {
+  const s = D.newState(1);
+  D.startDig(s, 0); D.step(s, 3);
+  assert.equal(s.mode, 'dig');
+  const y = s.run.y;
+  D._clearLayer(s, y); D._setTile(s, 3, y, 3, 1, 5); // keep one block so the layer stays open
+  D._teleport(s, 0, y, 0); D.steer(s, 'w'); D.step(s, 0.05);
+  assert.equal(s.mode, 'dig');
+  D._teleport(s, 0, y, D.LADDER_Z); D.steer(s, 'w'); D.step(s, 0.05);
+  assert.equal(s.mode, 'up');
 });
