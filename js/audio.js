@@ -47,6 +47,7 @@ var DTWAudio = (function () {
     trap: function () { tone(600, 0.5, 'sawtooth', 0.12, 0, 0.2); },
     bubble: function () { tone(300, 0.2, 'sine', 0.2, 0, 3); },
     relic: function () { [523, 659, 784, 1047, 784, 1047].forEach(function (f, i) { tone(f, 0.25, 'square', 0.12, AC.currentTime + i * 0.13); }); },
+    crack: function () { noise(0.1, 0.2, 700); tone(130, 0.08, 'square', 0.08); tone(95, 0.12, 'square', 0.06, AC.currentTime + 0.05); },
     alert: function () { var t = AC.currentTime; tone(1568, 0.1, 'square', 0.12, t); tone(1568, 0.1, 'square', 0.12, t + 0.14); tone(1175, 0.2, 'square', 0.1, t + 0.28); },
     dodge: function () { noise(0.2, 0.15, 3000); tone(300, 0.25, 'sine', 0.18, 0, 4); tone(523, 0.1, 'triangle', 0.14, AC.currentTime + 0.18); tone(784, 0.18, 'triangle', 0.14, AC.currentTime + 0.26); },
     treasure: function () { var t = AC.currentTime; [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { tone(f, 0.22, 'triangle', 0.14, t + i * 0.07); tone(f * 2, 0.15, 'sine', 0.05, t + i * 0.07); }); tone(1568, 0.5, 'triangle', 0.12, t + 0.45); },

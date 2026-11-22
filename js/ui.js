@@ -37,9 +37,13 @@
   // ---------- UI: toasts, HUD, surface panel ----------
   function toast(html, ms) {
     var el = document.createElement('div'); el.className = 'toast'; el.innerHTML = html;
-    $('toast').appendChild(el); setTimeout(function () { el.remove(); }, ms || 2600);
-    while ($('toast').children.length > 3) $('toast').firstChild.remove();
+    $('toast').appendChild(el); setTimeout(function () { el.remove(); }, ms || 2000);
+    while ($('toast').children.length > 1) $('toast').firstChild.remove();
   }
+  // a short bump on a HUD chip, in place of a text pop-up
+  function pulse(id) { var el = $(id); if (!el) return; el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse'); }
+  // a short float at the miner (pit) in place of a toast
+  function minerFloat(text, color) { var r = S.run; if (S.mode === 'dig' && r) R.floatText(r.x, r.y - 0.2, r.z, text, color); }
   var station = null, lastPanelKey = '';
   var STATION_TITLE = { shop: '🛒 Shop', helpers: '👷 Helpers', museum: '🏛️ Museum', worlds: '🗺️ Worlds', menu: '☰ Menu' };
   var STATION_TAB = { shop: 'up', helpers: 'he', museum: 'mu', worlds: 'wo', dig: '', menu: 'me' };
@@ -270,9 +274,9 @@
       go.onclick = function () {
         if (!typedYes()) return;
         var kind = confirmKind; confirmKind = null; lastPanelKey = '';
-        if (kind === 'site') { D.resetSite(S, S.world); save(); toast('New dig site ready!'); return; }
+        if (kind === 'site') { D.resetSite(S, S.world); save(); toast('New dig site ready!', 1600); return; }
         try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-        S = D.newState(Date.now() % 1e9); NOSAVE = false; setAutoBtn(); toast('Fresh start!');
+        S = D.newState(Date.now() % 1e9); NOSAVE = false; setAutoBtn(); toast('Fresh start!', 1600);
       };
       box.appendChild(p); box.appendChild(inp);
       var btns = document.createElement('div'); btns.className = 'resets'; btns.appendChild(no); btns.appendChild(go); box.appendChild(btns);
@@ -303,45 +307,49 @@
         else R.spawnFind(lastBreak.x, lastBreak.y, lastBreak.z, it, lbl, { chest: lastBreak.tile === T.CHEST, carried: !!it.carried });
         lastBreak = null;
         A.sfx(it.kind === 'fossil' ? 'fossil' : it.kind === 'treasure' ? 'coin' : 'ding');
-        if (it.kind === 'fossil') toast(it.chest ? '💰 Chest! A fossil bone inside!' : '🦴 You found a fossil!');
-        if (it.kind === 'treasure') toast(it.gem ? '💎 A bonus gem!' : '💰 Treasure!');
       } else if (e.type === 'lock') { A.sfx('ding'); lockKey = ''; }
       else if (e.type === 'pin') { if (!(S.run && S.run.lock && S.run.lock.kind === 'simon')) A.sfx('click'); }
       else if (e.type === 'match') A.sfx('coin');
       else if (e.type === 'miss') A.sfx('no');
-      else if (e.type === 'unlocked') { lockWon(); A.sfx('unlock'); toast('🔓 You picked the lock!', 2200); }
-      else if (e.type === 'smashed') { R.shake(0.25); toast('🔨 Smash! Only a few coins fell out.', 2200); }
+      else if (e.type === 'unlocked') { lockWon(); A.sfx('unlock'); }
+      else if (e.type === 'smashed') { R.shake(0.25); A.sfx('brk'); R.coinBurst(); }
       else if (e.type === 'trapWarn') { A.sfx('alert'); R.shake(0.15); }
-      else if (e.type === 'dodged') { A.sfx('dodge'); toast('💨 Nice dodge!', 1400); }
+      else if (e.type === 'dodged') { A.sfx('dodge'); minerFloat('💨', '#dff6ff'); }
       else if (e.type === 'roomChest') {
         var rcx = e.i % D.N, rcz = Math.floor(e.i / D.N) % D.N, rcy = Math.floor(e.i / (D.N * D.N));
         if (R.roomChest) R.roomChest(rcx, rcy, rcz);
-        A.sfx('treasure'); toast('✨ A treasure room chest!', 2200);
+        A.sfx('treasure'); R.coinBurst();
       }
       else if (e.type === 'golden') { A.sfx('treasure'); lastPanelKey = ''; }
-      else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
-      else if (e.type === 'trap') { A.sfx('trap'); toast('😵 A trap! Dizzy for a moment…', 1800); R.shake(0.4); }
+      else if (e.type === 'trap' && e.helper) { A.sfx('trap'); R.shake(0.15); }
+      else if (e.type === 'trap') { A.sfx('trap'); R.shake(0.4); }
       else if (e.type === 'bubble') { A.sfx('bubble'); R.floatText(e.x + 0.5, e.y, e.z + 0.5, 'O₂ full!', '#bff7ff'); R.spawnBreak(e.x, e.y, e.z, '#bff7ff', 10); }
-      else if (e.type === 'relic') { A.sfx('relic'); toast('✨ You found the <b>' + D.WORLDS[e.world].relic.name + '</b>! Heading home…', 3500); R.shake(0.5); }
-      else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') toast('🫧 Out of air! Bubbles float you home — your bag is safe.', 3200); }
+      else if (e.type === 'relic') { A.sfx('relic'); toast('✨ <b>' + D.WORLDS[e.world].relic.name + '</b> found!', 2400); R.shake(0.5); }
+      else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') { minerFloat('🫧', '#bff7ff'); R.spawnBreak(r.x, r.y, r.z, '#bff7ff', 12); } }
       else if (e.type === 'descend') A.sfx('down');
-      else if (e.type === 'bigBone') toast('🦴 A big bone! Dig out ' + (e.left > 1 ? 'the other ' + e.left + ' blocks' : 'the last block') + ' to free it.', 2200);
-      else if (e.type === 'boneFull') toast('🦴 Hands full! This bone waits here: take yours to the 🏛 museum, then come back for it.', 3000);
-      else if (e.type === 'delivered') { A.sfx('fossil'); toast('🏛 On show: <b>' + e.names.join(', ') + '</b>!', 3200); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
-      else if (e.type === 'buy' || e.type === 'hire') A.sfx('buy');
+      else if (e.type === 'bigBone') { // dust and cracks on the cells still in the ground, and a dull knock
+        A.sfx('crack'); var gg = D.site(S, S.world), NN = D.N;
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          var nx = e.x + d[0], nz = e.z + d[1];
+          if (nx >= 0 && nx < NN && nz >= 0 && nz < NN && gg.t[D.idx(nx, e.y, nz)] === T.FOSSIL) { R.spawnBreak(nx, e.y, nz, '#e8dcc0', 5); R.floatText(nx + 0.5, e.y, nz + 0.5, '✦', '#fff3c4'); }
+        });
+      }
+      else if (e.type === 'boneFull') { A.sfx('no'); pulse('hBag'); if (lastBreak) R.floatText(lastBreak.x + 0.5, lastBreak.y, lastBreak.z + 0.5, '🦴✋', '#ffe9a8'); else minerFloat('🦴✋', '#ffe9a8'); }
+      else if (e.type === 'delivered') { A.sfx('fossil'); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
+      else if (e.type === 'buy' || e.type === 'hire') { A.sfx('buy'); R.coinBurst(); }
       else if (e.type === 'sell' || e.type === 'exchange') A.sfx('coin');
       else if (e.type === 'museumCash') museumCash(e.coins);
       else if (e.type === 'banked') {
         var msg = [];
-        if (e.coins > 0) msg.push('Sold your finds for <b style="color:var(--gold)">🪙 ' + fmt(e.coins) + '</b>');
+        if (e.coins > 0) { R.coinBurst(); pulse('hCoins'); }
         var got = e.mats.map(function (n, t) { return n > 0 ? '<span class="chip">' + dot(t) + '+' + fmt(n) + ' ' + D.MATS[t].name + '</span>' : ''; }).join('');
-        if (got) msg.push('Mined ' + got);
-        if (e.pieces.length) msg.push('🦴 Carry your new bone' + (e.pieces.length > 1 ? 's' : '') + ' to the 🏛 museum!');
-        if (msg.length) { toast(msg.join('<br>'), 3500); A.sfx('coin'); }
+        if (got) pulse('hMats');
+        
+        if (e.coins > 0 || got) A.sfx('coin');
         if (e.relic !== null) {
           var nx = e.relic + 1;
           if (nx >= 5) startEnding();
-          setTimeout(function () { A.sfx('relic'); toast(nx < 5 ? '🌍 <b>' + D.WORLDS[nx].name + '</b> unlocked! Walk to the 🗺️ Worlds signpost to travel.' : '🏆 You found all five relics! You are a Master Digger!', 5000); }, 600);
+          setTimeout(function () { A.sfx('relic'); if (nx < 5) toast('🌍 <b>' + D.WORLDS[nx].name + '</b> unlocked! Visit the 🗺️ Worlds signpost.', 3200); }, 600);
         }
         lastPanelKey = ''; save();
       }
@@ -360,7 +368,7 @@
     if (!D.digAgain(S)) return;
     endingEl.classList.remove('show'); menuOpen = false; menuPick = null; lastPanelKey = '';
     save(); A.sfx('treasure');
-    toast('🌟 Every world has fresh ground with <b>golden bones</b> to find!', 5000);
+    toast('🌟 Fresh ground, golden bones!', 2400);
   }
   $('endGold').onclick = function () { audio(); goGolden(); };
   $('endLater').onclick = function () { endingEl.classList.remove('show'); };
@@ -561,7 +569,7 @@
     if (now - cashToastT > CASH_QUIET) {
       cashToastT = cashFloatT = now; A.sfx('coin'); R.coinBurst();
       R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(cashPend), '#ffd23f');
-      toast('🏛 Your visitors paid <b style="color:var(--gold)">🪙 ' + fmt(cashPend) + '</b>!', 2600); cashPend = 0; save();
+      pulse('hCoins'); cashPend = 0; save();
     } else if (now - cashFloatT > CASH_FLOAT) {
       cashFloatT = now; cashToastT = now; R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(cashPend), '#ffd23f'); cashPend = 0; save();
     } else cashToastT = now; // still inside: keep the toast quiet
