@@ -15,7 +15,7 @@ var DTWRender = (function () {
   // the part of the stage the surface menu covers: a bottom sheet (portrait) or a side panel (wide), in CSS pixels
   var view = { right: 0, sheet: true };
   var TW = 48, hw = 24, hh = 12, bh = 24, ox = 0, oy = 0;
-  var time = 0, shakeT = 0, parts = [], floaters = [];
+  var time = 0, shakeT = 0, parts = [], floaters = [], shocks = [];
   // smoothed camera and miner display state
   var cam = { fx: 3.5, fy: 1, fz: 3.5, zoom: 0.62, anchor: 0.17, init: false };
   var disp = { x: 3, y: 0, z: 3, face: 'e', phase: 0, boost: 0, world: -1, spd: 0, walk: 0, air: 0, land: 0, hit: 0, blink: 2 };
@@ -404,7 +404,7 @@ var DTWRender = (function () {
     if (digging) pose.body = sw.body;
     // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
     var full = r && S.mode !== 'surface' ? Math.min(1, r.bag.length / D.bagCap(S)) : 0;
-    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: S.mode === 'surface' ? null : full, surface: S.mode === 'surface',
+    var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), twin: !!(S.upgrades.twin | 0), splash: !!(S.upgrades.splash | 0), pose: pose, pack: S.mode === 'surface' ? null : full, surface: S.mode === 'surface',
       lampOn: S.mode !== 'surface', bowl: underSea(S), climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
@@ -1058,9 +1058,22 @@ var DTWRender = (function () {
     // pickaxe swing speed follows the dig rate, and taps kick it faster; a strike jolts the body
     disp.boost = Math.max(0, disp.boost - dt * 3);
     var f0 = disp.phase % 1;
-    disp.phase += dt * Math.min(3.2, 0.9 + 0.22 * D.hitRate(S)) * (1 + disp.boost * 2.5);
-    var f1 = disp.phase % 1;
-    if (S.mode === 'dig' && r && r.state === 'dig' && r.stun <= 0 && (f0 < 0.72 && (f1 >= 0.72 || f1 < f0))) disp.hit = 1;
+    var twin = (S.upgrades.twin | 0) > 0, splash = (S.upgrades.splash | 0) > 0;
+    disp.phase += dt * Math.min(3.2, 0.9 + 0.22 * D.hitRate(S)) * (1 + disp.boost * 2.5) * (twin ? 0.6 : 1); // twin picks strike twice a cycle
+    var f1 = disp.phase % 1, digNow = S.mode === 'dig' && r && r.state === 'dig' && r.stun <= 0;
+    var crossed = function (m) { return f0 < m && (f1 >= m || f1 < f0); };
+    if (digNow && (crossed(0.72) || (twin && crossed(0.22)))) {
+      disp.hit = 1;
+      if (splash && r.target >= 0) { // Splash Pick: a ring of chips over the four blocks beside the target
+        var ti = r.target, tx = ti % N, tz = Math.floor(ti / N) % N, ty = Math.floor(ti / (N * N));
+        shocks.push({ x: tx, y: ty, z: tz, age: 0 });
+        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+          var nx = tx + d[0], nz = tz + d[1];
+          if (nx >= 0 && nx < N && nz >= 0 && nz < N) spawnBreak(nx, ty, nz, Math.random() < 0.5 ? '#ffd23fcc' : '#ff8a2acc', 3);
+        });
+      }
+    }
+    for (var si = shocks.length - 1; si >= 0; si--) { shocks[si].age += dt; if (shocks[si].age > 0.45) shocks.splice(si, 1); }
     disp.hit = Math.max(0, disp.hit - dt * 6);
     // camera: follows the miner down; horizontally it follows halfway so the whole pit stays on screen
     var surf = S.mode === 'surface';
@@ -1193,6 +1206,12 @@ var DTWRender = (function () {
     if (r) drawReach(r, S);
     if (r && r.loot) drawLoot(r, S);
     drawFinds();
+    for (var sk = 0; sk < shocks.length; sk++) { // the Splash Pick's shock ring: a diamond spreading over the neighbouring blocks
+      var sh = shocks[sk], sa = sh.age / 0.45, sq = P(sh.x + 0.5, sh.y + 0.5, sh.z + 0.5), sr = (0.5 + 1.1 * sa) * hw * 1.4;
+      ctx.strokeStyle = 'rgba(255,214,90,' + (0.9 * (1 - sa)) + ')'; ctx.lineWidth = Math.max(2, TW / 16);
+      ctx.beginPath(); ctx.moveTo(sq[0], sq[1] - sr * 0.5); ctx.lineTo(sq[0] + sr, sq[1]); ctx.lineTo(sq[0], sq[1] + sr * 0.5); ctx.lineTo(sq[0] - sr, sq[1]); ctx.closePath(); ctx.stroke();
+      glow(sq[0], sq[1], TW * (0.6 + 1.2 * sa), '#ff9a3a', 0.7 * (1 - sa));
+    }
     for (var k = 0; k < parts.length; k++) { var p = parts[k], pq = P(p.x, p.y, p.z); ctx.fillStyle = p.c; ctx.fillRect(pq[0], pq[1], p.s * TW, p.s * TW); }
     // headlamp: darkness grows with depth, with a pool of light around the miner
     if (lastMiner && post) lamp(S, viewTop);

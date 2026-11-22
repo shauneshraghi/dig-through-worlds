@@ -222,7 +222,9 @@ var DTWSprites = (function () {
     return { ca: ca, sa: sa, fx: gx - ca * 1.5, fy: gy - sa * 1.5, nx: gx + ca * 1.5, ny: gy + sa * 1.5,
              bx: gx - ca * 4, by: gy - sa * 4, ex: gx + ca * 15, ey: gy + sa * 15 };
   }
-  function pickTool(c, X, Y, sw, tier, P, t) {
+  // opt: { splash: broad glowing hammer head, hand: 'near' | 'far' (one hand on this pick, dual-wielding; default both) }
+  function pickTool(c, X, Y, sw, tier, P, t, opt) {
+    opt = opt || {};
     var C = PICK[tier], g = grip(X, Y, sw), ca = g.ca, sa = g.sa, ex = g.ex, ey = g.ey;
     if (sw.smear) { // a pale arc where the head has just been: one or two frames of the strike
       var h0 = sw.smear.from, h1 = sw.ang, k;
@@ -231,14 +233,25 @@ var DTWSprites = (function () {
         line(c, g.nx + Math.cos(aa) * rr, g.ny + Math.sin(aa) * rr, g.nx + Math.cos(ab) * rr, g.ny + Math.sin(ab) * rr, k < 2 ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.7)', k < 3 ? 1 : 2);
       }
     }
-    line(c, X + 8, Y + 3, g.fx, g.fy, P.q, 2);                                        // far arm
+    var mx = (g.fx + g.nx) / 2, my = (g.fy + g.ny) / 2;                                 // one hand grips at the middle of the handle
+    if (opt.hand === 'far') line(c, X + 8, Y + 3, mx, my, P.q, 2);
+    else if (opt.hand !== 'near') line(c, X + 8, Y + 3, g.fx, g.fy, P.q, 2);           // far arm
     line(c, g.bx, g.by, ex, ey, C.handle, 2);
     var nx = -sa, ny = ca;                                                            // head across the handle end, point on the +n side
-    line(c, ex - nx * 5, ey - ny * 5, ex + nx * 6, ey + ny * 6, C.head, 2);
-    line(c, ex + nx * 6, ey + ny * 6, ex + nx * 8 - ca * 2, ey + ny * 8 - sa * 2, C.head, 1);
-    line(c, ex - nx * 5 - ca, ey - ny * 5 - sa, ex + nx * 4 - ca, ey + ny * 4 - sa, C.hi, 1);
+    if (opt.splash) { // a broad hammer-pick: a block head across the handle end with glowing ember tips
+      line(c, ex - nx * 7, ey - ny * 7, ex + nx * 7, ey + ny * 7, C.head, 4);
+      line(c, ex - nx * 7 - ca * 2, ey - ny * 7 - sa * 2, ex + nx * 6 - ca * 2, ey + ny * 6 - sa * 2, C.hi, 1);
+      var hot = Math.sin(t * 9) > 0 ? '#ffd23f' : '#ff8a2a';
+      px(c, ex - nx * 8 - 1, ey - ny * 8 - 1, hot, 3, 3); px(c, ex + nx * 8 - 1, ey + ny * 8 - 1, hot, 3, 3);
+    } else {
+      line(c, ex - nx * 5, ey - ny * 5, ex + nx * 6, ey + ny * 6, C.head, 2);
+      line(c, ex + nx * 6, ey + ny * 6, ex + nx * 8 - ca * 2, ey + ny * 8 - sa * 2, C.head, 1);
+      line(c, ex - nx * 5 - ca, ey - ny * 5 - sa, ex + nx * 4 - ca, ey + ny * 4 - sa, C.hi, 1);
+    }
     if (tier === 4 && Math.sin(t * 8) > 0.6) px(c, ex, ey - 3, '#ffffff');
+    if (opt.hand === 'far') { px(c, mx - 1, my - 1, P.s, 3, 3); return; }
     line(c, X + 15, Y + 3, g.nx, g.ny, P.r, 3); line(c, X + 15, Y + 3, g.nx, g.ny, P.R, 2); // near arm
+    if (opt.hand === 'near') { px(c, g.nx - 1, g.ny - 1, P.S, 3, 3); px(c, g.nx - 1, g.ny + 1, P.s, 3, 1); return; }
     pickFists(c, X, Y, sw, P);
   }
   // over the head the fists go on again only where they are clear of it (raised behind the hat, or out in front)
@@ -275,7 +288,7 @@ var DTWSprites = (function () {
     var striking = a[0] === 0.62 || a[0] === 0.67;
     var e = striking ? s : ease(s), lerp = function (j) { return a[j] + (b[j] - a[j]) * e; };
     var held = function (j) { return s < 0.5 ? a[j] : b[j]; }; // whole pixels snap at the halfway point
-    return { arm: lerp(1), reach: lerp(2), ang: lerp(3), body: held(4), lean: held(5), stance: held(6),
+    return { f: f, side: !!side, arm: lerp(1), reach: lerp(2), ang: lerp(3), body: held(4), lean: held(5), stance: held(6),
              smear: striking ? { from: a[0] === 0.62 ? a[3] : K[3][3] } : null };
   }
   // ---------- the walk cycle ----------
@@ -410,7 +423,9 @@ var DTWSprites = (function () {
     var aN = Math.round(-fN.x * 0.8), aF = Math.round(-fF.x * 0.8);
     if (o.bone && !back) bone(c, X, Y, o.bone, false);                                    // strapped behind the pack
     if (hasPack && !back) packSide(c, X - 6, Y - 6, o.pack);
-    if (behind) pickTool(c, X, Y, sw, o.tier, P, t);
+    var sw2 = o.twin && sw ? swing(sw.f + 0.5, sw.side) : null; // Twin Picks: the second pick half a cycle behind
+    var O1 = { splash: o.splash, hand: o.twin ? 'near' : null }, O2 = { splash: o.splash, hand: 'far' };
+    if (behind) { if (sw2) pickTool(c, X, Y, sw2, o.tier, P, t, O2); pickTool(c, X, Y, sw, o.tier, P, t, O1); }
     else if (!digging && !air) arm(c, X + 4, Y + 2, aF, P.q, P.k, 2);                      // far arm, behind the body
     // not digging: in the mine the pick is in the near hand, held by its neck; on the plaza (o.surface) it is slung
     // on the back by a strap and both arms swing free
@@ -421,24 +436,27 @@ var DTWSprites = (function () {
       if (front) { // facing on: the head upright in front of the hand at the hip, the handle trailing back across the legs
         var gx = X + 19 + cg, gy = Y + 8;
         line(c, gx, gy, X + 7 + cg, Y + 13, C.handle, 2);
-        line(c, gx + 2, gy - 6, gx + 2, gy + 5, C.head, 2); line(c, gx + 2, gy + 5, gx + 1, gy + 7, C.head, 1);
+        line(c, gx + 2, gy - 6, gx + 2, gy + 5, C.head, o.splash ? 4 : 2); line(c, gx + 2, gy + 5, gx + 1, gy + 7, C.head, 1);
         px(c, gx + 2, gy - 6, C.hi, 1, 9);
+        if (o.splash) { px(c, gx + 1, gy - 8, '#ffd23f', 3, 2); px(c, gx + 1, gy + 5, '#ff8a2a', 3, 2); }
         return;
       }
       // facing away: hanging by the near side, the head across the fist and the handle straight down
       var hx = X + 21 + cg, hy = Y + 8;
       line(c, hx, hy, hx, Y + 14, C.handle, 2);
-      line(c, hx - 5, hy - 1, hx + 6, hy - 1, C.head, 2); line(c, hx + 6, hy - 1, hx + 8, hy + 1, C.head, 1); px(c, hx - 5, hy - 2, C.hi, 9, 1);
+      line(c, hx - 5, hy - 1, hx + 6, hy - 1, C.head, o.splash ? 4 : 2); if (o.splash) { px(c, hx - 7, hy - 2, '#ffd23f', 2, 3); px(c, hx + 6, hy - 2, '#ff8a2a', 2, 3); }
+      line(c, hx + 6, hy - 1, hx + 8, hy + 1, C.head, 1); px(c, hx - 5, hy - 2, C.hi, 9, 1);
       px(c, hx - 1, hy - 3, P.S, 3, 3); px(c, hx - 1, hy - 1, P.s, 3, 1);                     // the fist; the arm is under the pack
     }
-    function slungPick(front) {
-      var C = PICK[o.tier];
-      if (front) { line(c, X - 5, Y - 13, X + 3, Y - 21, C.head, 2); px(c, X + 3, Y - 22, C.hi); px(c, X - 6, Y - 12, C.hi); line(c, X + 17, Y + 10, X - 1, Y - 17, C.handle, 2); return; }
+    function slungPick(front, dx) {
+      var C = PICK[o.tier], hw = o.splash ? 4 : 2; dx = dx || 0;
+      if (front) { line(c, X - 5 + dx, Y - 13, X + 3 + dx, Y - 21, C.head, hw); px(c, X + 3 + dx, Y - 22, C.hi); px(c, X - 6 + dx, Y - 12, C.hi); line(c, X + 17 + dx, Y + 10, X - 1 + dx, Y - 17, C.handle, 2); return; }
       // facing away it lies across the back, from the far hip up over the near shoulder
-      line(c, X + 4, Y + 13, X + 21, Y - 4, C.handle, 2);
-      line(c, X + 17, Y - 8, X + 26, Y + 1, C.head, 2); line(c, X + 26, Y + 1, X + 27, Y + 3, C.head, 1); px(c, X + 17, Y - 9, C.hi, 2, 1);
+      line(c, X + 4 - dx, Y + 13, X + 21 - dx, Y - 4, C.handle, 2);
+      line(c, X + 17 - dx, Y - 8, X + 26 - dx, Y + 1, C.head, hw); line(c, X + 26 - dx, Y + 1, X + 27 - dx, Y + 3, C.head, 1); px(c, X + 17 - dx, Y - 9, C.hi, 2, 1);
     }
     if (stow && !back) slungPick(true);
+    if (o.twin && !digging && !air && !back) slungPick(true, 6);                  // Twin Picks: the spare rides on the back
     leg(c, P, X0 + 7, legY, gy, Math.round(fF.x) - ap - st, fF.lift, false);
     leg(c, P, X0 + 13, legY, gy, Math.round(fN.x) + ap + st, fN.lift, true);
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
@@ -449,13 +467,14 @@ var DTWSprites = (function () {
     if (back && inHand) { line(c, X + 16, Y + 2, X + 21 + cg, Y + 5, P.r, 3); line(c, X + 16, Y + 2, X + 21 + cg, Y + 5, P.R, 2); }
     // facing on, the swing goes on before the head, so the pick passes behind it when raised and never across the face
     if (inHand && !back) handPick(true);
-    if (digging && !behind) pickTool(c, X, Y, sw, o.tier, P, t);
+    if (digging && !behind) { if (sw2) pickTool(c, X, Y, sw2, o.tier, P, t, O2); pickTool(c, X, Y, sw, o.tier, P, t, O1); }
     stamp(c, head, Pl, X, Y - 17);
     if (look) headExtras(c, look, X, Y - 17, back, Pl);
     if (digging && !behind && fistsClearOfHead(X, Y, sw)) pickFists(c, X, Y, sw, P);
     if (o.bone && back) bone(c, X, Y, o.bone, true);
     if (hasPack && back) packBack(c, X + 12, Y - 4, o.pack);
     if (stow && back) slungPick(false);
+    if (o.twin && !digging && !air && back) slungPick(false, 6);
     if (inHand && back) handPick(false);
     if (o.arms === 'wave' && !digging) { var wv = Math.sin(t * 10) > 0 ? 1 : 0; px(c, X + 19, Y - 3 - wv, P.r, 2, 6); px(c, X + 19 + wv, Y - 5 - wv, P.S, 2, 2); }
     else if (!back && !digging && !air && inHand) { // near arm bent up, the fist round the handle at the chest

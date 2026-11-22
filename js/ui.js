@@ -100,10 +100,12 @@
     R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide, open: showPanel });
     updateMats();
   }
-  var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫', crewDrill: '⛏', crewSpeed: '⚡' };
+  var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫', crewDrill: '⛏', crewSpeed: '⚡', splash: '🔨', twin: '⛏' };
+  var SPECIAL = ['splash', 'twin']; // one-time stretch tools, set apart at the foot of the upgrades
+  function specialShown(k) { return !!D.UPGRADES[k] && (!D.upgradeAvailable || D.upgradeAvailable(S, k) || (S.upgrades[k] | 0) > 0); }
   var PICK_NAMES = ['Wooden', 'Stone', 'Iron', 'Golden', 'Crystal'];
   function panelKey() {
-    var afford = Object.keys(D.UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; }).concat(Object.keys(D.WORKERS).map(function (k) { return D.canAfford(S, D.hireCost(S, k)) ? 1 : 0; }))
+    var afford = Object.keys(D.UPGRADES).map(function (k) { return (D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0) + (D.upgradeAvailable ? (D.upgradeAvailable(S, k) ? 'a' : 'h') : ''); }).concat(Object.keys(D.WORKERS).map(function (k) { return D.canAfford(S, D.hireCost(S, k)) ? 1 : 0; }))
       .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; })).join('');
     return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind].join(';');
@@ -161,11 +163,22 @@
     }
     if (tab === 'up') {
       Object.keys(D.UPGRADES).forEach(function (key) {
+        if (SPECIAL.indexOf(key) >= 0) return;
         var u = D.UPGRADES[key], c = D.upgradeCost(S, key), lv = S.upgrades[key];
         var sub = key === 'drill' ? u.text + ' · ' + PICK_NAMES[R.pickTier(lv)] + ' pickaxe' : u.text;
         row(UPIC[key], u.name + ' <span class="small">Lv ' + lv + '</span>', sub, isFinite(c.coins) ? 'Buy' : 'MAX', D.canAfford(S, c),
           function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); }, c);
       });
+      var spec = SPECIAL.filter(specialShown);
+      if (spec.length) {
+        var sh = document.createElement('div'); sh.className = 'xhead special'; sh.innerHTML = '<b>★ Special tools</b>'; body.appendChild(sh);
+        spec.forEach(function (key) {
+          var u = D.UPGRADES[key], owned = (S.upgrades[key] | 0) >= 1, c = D.upgradeCost(S, key), n = body.children.length;
+          row(UPIC[key], u.name, u.text, owned ? 'Owned' : 'Buy', !owned && D.canAfford(S, c),
+            function () { if (D.buyUpgrade(S, key)) save(); else A.sfx('no'); }, owned ? null : c);
+          var d = body.children[n]; d.classList.add('special'); if (owned) d.classList.add('owned');
+        });
+      }
       exchangeRows(body);
     } else if (tab === 'he') {
       Object.keys(D.WORKERS).forEach(function (key) {
@@ -280,7 +293,7 @@
       } else if (e.type === 'collect') {
         var it = e.item;
         // the find appears in the pit where its block was; moon loot that bounced into the miner just sparkles there
-        var lbl = e.name + ((it.kind === 'ore' && D.WORLDS[it.world].ores[it.idx].mat == null) || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), pick = !lastBreak || (D.WORLDS[S.world].rule === 'lowgrav' && it.kind !== 'relic');
+        var lbl = e.name + (it.n > 1 ? ' ×' + it.n : '') + ((it.kind === 'ore' && D.WORLDS[it.world].ores[it.idx].mat == null) || it.kind === 'treasure' ? ' +' + fmt(D.itemValue(it)) : ''), pick = !lastBreak || (D.WORLDS[S.world].rule === 'lowgrav' && it.kind !== 'relic');
         if (e.at) R.spawnFind(e.at.x - 0.5, e.at.y - 0.4, e.at.z - 0.5, it, lbl, { from: true, carried: !!it.carried }); // flies from where it lay to the miner
         else if (pick) R.spawnFind(r ? r.x : 3, r ? r.y : 0, r ? r.z : 3, it, lbl, { pickup: true });
         else R.spawnFind(lastBreak.x, lastBreak.y, lastBreak.z, it, lbl, { chest: lastBreak.tile === T.CHEST, carried: !!it.carried });

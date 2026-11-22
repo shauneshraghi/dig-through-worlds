@@ -185,8 +185,14 @@ var DTW = (function () {
     drill:  { name: 'Drill Power', base: 15, mult: 1.6,  max: 30, text: 'Hits harder' },
     speed:  { name: 'Dig Speed',   base: 8,  mult: 1.7,  max: 20, text: 'Digs faster on its own' },
     bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy, and an extra bone every 6 levels' },
-    magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 4,  text: 'Pulls in finds from further away' }
+    magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 4,  text: 'Pulls in finds from further away' },
+    // one-time stretch items: a fixed price, and only offered once world `world` is unlocked (upgradeAvailable)
+    splash: { name: 'Splash Pick', max: 1, world: 2, fixed: { coins: 20000, mats: [200, 150, 100, 50, 20] }, text: 'Each strike also chips the blocks beside it' },
+    twin:   { name: 'Twin Picks',  max: 1, world: 3, fixed: { coins: 60000, mats: [400, 300, 200, 100, 60] }, text: 'Swing 60% faster' }
   };
+  var SPLASH_FRAC = 0.4; // share of a miner strike's damage that also hits each orthogonal neighbour block
+  var TWIN_RATE = 1.6;   // the miner's swing and tap damage multiplier with Twin Picks
+  var COAL_BATCH = [1, 3, 3, 5, 5]; // coal units in one coal ore stack, by world index
   var WORKERS = {
     diggers: { name: 'Helper Digger', base: 80, mult: 2.5, max: 6, text: 'Digs blocks next to you' },
     staff:   { name: 'Museum Guide',  base: 100, mult: 2.5, max: 5, text: '+30% visitor coins' }
@@ -582,7 +588,7 @@ var DTW = (function () {
     var s = {
       v: 1, seed: seed | 0, rng: (seed | 0) ^ 0x5bd1e995, coins: 0,
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
-      upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
+      upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
       museum: WORLDS.map(function () { return { pieces: emptyPieces() }; }),
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
@@ -609,10 +615,16 @@ var DTW = (function () {
   function costOf(def, lvl) { return lvl >= def.max ? Infinity : Math.round(def.base * Math.pow(def.mult, lvl)); }
   // upgradeCost and hireCost return { coins, mats: [5 counts] } (coins Infinity when there is nothing to buy); nothing is
   // converted for the player: buying needs every coin and every material in hand (buyMat and sellMat do the exchange).
-  function upgradeCost(s, k) { var d = UPGRADES[k] || CREW_UPGRADES[k]; return priceOf(d, s.upgrades[k] | 0); }
+  function upgradeCost(s, k) {
+    var d = UPGRADES[k] || CREW_UPGRADES[k], lvl = s.upgrades[k] | 0;
+    if (d.fixed) return lvl >= d.max ? { coins: Infinity, mats: emptyMats() } : { coins: d.fixed.coins, mats: d.fixed.mats.slice() };
+    return priceOf(d, lvl);
+  }
+  // false for a one-time item whose world is still locked; true for every normal upgrade
+  function upgradeAvailable(s, k) { var d = UPGRADES[k] || CREW_UPGRADES[k]; return !!d && (d.world == null || !!s.unlocked[d.world]); }
   function buyUpgrade(s, k) {
     var c = upgradeCost(s, k);
-    if (!canAfford(s, c)) return false;
+    if (!upgradeAvailable(s, k) || !canAfford(s, c)) return false;
     pay(s, c); s.upgrades[k] = (s.upgrades[k] | 0) + 1; emit(s, { type: 'buy', key: k }); return true;
   }
   // helpers the player may have: two in the first world, one more for each world unlocked after it
@@ -626,7 +638,8 @@ var DTW = (function () {
   function drillDamage(s) { return Math.pow(1.5, s.upgrades.drill); }
   function crewDamage(s) { return Math.pow(1.5, s.upgrades.crewDrill | 0); }
   function crewRate(s) { return HELPER_RATE * (1 + 0.35 * (s.upgrades.crewSpeed | 0)); } // each helper's swings per second
-  function hitRate(s) { return 2 * (1 + 0.35 * s.upgrades.speed); } // the miner's own swings per second
+  function twinMul(s) { return s.upgrades.twin ? TWIN_RATE : 1; }
+  function hitRate(s) { return 2 * (1 + 0.35 * s.upgrades.speed) * twinMul(s); } // the miner's own swings per second
 
   // pieces of world w's creature c found so far (0-5), or of all its creatures when c is left out
   function piecesFound(s, w, c) {
@@ -646,7 +659,7 @@ var DTW = (function () {
   }
   function itemValue(it) {
     var wd = WORLDS[it.world];
-    if (it.kind === 'ore') return wd.ores[it.idx].mat != null ? MAT_PRICE[wd.ores[it.idx].mat] : Math.round(wd.ores[it.idx].value * wd.oreMult); // a material's coin worth is its sell price
+    if (it.kind === 'ore') return wd.ores[it.idx].mat != null ? MAT_PRICE[wd.ores[it.idx].mat] * (it.n || 1) : Math.round(wd.ores[it.idx].value * wd.oreMult); // a material's coin worth is its sell price
     if (it.kind === 'treasure') return it.value;
     if (it.kind === 'fossil') return Math.round(15 * wd.oreMult);
     return 0;
@@ -909,7 +922,7 @@ var DTW = (function () {
         if (have) coins += itemValue(it); else { s.carry.push({ kind: 'fossil', world: it.world, idx: it.idx }); pieces.push(itemName(it)); }
       } else if (it.kind === 'relic') {
         if (!s.relics[it.world]) { s.relics[it.world] = true; relic = it.world; if (it.world < 4) s.unlocked[it.world + 1] = true; }
-      } else if (it.kind === 'ore' && WORLDS[it.world].ores[it.idx].mat != null) { gained[WORLDS[it.world].ores[it.idx].mat]++; s.mats[WORLDS[it.world].ores[it.idx].mat]++; }
+      } else if (it.kind === 'ore' && WORLDS[it.world].ores[it.idx].mat != null) { var mt = WORLDS[it.world].ores[it.idx].mat, n = it.n || 1; gained[mt] += n; s.mats[mt] += n; }
       else coins += itemValue(it);
     });
     s.coins += coins; r.bag = []; s.hub = hubHome(); s.matBought = emptyMats();
@@ -939,7 +952,7 @@ var DTW = (function () {
   function breakTile(s, i, helper, smashed) {
     var r = s.run, g = r.grid, w = s.world, tt = g.t[i], vv = g.v[i], it = null;
     var bx = i % N, bz = Math.floor(i / N) % N, by = Math.floor(i / NN);
-    if (tt === TILE.ORE) it = { kind: 'ore', world: w, idx: vv };
+    if (tt === TILE.ORE) { it = { kind: 'ore', world: w, idx: vv }; if (vv === 0) it.n = COAL_BATCH[w] || 1; }
     else if (tt === TILE.FOSSIL) { // a big fossil gives its bone when its last cell breaks
       var fo = fossilAt(g, i);
       if (fo.cells.length > 1) emit(s, { type: 'bigBone', x: bx, y: by, z: bz, left: fo.cells.length - 1 });
@@ -1081,6 +1094,19 @@ var DTW = (function () {
       if (g.hp[c.target] <= 0) { var done = c.target; c.target = -1; breakTile(s, done, c); if (r.path && r.path.target === done) r.path = null; }
     }
   }
+  // Splash Pick: a miner strike also hits the blocks orthogonally beside its target, in the same layer
+  function splash(s, tgt, dmg, hit) {
+    var r = s.run, g = r.grid, y = Math.floor(tgt / NN), x = tgt % N, z = Math.floor(tgt / N) % N;
+    ['e', 's', 'w', 'n'].forEach(function (k) {
+      var nx = x + DIRS[k][0], nz = z + DIRS[k][1];
+      if (nx < 0 || nx >= N || nz < 0 || nz >= N) return;
+      var ni = idx(nx, y, nz), tt = g.t[ni];
+      if (!diggable(tt) || tt === TILE.CHEST || tt === TILE.RELIC) return;
+      g.hp[ni] -= SPLASH_FRAC * dmg; hit[ni] = 1;
+      if (tt === TILE.GOO) r.goo[ni] = 1;
+      if (g.hp[ni] <= 0) { breakTile(s, ni); if (r.path && r.path.target === ni) r.path = null; if (r.goal === ni) r.goal = -1; }
+    });
+  }
   function stepDig(s, dt) {
     var r = s.run, g = r.grid, w = s.world, rule = WORLDS[w].rule;
     var hit = {}, layers = DEPTH + 2;
@@ -1185,7 +1211,7 @@ var DTW = (function () {
         var wf = weightFactor(s, r.bag.length);
         // the miner's own swing is slower on auto-pilot
         var idle = drillDamage(s) * hitRate(s) * (steered || r.manual > 0 ? 1 : AUTO_PACE) * dt * wf;
-        var dmg = idle + drillDamage(s) * r.taps * wf;
+        var dmg = idle + drillDamage(s) * twinMul(s) * r.taps * wf;
         if (g.t[tgt] === TILE.GOO) dmg -= idle * 0.55; // goo grows back while you drill it
         r.taps = 0;
         g.hp[tgt] -= dmg; hit[tgt] = 1; r.target = tgt;
@@ -1196,6 +1222,7 @@ var DTW = (function () {
           if (r.goal === tgt) r.goal = -1;
           r.path = null;
         }
+        if (s.upgrades.splash) splash(s, tgt, dmg, hit);
       } else r.target = -1;
       if (r.stun <= 0 && s.mode === 'dig') stepCrew(s, dt, hit);
     }
@@ -1289,7 +1316,7 @@ var DTW = (function () {
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
-    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
+    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, COAL_BATCH: COAL_BATCH, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,

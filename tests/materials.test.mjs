@@ -176,3 +176,78 @@ test('a version 3 save loads with no materials and turns an old ore in the bag i
   assert.equal(g.v[60], 5, 'an old gem block becomes the gem ore');
   assert.equal(g.v[61], 1);
 });
+
+// ---------- stretch items and coal stacks ----------
+const digTo = (s, w) => { D.startDig(s, w); s.mode = 'dig'; return s.run; };
+function flatLayer(s, y) { // layer y: all stone, miner at (3,y,3), hp 1 everywhere
+  const g = s.run.grid;
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) { D._setTile(s, x, y, z, T.STONE, 0); g.hp[D.idx(x, y, z)] = 100; }
+  D._teleport(s, 3, y, 3);
+}
+test('Splash Pick: one-time, fixed price, offered once world 2 is unlocked', () => {
+  const s = D.newState(1);
+  assert.equal(s.upgrades.splash, 0); assert.equal(s.upgrades.twin, 0);
+  assert.equal(D.upgradeAvailable(s, 'drill'), true);
+  assert.equal(D.upgradeAvailable(s, 'splash'), false);
+  assert.equal(D.upgradeAvailable(s, 'twin'), false);
+  s.coins = 1e9; s.mats = [1e5, 1e5, 1e5, 1e5, 1e5];
+  assert.equal(D.buyUpgrade(s, 'splash'), false, 'locked world');
+  s.unlocked[2] = true; s.unlocked[3] = true;
+  assert.equal(D.upgradeAvailable(s, 'splash'), true); assert.equal(D.upgradeAvailable(s, 'twin'), true);
+  const c = D.upgradeCost(s, 'splash'); assert.ok(c.coins > 0 && c.mats.every(n => n > 0));
+  assert.equal(D.buyUpgrade(s, 'splash'), true); assert.equal(s.upgrades.splash, 1);
+  assert.equal(D.upgradeCost(s, 'splash').coins, Infinity); assert.equal(D.buyUpgrade(s, 'splash'), false);
+  assert.equal(D.buyUpgrade(s, 'twin'), true);
+});
+test('Splash Pick: a strike chips orthogonal neighbours, never chests, relics, bedrock or open cells', () => {
+  const s = D.newState(3); s.unlocked[2] = true; s.upgrades.splash = 1; s.auto = false;
+  digTo(s, 0); flatLayer(s, 1); const g = s.run.grid, y = 1;
+  D._setTile(s, 4, y, 3, T.CHEST, 0); D._setTile(s, 2, y, 3, T.AIR, 0);
+  D._setTile(s, 3, y, 2, T.STONE, 0); D._setTile(s, 3, y, 4, T.RELIC, 0);
+  for (const [x, z] of [[4,3],[3,2],[3,4]]) g.hp[D.idx(x, y, z)] = 100;
+  const hp0 = g.hp[D.idx(3, y, 2)];
+  D.steer(s, 'n'); D.tap(s); D.step(s, 0.05);
+  const hit = hp0 - g.hp[D.idx(3, y, 2)];
+  assert.ok(hit > 0, 'target damaged');
+  assert.equal(g.hp[D.idx(4, y, 3)], 100, 'chest untouched'); assert.equal(g.hp[D.idx(3, y, 4)], 100, 'relic untouched');
+  assert.equal(g.t[D.idx(2, y, 3)], T.AIR);
+  // the target's neighbours (2,2) and (4,2) take SPLASH_FRAC of the strike
+  const side = 100 - g.hp[D.idx(2, y, 2)];
+  assert.ok(Math.abs(side - D.SPLASH_FRAC * hit) < 1e-3, `${side} vs ${D.SPLASH_FRAC * hit}`);
+  assert.equal(D.SPLASH_FRAC, 0.4);
+});
+test('Splash Pick: a splash that breaks a block drops its loot', () => {
+  const s = D.newState(3); s.unlocked[2] = true; s.upgrades.splash = 1; s.auto = false;
+  digTo(s, 0); flatLayer(s, 1); const g = s.run.grid, y = 1;
+  D._setTile(s, 2, y, 2, T.ORE, 1); g.hp[D.idx(2, y, 2)] = 0.001;
+  D.steer(s, 'n'); D.tap(s); D.step(s, 0.05);
+  assert.equal(g.t[D.idx(2, y, 2)], T.AIR);
+  assert.ok(s.run.loot.some(l => l.item.kind === 'ore' && l.item.idx === 1));
+});
+test('Twin Picks multiply the miner swing rate by TWIN_RATE', () => {
+  const s = D.newState(1); const base = D.hitRate(s);
+  s.upgrades.twin = 1;
+  assert.equal(D.TWIN_RATE, 1.6); assert.ok(Math.abs(D.hitRate(s) - base * 1.6) < 1e-9);
+});
+test('coal drops as a stack by world, banks n units, and is one bag item', () => {
+  assert.deepEqual([...D.COAL_BATCH], [1, 3, 3, 5, 5]);
+  for (const w of [0, 1, 4]) {
+    const s = D.newState(5); s.unlocked.fill(true); digTo(s, w); flatLayer(s, 1); s.auto = false;
+    D._setTile(s, 3, 1, 2, T.ORE, 0); s.run.grid.hp[D.idx(3, 1, 2)] = 0.001;
+    D.steer(s, 'n'); D.tap(s); D.step(s, 0.05);
+    const l = s.run.loot.find(l => l.item.kind === 'ore'); assert.ok(l, 'coal dropped');
+    assert.equal(l.item.n || 1, D.COAL_BATCH[w]);
+    s.run.loot = []; s.run.bag = [l.item]; D.bank(s);
+    assert.equal(s.mats[0], D.COAL_BATCH[w]);
+    assert.equal(s.events.filter(e => e.type === 'banked').pop().mats[0], D.COAL_BATCH[w]);
+  }
+  const s = D.newState(5); s.run = { bag: [{ kind: 'ore', world: 0, idx: 0 }, { kind: 'ore', world: 1, idx: 0, n: 3 }], loot: [] };
+  D.bank(s); assert.equal(s.mats[0], 4);
+  assert.equal(D.itemValue({ kind: 'ore', world: 1, idx: 0, n: 3 }), 3 * D.MAT_PRICE[0]);
+});
+test('old saves load the new upgrades at 0', () => {
+  const o = JSON.parse(D.serialize(D.newState(7)));
+  delete o.upgrades.splash; delete o.upgrades.twin;
+  const t = D.deserialize(JSON.stringify(o));
+  assert.equal(t.upgrades.splash, 0); assert.equal(t.upgrades.twin, 0);
+});
