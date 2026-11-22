@@ -416,6 +416,8 @@ var DTWRender = (function () {
     ctx.scale(fc.flip ? -scx : scx, scy);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
+    // where the helmet lamp is on screen, for lamp(): the sprite's lamp pixel through the same flip and squash
+    lampAt = [sx + (fc.flip ? -scx : scx) * (spr.lx + 0.5 - spr.fx) * p, sy + scy * (spr.ly + 0.5 - spr.fy) * p];
     if (r && r.stun > 0) {
       octx.font = 'bold ' + Math.round(TW * 0.22) + 'px sans-serif'; octx.textAlign = 'center'; octx.fillStyle = '#ffeb3b';
       for (var i = 0; i < 3; i++) { var a = time * 6 + i * 2.1; octx.fillText('★', sx + Math.cos(a) * TW * 0.3, sy - 36 * p + Math.sin(a) * TW * 0.08); }
@@ -508,14 +510,24 @@ var DTWRender = (function () {
   var burstT = 0;
   function coinPile(x, z, amt) {
     var n = amt >= 1 ? Math.min(40, 4 + Math.floor(Math.log(amt) / Math.LN2 * 2.5)) : 0;
-    if (n) blob(x, z, 0.45, 0.22);
-    for (var i = 0; i < n; i++) {
-      var h = hash2(i, 7), a = h * 6.283, rr = 0.4 * Math.sqrt(1 - i / n) * (0.6 + 0.4 * hash2(i, 3)), lift = 0.45 * Math.pow(i / n, 0.8);
-      var q = P(x + Math.cos(a) * rr, 1 - lift - 0.02, z + Math.sin(a) * rr);
-      ctx.fillStyle = '#b8860b'; ctx.beginPath(); ctx.ellipse(q[0], q[1] + TW * 0.02, TW * 0.09, TW * 0.045, 0, 0, 7); ctx.fill();
-      ctx.fillStyle = i % 3 ? '#ffd23f' : '#ffe58a'; ctx.beginPath(); ctx.ellipse(q[0], q[1], TW * 0.09, TW * 0.045, 0, 0, 7); ctx.fill();
+    if (n) { // a dark red rug under the heap, so gold stands out on the pale museum floor
+      blob(x, z, 0.7, 0.25);
+      var rq = P(x, 1, z);
+      ctx.fillStyle = '#5a1630'; ctx.beginPath(); ctx.ellipse(rq[0], rq[1], hw * 0.85, hh * 0.85, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle = '#c9a24a'; ctx.lineWidth = Math.max(1, TW * 0.02); ctx.beginPath(); ctx.ellipse(rq[0], rq[1], hw * 0.74, hh * 0.74, 0, 0, 7); ctx.stroke();
     }
-    if (n) { var gq = P(x, 0.75, z); glow(gq[0], gq[1], TW * 0.7, GOLD, 0.08 + 0.04 * Math.sin(time * 3)); }
+    for (var i = 0; i < n; i++) { // each coin has a dark rim and edge so the heap reads as separate coins
+      var h = hash2(i, 7), a = h * 6.283, rr = 0.4 * Math.sqrt(1 - i / n) * (0.6 + 0.4 * hash2(i, 3)), lift = 0.45 * Math.pow(i / n, 0.8);
+      var q = P(x + Math.cos(a) * rr, 1 - lift - 0.02, z + Math.sin(a) * rr), cw = TW * 0.1, ch = TW * 0.05;
+      ctx.fillStyle = '#3a2200'; ctx.beginPath(); ctx.ellipse(q[0], q[1] + TW * 0.025, cw + 1.5, ch + 1.5, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#a8740a'; ctx.beginPath(); ctx.ellipse(q[0], q[1] + TW * 0.02, cw, ch, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = i % 3 ? '#ffd23f' : '#fff0a0'; ctx.beginPath(); ctx.ellipse(q[0], q[1], cw, ch, 0, 0, 7); ctx.fill();
+    }
+    if (n) {
+      var gq = P(x, 0.75, z); glow(gq[0], gq[1], TW * 0.8, GOLD, 0.16 + 0.06 * Math.sin(time * 3));
+      var tw = (time * 1.3) % 1, sq = P(x + 0.15 * Math.cos(time), 1 - 0.45, z + 0.15 * Math.sin(time)), sr = TW * 0.12 * Math.sin(tw * Math.PI); // a twinkle on top
+      if (sr > 0.5) { ctx.fillStyle = '#fffbe0'; ctx.fillRect(sq[0] - sr, sq[1] - 1, sr * 2, 2); ctx.fillRect(sq[0] - 1, sq[1] - sr, 2, sr * 2); }
+    }
     if (burstT > 0) { // coins leaping up out of the heap
       var k = 1 - burstT / 0.8;
       for (var j = 0; j < 10; j++) {
@@ -1145,7 +1157,7 @@ var DTWRender = (function () {
       ctx.fillStyle = gr; ctx.fillRect(0, 0, vw, vh);
       var fd = FACE[disp.face] || FACE.e, dirx = fd.flip ? -1 : 1, diry = fd.back ? -0.5 : 0.5;
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      var bx = lx + dirx * TW * 0.25, by = ly - TW * 0.15;
+      var bx = lampAt ? lampAt[0] : lx + dirx * TW * 0.25, by = lampAt ? lampAt[1] : ly - TW * 0.15;
       var lg = ctx.createRadialGradient(bx, by, 0, bx, by, TW * 1.6);
       lg.addColorStop(0, 'rgba(255,240,170,0.28)'); lg.addColorStop(1, 'rgba(255,240,170,0)');
       ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(bx, by);
@@ -1227,10 +1239,10 @@ var DTWRender = (function () {
     if (S.mode === 'surface' || depthF <= 0) return;
     var fd = FACE[disp.face] || FACE.e, dirx = fd.flip ? -1 : 1, diry = fd.back ? -0.5 : 0.5;
     light(lx, ly, TW * 4.2, 0.7 * depthF, [1.0, 0.88, 0.7]);                                  // the headlamp's pool
-    light(lx + dirx * TW * 1.1, ly + diry * TW * 0.9, TW * 2.2, 0.35 * depthF, [1.0, 0.95, 0.8]); // the beam
     var c = P(N / 2, viewTop + 1, N / 2);
     light(c[0], c[1], TW * 6.5, 0.28 * depthF, [0.78, 0.82, 1.0]);                                 // cool fill over the layer
-    var hx = lx + dirx * TW * 0.25, hy = ly - TW * 0.15;
+    var hx = lampAt ? lampAt[0] : lx + dirx * TW * 0.25, hy = lampAt ? lampAt[1] : ly - TW * 0.15; // the lamp on the helmet
+    light(hx + dirx * TW * 0.9, hy + diry * TW * 0.9 + TW * 0.3, TW * 2.2, 0.35 * depthF, [1.0, 0.95, 0.8]); // the beam
     glow(hx, hy, TW * 0.35, '#fff6b0', 0.9);
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     var lg = ctx.createRadialGradient(hx, hy, 0, hx, hy, TW * 1.8);
@@ -1329,7 +1341,7 @@ var DTWRender = (function () {
       if (i % 3 === 0) glow(x, y, TW * 0.12, col, a * 0.6);
     }
   }
-  var lastMiner = null;
+  var lastMiner = null, lampAt = null;
   // one layer of ladder on the x = 0 wall face: two rails and three rungs (plus the rail tops above the rim)
   function ladder(y) {
     var z0 = LADDER_Z + 0.22, z1 = LADDER_Z + 0.78, top = y === 1 ? 0.25 : y, bot = y + 1, xw = 0.02;

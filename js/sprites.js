@@ -451,7 +451,8 @@ var DTWSprites = (function () {
     }
     else if (!back && !digging && !air) arm(c, X + 16, Y + 2, aN, P.r, P.S, 3);
     outline(c, W, H, OUT);
-    return { cv: cv, fx: FX, fy: FY };
+    // lx, ly: the centre of the helmet lamp (the L pixels of HEAD_MINER); facing away, the hat's front edge
+    return { cv: cv, fx: FX, fy: FY, lx: back ? X + 19 : X + 22, ly: Y - 17 + (back ? 5 : 6) };
   }
   // seen from behind on the ladder, hands on the rungs; the pick hangs on the back
   function climber(o, P, Pl, X0, legY, head) {
@@ -465,7 +466,7 @@ var DTWSprites = (function () {
     if (o.bone) bone(c, X0, Y, o.bone, true);
     if (o.pack != null && o.pack !== false) packBack(c, X0 + 12, Y - 4, o.pack === true ? 1 : o.pack);
     outline(c, W, H, OUT);
-    return { cv: cv, fx: FX, fy: FY };
+    return { cv: cv, fx: FX, fy: FY, lx: X0 + 11, ly: Y - 14 };
   }
   // cached frames for the people walking about the plaza (no pickaxe): moving, frame 0..7 is the walk cycle in eighths
   var cache = {};

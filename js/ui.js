@@ -46,6 +46,22 @@
   // the ☰ button opens the menu anywhere on the plaza; from it any station's panel can be opened
   var menuOpen = false, menuPick = null;
   var WIDE = window.matchMedia('(min-aspect-ratio: 1/1) and (min-width: 700px)');
+  // the materials row: a chip per material (a dot in its colour and the count), dimmed at zero. Laptops show it
+  // in the HUD row, portrait phones as a small second row; a wide HUD too narrow for it (a phone on its side
+  // with a panel open) drops it rather than overflow. matsKey keeps the fit check to when something changed.
+  var matsKey = '';
+  function updateMats() {
+    var box = $('hMats'), hud = $('hud');
+    if (!box.firstChild) D.MATS.forEach(function (m) {
+      var c = document.createElement('span'); c.className = 'chip mat'; c.title = m.name;
+      c.innerHTML = '<i class="dot" style="background:' + m.color + '"></i><span></span>'; box.appendChild(c);
+    });
+    var key = S.mats.join() + ':' + S.mode + ':' + $('app').className + ':' + innerWidth + 'x' + innerHeight;
+    if (key === matsKey) return; matsKey = key;
+    D.MATS.forEach(function (m, t) { var c = box.children[t]; c.lastChild.textContent = fmt(S.mats[t]); c.classList.toggle('zero', !S.mats[t]); });
+    hud.classList.remove('tight');
+    if (WIDE.matches && hud.scrollWidth > hud.clientWidth + 1) hud.classList.add('tight');
+  }
   function updateHud() {
     $('hCoins').textContent = '🪙 ' + fmt(S.coins);
     var r = S.run, depth = S.mode === 'dig' && r ? r.y : S.mode === 'surface' ? 0 : Math.max(0, Math.round(R.dispY));
@@ -82,6 +98,7 @@
     var wide = WIDE.matches;
     $('app').classList.toggle('panel', wide && showPanel);
     R.setView({ right: wide && showPanel ? $('surface').offsetWidth : 0, sheet: !wide, open: showPanel });
+    updateMats();
   }
   var UPIC = { drill: '⛏', speed: '⚡', bag: '🎒', magnet: '🧲', diggers: '👷', staff: '🧑‍🏫', crewDrill: '⛏', crewSpeed: '⚡' };
   var PICK_NAMES = ['Wooden', 'Stone', 'Iron', 'Golden', 'Crystal'];
