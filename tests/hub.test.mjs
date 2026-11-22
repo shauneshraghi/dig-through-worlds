@@ -246,3 +246,51 @@ test('a tap on the pit beside the ladder walks there and climbs down; elsewhere 
   D.hubWalkTo(u, 0.5, D.LADDER_Z + 0.5); D.hubInput(u, 'n'); run(u, 3); D.hubInput(u, null); run(u, 10);
   assert.equal(u.mode, 'surface', 'steering away cancels the climb');
 });
+
+// Museum quiz: a curious visitor with a ? turns up by a finished skeleton every QUIZ_EVERY s of play; walking up to the
+// plinth asks a question (mostly pictures), and a right answer pays about a minute of museum income.
+test('museum quiz: a visitor comes by a finished skeleton, asks a question, and a right answer pays a minute of income', () => {
+  const s = D.newState(11);
+  for (let t = 0; t < D.QUIZ_EVERY + 5; t += 1) D.step(s, 1);
+  assert.equal(s.quiz, null, 'no visitor before any skeleton is finished');
+  for (let p = 0; p < D.PIECES; p++) s.museum[0].pieces[5 + p] = 1; // the Raptor is complete
+  for (let t = 0; t < D.QUIZ_EVERY + 1; t += 1) D.step(s, 1);
+  assert.ok(s.quiz, 'a visitor came');
+  const q = s.quiz;
+  assert.equal(q.k, 1, 'by the finished skeleton (world 0, creature 1)');
+  assert.ok(['shape', 'piece', 'fact'].includes(q.kind));
+  assert.equal(q.opts.length, 3); assert.ok(q.ans >= 0 && q.ans < 3);
+  assert.ok(typeof q.text === 'string' && q.text.length > 5);
+  assert.equal(q.open, false);
+  // walk up to the Raptor's plinth: the question opens
+  const ch = D.PLINTH_CH[1], row = D.HUB.rows.findIndex(r => r.includes(ch));
+  s.hub.x = D.HUB.rows[row].indexOf(ch) + D.HUB.x0 - 0.5; s.hub.z = row + D.HUB.z0 + 0.5; s.events = [];
+  D.step(s, 0.05);
+  assert.equal(s.quiz.open, true); assert.ok(s.events.some(e => e.type === 'quiz'));
+  const want = D.quizReward(s);
+  assert.ok(want >= Math.round(60 * D.museumIncome(s)) && want >= 50);
+  const c0 = s.coins, r = D.quizAnswer(s, q.ans);
+  assert.equal(r.right, true); assert.equal(s.coins - c0, r.coins); assert.equal(r.coins, want);
+  assert.equal(s.quiz, null);
+  assert.ok(s.events.some(e => e.type === 'quizDone' && e.right));
+  // the next one waits QUIZ_EVERY again; a wrong answer still gives a little
+  for (let t = 0; t < D.QUIZ_EVERY + 1; t += 1) D.step(s, 1);
+  s.quiz.open = true;
+  const c1 = s.coins, r2 = D.quizAnswer(s, (s.quiz.ans + 1) % 3);
+  assert.equal(r2.right, false); assert.ok(r2.coins >= 1 && r2.coins < want); assert.equal(s.coins - c1, r2.coins);
+  assert.equal(D.quizAnswer(s, 0), null, 'nothing to answer now');
+});
+
+test('museum quiz questions: every kind has its right answer among three different options', () => {
+  const s = D.newState(5); s.museum.forEach(m => m.pieces.fill(1));
+  const kinds = new Set();
+  for (let n = 0; n < 200; n++) {
+    s.quiz = null; D._quizNow(s);
+    const q = s.quiz; kinds.add(q.kind);
+    assert.equal(new Set(q.opts.map(String)).size, 3, `${q.kind} options differ`);
+    if (q.kind === 'shape') assert.equal(q.opts[q.ans], q.k);
+    if (q.kind === 'piece') assert.ok(q.opts.every(o => Math.floor(o / D.PIECES) === q.k % D.CREATURES), 'pieces of that creature');
+    if (q.kind === 'fact') assert.ok(q.opts.every(o => typeof o === 'string'));
+  }
+  assert.deepEqual([...kinds].sort(), ['fact', 'piece', 'shape']);
+});

@@ -309,6 +309,70 @@ var DTW = (function () {
     }
     return best;
   }
+  // ---------- museum quiz ----------
+  // Every QUIZ_EVERY s of play a curious visitor (drawn with a ?) waits by a finished skeleton (s.quiz, not saved). Walking
+  // up to that plinth opens the question (a 'quiz' event); quizAnswer pays quizReward for a right answer, a tenth for a
+  // wrong one. Kinds, mostly pictures for young readers: 'shape' (which skeleton is this one? opts are creature keys
+  // k = world * 3 + creature), 'piece' (which bone is its <part>? opts are fossil indices) and 'fact' (opts are words).
+  var QUIZ_EVERY = 210, QUIZ_KINDS = ['shape', 'shape', 'piece', 'piece', 'fact'];
+  // one short fact question per creature key: [question, right answer, wrong, wrong]
+  var QUIZ_FACTS = [
+    ['What kept the Woolly Mammoth warm?', 'Thick fur', 'A fire', 'A coat of leaves'],
+    ['What did the Raptor have on each foot?', 'A big curved claw', 'A flipper', 'A wheel'],
+    ['What did T. rex eat?', 'Meat', 'Grass', 'Ice cream'],
+    ['Where does a Sea Turtle lay its eggs?', 'On the beach', 'In a tree', 'On the moon'],
+    ['What does a shark grow again and again?', 'Teeth', 'Wings', 'Hair'],
+    ['What did the Plesiosaur use to swim?', 'Four paddles', 'Two legs', 'A propeller'],
+    ['What was special about the Sabre-tooth Cat?', 'Two long fangs', 'A long trunk', 'A shell'],
+    ['Where does a crocodile like to wait?', 'In the water', 'Up a tree', 'In the snow'],
+    ['What was on the Stegosaurus\'s back?', 'Big bony plates', 'Wings', 'A saddle'],
+    ['What drove the Lost Moon Rover?', 'Wheels', 'Legs', 'Sails'],
+    ['What did the Pterodactyl do?', 'Fly', 'Dig tunnels', 'Swim deep'],
+    ['What was long on the Brachiosaurus?', 'Its neck', 'Its ears', 'Its fur'],
+    ['How many horns does a Glorpatops show off?', 'Lots of horns', 'No horns', 'One sock'],
+    ['How does the Sky Serpent get about?', 'It flies', 'It rolls', 'It hops'],
+    ['What is at the end of the Space Ankylosaur\'s tail?', 'A club', 'A flower', 'A bell']
+  ];
+  function shuffle3(s, right, others) { var o = [right].concat(others), j = Math.floor(rand(s) * 3), t = o[0]; o[0] = o[j]; o[j] = t; return { opts: o, ans: j }; }
+  function quizMake(s) {
+    var done = [];
+    for (var k = 0; k < FOSSILS; k++) if (exhibitDone(s, Math.floor(k / CREATURES), k % CREATURES)) done.push(k);
+    if (!done.length) return null;
+    var k0 = done[Math.floor(rand(s) * done.length)], w = Math.floor(k0 / CREATURES), c = k0 % CREATURES, cr = WORLDS[w].creatures[c];
+    var kind = QUIZ_KINDS[Math.floor(rand(s) * QUIZ_KINDS.length)], q, others = [];
+    if (kind === 'shape') {
+      while (others.length < 2) { var o = Math.floor(rand(s) * FOSSILS); if (o !== k0 && others.indexOf(o) < 0) others.push(o); }
+      q = shuffle3(s, k0, others); q.text = 'Which one is the ' + cr.name + '?';
+    } else if (kind === 'piece') {
+      var p = Math.floor(rand(s) * PIECES);
+      while (others.length < 2) { var op = c * PIECES + Math.floor(rand(s) * PIECES); if (op !== c * PIECES + p && others.indexOf(op) < 0) others.push(op); }
+      q = shuffle3(s, c * PIECES + p, others); q.text = 'Which bone is the ' + cr.name + '\'s ' + cr.parts[p] + '?';
+    } else { var fq = QUIZ_FACTS[k0]; q = shuffle3(s, fq[1], [fq[2], fq[3]]); q.text = fq[0]; }
+    q.kind = kind; q.k = k0; q.open = false;
+    return q;
+  }
+  function quizReward(s) {
+    var top = s.unlocked.lastIndexOf(true);
+    return Math.max(Math.round(60 * museumIncome(s)), Math.round(50 * WORLDS[top].oreMult));
+  }
+  function stepQuiz(s, dt) {
+    if (s.quiz) {
+      var near = s.mode === 'surface' && !s.quiz.open && hubNearExhibit(s);
+      if (near && near.creature >= 0 && near.world * CREATURES + near.creature === s.quiz.k) { s.quiz.open = true; emit(s, { type: 'quiz', k: s.quiz.k }); }
+      return;
+    }
+    s.quizT = (s.quizT || 0) + dt;
+    if (s.quizT >= QUIZ_EVERY) { s.quizT = 0; s.quiz = quizMake(s); if (s.quiz) emit(s, { type: 'quizVisitor', k: s.quiz.k }); }
+  }
+  // answer the open question with option i: { right, coins } (null when no question is open)
+  function quizAnswer(s, i) {
+    var q = s.quiz;
+    if (!q || !q.open) return null;
+    var right = i === q.ans, full = quizReward(s), coins = right ? full : Math.max(1, Math.round(full / 10));
+    s.coins += coins; s.quiz = null; s.quizT = 0;
+    emit(s, { type: 'quizDone', right: right, coins: coins, k: q.k, ans: q.ans });
+    return { right: right, coins: coins };
+  }
   // held keys: one direction or a list of them ('n', 's', 'e', 'w'), or null to stop
   function hubInput(s, dirs) {
     var v = [0, 0];
@@ -599,7 +663,7 @@ var DTW = (function () {
       v: 1, seed: seed | 0, rng: (seed | 0) ^ 0x5bd1e995, coins: 0,
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
-      museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false,
+      museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false, quiz: null, quizT: 0,
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
     };
@@ -1364,6 +1428,7 @@ var DTW = (function () {
 
   function step(s, dt) {
     s.stats.timePlayed += dt;
+    stepQuiz(s, dt);
     s.pile = (s.pile || 0) + museumIncome(s) * dt; // visitor coins pile up at the museum till the miner walks in
     if (s.mode === 'dig') stepDig(s, dt);
     else if (s.mode === 'surface') stepHub(s, dt);
@@ -1444,7 +1509,7 @@ var DTW = (function () {
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ICE_N: ICE_N, ICE_ROCKS: ICE_ROCKS, ICE_MIN: ICE_MIN, LOCK_ONE: LOCK_ONE, LOCK_TWO: LOCK_TWO, iceSlide: iceSlide, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, ORE_STACK: ORE_STACK, DODGE_WINDOW: DODGE_WINDOW, dodge: dodge, buyUpgrade: buyUpgrade, hireCost: hireCost,
-    hire: hire, museumIncome: museumIncome, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
+    hire: hire, museumIncome: museumIncome, QUIZ_EVERY: QUIZ_EVERY, quizAnswer: quizAnswer, quizReward: quizReward, _quizNow: function (s) { s.quiz = quizMake(s); }, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, LADDER_DOWN: LADDER_DOWN, CLIMB_PUSH: CLIMB_PUSH, hubCell: hubCell, hubWalkable: hubWalkable,
