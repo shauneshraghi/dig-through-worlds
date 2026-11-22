@@ -420,11 +420,7 @@ var DTW = (function () {
   function minerBones(s) { return Math.min(BONE_MAX, 1 + Math.floor((s.upgrades.bag || 0) / BONE_EVERY)); }
   function crewBones(s) { return Math.min(s.workers ? s.workers.diggers : 0, DIGGERS_FIRST + (s.world || 0)); }
   function boneCap(s) { return minerBones(s) + crewBones(s); }
-  function handsFull(s) {
-    var held = {}, n = (s.carry || []).length;
-    if (s.run && s.run.loot) s.run.loot.forEach(function (l) { var it = l.item; if (isNewBone(s, it) && !held[it.world * 100 + it.idx]) { held[it.world * 100 + it.idx] = 1; n++; } });
-    return n >= boneCap(s);
-  }
+  function handsFull(s) { return (s.carry || []).length >= boneCap(s); }
   // The fossil piece at cell i, or null: { idx, y, x0, z0, w, d (its footprint), dx, dz (this cell's place in it),
   // cells: the footprint's cells still in the ground }. A single-cell fossil is a 1×1 footprint.
   function fossilAt(g, i) {
@@ -436,7 +432,8 @@ var DTW = (function () {
     }
     return { idx: k, y: y, x0: x0, z0: z0, w: p.w, d: p.d, dx: p.dx, dz: p.dz, cells: cells };
   }
-  function canDig(s, g, i) { return diggable(g.t[i]) && !(g.t[i] === TILE.FOSSIL && handsFull(s)); }
+  // a fossil breaks even with hands full: its bone then waits on the floor (lootWaits) and the dig goes on
+  function canDig(s, g, i) { return diggable(g.t[i]); }
   function boneHint(s) { var r = s.run; if (!(r.hintT > 0)) { r.hintT = 6; emit(s, { type: 'boneFull' }); } }
   // blocks still to dig in layer y
   function layerHasBlocks(g, y) {
@@ -669,6 +666,10 @@ var DTW = (function () {
     var g = site(s, w);
     s.run = { x: g.deepestX, y: g.deepest, z: g.deepestZ, bag: [], loot: [], oxygen: O2_MAX, stun: 0, steer: 0, fallAcc: 0,
               walkAcc: 0, path: null, manual: 0, stepCD: 0, state: 'idle', taps: 0, grid: g, elevT: Math.min(2, 0.5 + g.deepest * 0.015), relicTimer: 0, goo: {}, target: -1, goal: -1, face: 'e', crew: [] };
+    (g.bones || []).forEach(function (it, k) {
+      s.run.loot.push({ x: g.deepestX + 0.3 + 0.2 * (k % 3), y: FLOOR_Y + g.deepest, z: g.deepestZ + 0.3 + 0.2 * (Math.floor(k / 3) % 3), layer: g.deepest, rest: true, item: it, age: 0, delay: 0.3, vx: 0, vy: 0, vz: 0 });
+    });
+    g.bones = [];
     s.mode = 'down';
     emit(s, { type: 'descend' });
   }
@@ -893,10 +894,13 @@ var DTW = (function () {
     if (s.mode !== 'dig') return;
     var r = s.run;
     r.lock = null;
-    r.loot.forEach(function (l) { r.bag.push(l.item); }); r.loot = [];
+    r.loot.forEach(function (l) { if (lootWaits(s, l)) leaveBone(s, l.item); else r.bag.push(l.item); }); r.loot = [];
     s.mode = 'up'; r.elevT = Math.min(3, 1 + r.y * 0.02);
     emit(s, { type: 'ascend', reason: reason || 'button' });
   }
+  // A new bone that waited on the floor for free hands stays with the dig site (saved) and is set at the miner's
+  // feet the next time down.
+  function leaveBone(s, it) { var g = s.run.grid; (g.bones = g.bones || []).push(it); }
   function bank(s) {
     var r = s.run, coins = 0, pieces = [], relic = null, gained = emptyMats();
     r.bag.forEach(function (it) {
@@ -958,6 +962,7 @@ var DTW = (function () {
     var moon = WORLDS[w].rule === 'lowgrav';
     r.loot.push({ x: bx + 0.5, y: moon ? by + 0.5 : FLOOR_Y + by, z: bz + 0.5, layer: by, rest: !moon, item: it, age: 0, delay: tt === TILE.CHEST ? 0.6 : 0.3,
                   vx: moon ? (rand(s) - 0.5) * 3 : 0, vy: moon ? -3 - rand(s) * 2 : 0, vz: moon ? (rand(s) - 0.5) * 3 : 0 });
+    if (lootWaits(s, r.loot[r.loot.length - 1])) boneHint(s);
   }
   // ---------- loot on the floor ----------
   // Reach: the miner picks up loot lying in its layer within PICKUP_BASE cells (about its own cell); each magnet
@@ -1166,7 +1171,6 @@ var DTW = (function () {
         r.fallAcc = 0;
         if (!r.path || !canDig(s, g, r.path.target)) {
           r.path = autoPath(s, g, y, crewT);
-          if (!r.path) boneHint(s); // only fossils left in this layer: the bone in hand must go to the museum first
         }
         if (r.path && r.path.steps.length) {
           r.state = 'walk'; r.taps = 0; r.walkAcc += dt * WALK * AUTO_PACE;
@@ -1216,11 +1220,13 @@ var DTW = (function () {
   }
 
   function serialize(s) {
-    var bag = s.run && s.mode !== 'surface' ? s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })) : [];
+    var digging = s.run && s.mode !== 'surface', left = [];
+    var bag = digging ? s.run.bag.concat(s.run.loot.filter(function (l) { if (lootWaits(s, l)) { left.push(l.item); return false; } return true; }).map(function (l) { return l.item; })) : [];
     return JSON.stringify({
       v: 4, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
-      sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0 }; })
+      sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0,
+        bones: (g.bones || []).concat(digging && s.run.grid === g ? left : []) }; })
     });
   }
   function deserialize(str) {
@@ -1243,7 +1249,7 @@ var DTW = (function () {
         if (!g || !g.t || g.t.length !== NN * (DEPTH + 2)) return null;
         var mid = Math.floor(N / 2);
         var gg = { t: Uint8Array.from(g.t), v: Uint8Array.from(g.v), hp: new Float32Array(g.t.length), deepest: g.deepest,
-                   deepestX: g.deepestX == null ? mid : g.deepestX, deepestZ: g.deepestZ == null ? mid : g.deepestZ, gen: g.gen };
+                   deepestX: g.deepestX == null ? mid : g.deepestX, deepestZ: g.deepestZ == null ? mid : g.deepestZ, gen: g.gen, bones: g.bones || [] };
         if (old) for (var i = 0; i < gg.t.length; i++) if (gg.t[i] === TILE.FOSSIL) gg.v[i] += PIECES;
         if (o.v < 4) for (var j = 0; j < gg.t.length; j++) if (gg.t[j] === TILE.ORE && gg.v[j] === 3) gg.v[j] = GEM; // the old gem ore (index 3) is now index 5
         fillHp(w, gg); return gg;

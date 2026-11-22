@@ -473,7 +473,9 @@ test('bag upgrades let the miner carry a few more bones at once', () => {
   assert.equal(at(s.run.grid, 2, 20, 3), T.AIR, 'the second bone is dug with one in hand');
   assert.equal(s.carry.length, 2, 'and carried too');
   s.events = []; D.steer(s, 'e'); run(s, 1); D.steer(s, 's'); run(s, 15);
-  assert.equal(at(s.run.grid, 3, 20, 4), T.FOSSIL, 'the third waits: hands are full');
+  assert.equal(at(s.run.grid, 3, 20, 4), T.AIR, 'the third still breaks');
+  assert.ok(s.run.loot.some(l => l.item.idx === 4), 'but waits on the floor: hands are full');
+  assert.equal(s.carry.length, 2);
   assert.ok(s.events.some(e => e.type === 'boneFull'));
 });
 
@@ -931,7 +933,7 @@ test('a new dig turns up a fossil in layer 1 and a chest in layer 2, and a find 
   }
 });
 
-test('a new bone is carried on its own; while it is carried fossil blocks stay in the ground', () => {
+test('with hands full a fossil still breaks; its bone waits on the floor, the dig goes on, and it is there next time down', () => {
   const s = digAt(0, 3, 20, 3); D.setAuto(s, false);
   D._setTile(s, 4, 20, 3, T.FOSSIL, 2); D._setTile(s, 2, 20, 3, T.FOSSIL, 3);
   D.steer(s, 'e'); run(s, 15);
@@ -940,11 +942,23 @@ test('a new bone is carried on its own; while it is carried fossil blocks stay i
   assert.equal(s.carry.length, 1, 'the first bone is in hand');
   assert.equal(s.run.bag.length, 0, 'not in the bag');
   s.events = []; D.steer(s, 'w'); run(s, 1); D.steer(s, 'w'); run(s, 15);
-  assert.equal(at(s.run.grid, 2, 20, 3), T.FOSSIL, 'the second stays in the ground');
+  const waiting = s => s.run.loot.filter(l => l.item.kind === 'fossil' && l.item.idx === 3);
+  assert.equal(at(s.run.grid, 2, 20, 3), T.AIR, 'the second still breaks');
+  assert.equal(waiting(s).length, 1, 'its bone lies on the floor');
+  assert.equal(s.carry.length, 1);
   assert.ok(s.events.some(e => e.type === 'boneFull'), 'the player is told to hand the bone in');
-  D.setAuto(s, true); run(s, 10);
-  assert.equal(at(s.run.grid, 2, 20, 3), T.FOSSIL, 'auto-mining leaves it too');
-  assert.equal(s.run.y, 20, 'the layer is not finished while a fossil is left');
+  D.setAuto(s, true); run(s, 20);
+  assert.ok(s.run.y > 20, 'the dig goes on down');
+  assert.equal(waiting(s).length, 1, 'leaving the bone where it lay');
+  const saved = JSON.parse(D.serialize(s));
+  assert.ok(!saved.bag.some(it => it.kind === 'fossil' && it.idx === 3), 'a save keeps it out of the bag');
+  assert.ok(saved.sites[0].bones.some(it => it.idx === 3), 'and with the dig site');
+  D.goHome(s); run(s, 6);
+  assert.equal(s.mode, 'surface');
+  assert.equal(s.carry.map(it => it.idx).join(), '2', 'going home does not bring it along');
+  s.carry = []; // handed in at the museum
+  D.startDig(s, 0); run(s, 4);
+  assert.equal(s.carry.map(it => it.idx).join(), '3', 'back down, it is picked up');
 });
 
 test('reaching a chest opens a lock instead of breaking it, and the dig waits for the player', () => {
@@ -1189,13 +1203,12 @@ test('a big fossil gives its bone only when its last cell breaks', () => {
   assert.equal(bones[0].idx, 2);
 });
 
-test('a part-dug big fossil waits in the ground while a bone is carried, and digs out after the hand-in', () => {
+test('a big fossil digs out while a bone is carried, and its bone waits on the floor', () => {
   const s = bigSetup(); digOut(s, 2, 3);
   s.carry = [{ kind: 'fossil', world: 0, idx: 7 }];
-  digOut(s, 3, 3); D.setAuto(s, true); run(s, 10); D.setAuto(s, false);
-  assert.equal(at(s.run.grid, 3, 20, 3), T.FOSSIL, 'it stays in the ground');
-  s.carry = []; // handed in at the museum
   digOut(s, 3, 3); digOut(s, 4, 3);
+  assert.equal(s.carry.length, 1, 'hands still full');
+  s.carry = [];
   assert.equal(at(s.run.grid, 3, 20, 3), T.AIR); assert.equal(at(s.run.grid, 4, 20, 3), T.AIR);
   const bones = s.run.loot.map(l => l.item).concat(s.carry).filter(it => it.kind === 'fossil');
   assert.equal(bones.length, 1);

@@ -301,7 +301,7 @@
       else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') toast('🫧 Out of air! Bubbles float you home — your bag is safe.', 3200); }
       else if (e.type === 'descend') A.sfx('down');
       else if (e.type === 'bigBone') toast('🦴 A big bone! Dig out ' + (e.left > 1 ? 'the other ' + e.left + ' blocks' : 'the last block') + ' to free it.', 2200);
-      else if (e.type === 'boneFull') toast(S.carry.length > 1 ? '🦴 Your hands are full! Take your bones home to the 🏛 museum first.' : '🦴 Your hands are full! Take your bone home to the 🏛 museum first.', 3000);
+      else if (e.type === 'boneFull') toast('🦴 Hands full! This bone waits here: take yours to the 🏛 museum, then come back for it.', 3000);
       else if (e.type === 'delivered') { A.sfx('fossil'); toast('🏛 On show: <b>' + e.names.join(', ') + '</b>!', 3200); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
       else if (e.type === 'buy' || e.type === 'hire') A.sfx('buy');
       else if (e.type === 'sell' || e.type === 'exchange') A.sfx('coin');
