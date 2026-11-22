@@ -373,6 +373,109 @@ var DTW = (function () {
     emit(s, { type: 'quizDone', right: right, coins: coins, k: q.k, ans: q.ans });
     return { right: right, coins: coins };
   }
+  // ---------- plaza life: the day clock, weather and reward guests ----------
+  // None of it draws from the game rng (s.rng): the clock and weather are pure functions of play time and the seed, and
+  // the guest's kind and spot come from hashU, so the dig plays out the same with or without them.
+  function hashU(a, b, c) { var h = Math.imul((a | 0) ^ 0x9e3779b9, 0x85ebca6b) ^ Math.imul((b | 0) + 0x632be5ab, 0xc2b2ae35) ^ Math.imul((c | 0) + 0x27d4eb2f, 0x165667b1); h = Math.imul(h ^ h >>> 15, 0x2c1b3c6d); h = Math.imul(h ^ h >>> 12, 0x297a2d39); return ((h ^ h >>> 15) >>> 0) / 4294967296; }
+  // a day of DAY_LEN s of play; t is 0 at midnight, 0.5 at noon, and a new game starts at DAY_START. light is 1 by day,
+  // 0 at night and ramps through dawn and dusk.
+  var DAY_LEN = 600, DAY_START = 0.3, DAWN = [0.15, 0.25], DUSK = [0.75, 0.85];
+  function dayPhase(s) {
+    var t = ((s.stats.timePlayed / DAY_LEN + DAY_START) % 1 + 1) % 1, phase, light;
+    if (t < DAWN[0] || t >= DUSK[1]) { phase = 'night'; light = 0; }
+    else if (t < DAWN[1]) { phase = 'dawn'; light = (t - DAWN[0]) / (DAWN[1] - DAWN[0]); }
+    else if (t < DUSK[0]) { phase = 'day'; light = 1; }
+    else { phase = 'dusk'; light = 1 - (t - DUSK[0]) / (DUSK[1] - DUSK[0]); }
+    return { t: t, phase: phase, light: light };
+  }
+  // weather per WEATHER_SLOT s of play, picked by weight from the current world's table; the first slot is clear, and a
+  // clear slot after rain or a storm is a rainbow (not on the moon, which has no air). t is how far into the slot it is.
+  var WEATHER_SLOT = 120;
+  var WEATHER = {
+    forest: [['clear', 4], ['rain', 2], ['fog', 1], ['snow', 1]],
+    ocean: [['clear', 4], ['rain', 2], ['wind', 1]],
+    jungle: [['clear', 3], ['rain', 2], ['storm', 1]],
+    moon: [['clear', 3], ['meteors', 2]],
+    alien: [['clear', 3], ['spores', 2], ['glowrain', 1]]
+  };
+  function weatherAt(s, slot) {
+    if (slot <= 0) return 'clear';
+    var tab = WEATHER[WORLDS[s.world].id], sum = 0, i;
+    for (i = 0; i < tab.length; i++) sum += tab[i][1];
+    var r = hashU(s.seed, slot, s.world) * sum;
+    for (i = 0; i < tab.length; i++) { r -= tab[i][1]; if (r < 0) return tab[i][0]; }
+    return tab[0][0];
+  }
+  function weather(s) {
+    var u = s.stats.timePlayed / WEATHER_SLOT, slot = Math.floor(u), kind = weatherAt(s, slot);
+    if (kind === 'clear' && WORLDS[s.world].id !== 'moon') { var prev = weatherAt(s, slot - 1); if (prev === 'rain' || prev === 'storm') kind = 'rainbow'; }
+    return { kind: kind, slot: slot, t: u - slot };
+  }
+  // reward guests: every GUEST_EVERY s of play (counted only while none is waiting) one comes to a grass spot near the
+  // pit and waits there, however long, until the miner walks up to it on the plaza (within GUEST_REACH cells). It then
+  // gives a gift: coins (GUEST_COINS of a quiz answer), a big gift (GUEST_BIG of one) or materials (GUEST_MATS stacks of
+  // the newest world's two lowest tiers). Kinds: worlds (ids, or null for all), when ('day' is any phase but night,
+  // 'night', or 'any') and an optional weather list.
+  var GUEST_EVERY = 150, GUEST_REACH = 1.0, GUEST_COINS = 0.5, GUEST_BIG = 1, GUEST_MATS = 2;
+  var GUESTS = [
+    { id: 'fox', name: 'Fox', worlds: ['forest'], when: 'day', gift: 'coins' },
+    { id: 'hedgehog', name: 'Hedgehog', worlds: ['forest'], when: 'night', gift: 'mats' },
+    { id: 'frog', name: 'Frog', worlds: ['forest', 'jungle'], when: 'any', weather: ['rain', 'storm'], gift: 'coins' },
+    { id: 'crab', name: 'Crab', worlds: ['ocean'], when: 'day', gift: 'mats' },
+    { id: 'turtle', name: 'Turtle', worlds: ['ocean'], when: 'night', gift: 'coins' },
+    { id: 'monkey', name: 'Monkey', worlds: ['jungle'], when: 'day', gift: 'coins' },
+    { id: 'parrot', name: 'Parrot', worlds: ['jungle'], when: 'day', gift: 'mats' },
+    { id: 'moonbot', name: 'Moon Bot', worlds: ['moon'], when: 'any', gift: 'mats' },
+    { id: 'glorpling', name: 'Glorpling', worlds: ['alien'], when: 'any', gift: 'coins' },
+    { id: 'saucer', name: 'Tiny Saucer', worlds: ['alien'], when: 'night', gift: 'mats' },
+    { id: 'traveller', name: 'Traveller', worlds: null, when: 'day', gift: 'mats' },
+    { id: 'star', name: 'Fallen Star', worlds: null, when: 'night', gift: 'big' },
+    { id: 'pot', name: 'Rainbow Pot', worlds: null, when: 'any', weather: ['rainbow'], gift: 'big' }
+  ];
+  var guestSpotList = null;
+  function guestSpots() { // grass cells 3 to 12 steps from the dig pad
+    if (guestSpotList) return guestSpotList;
+    var home = hubHome(), out = [];
+    for (var z = HUB.z0; z < HUB.z0 + HUB_H; z++) for (var x = HUB.x0; x < HUB.x0 + HUB_W; x++) {
+      if (hubCell(x, z) !== '.' || Math.abs(x + 0.5 - home.x) + Math.abs(z + 0.5 - home.z) > 12) continue;
+      var p = hubPath(home.x, home.z, x + 0.5, z + 0.5);
+      if (p && p.length >= 3 && p.length <= 12) out.push([x + 0.5, z + 0.5]);
+    }
+    return (guestSpotList = out);
+  }
+  function guestFits(s, g, phase, wx) {
+    return (!g.worlds || g.worlds.indexOf(WORLDS[s.world].id) >= 0) && (g.when === 'any' || (g.when === 'night') === (phase === 'night')) && (!g.weather || g.weather.indexOf(wx) >= 0);
+  }
+  function guestMake(s) {
+    var phase = dayPhase(s).phase, wx = weather(s).kind, n = s.guestN = (s.guestN || 0) + 1;
+    var fit = GUESTS.filter(function (g) { return guestFits(s, g, phase, wx); });
+    var special = fit.filter(function (g) { return g.weather; }); // a rainbow pot or a rain frog comes first when it can
+    var pool = special.length && hashU(s.seed, n, 1) < 0.6 ? special : fit;
+    var g = pool[Math.floor(hashU(s.seed, n, 2) * pool.length)], sp = guestSpots(), c = sp[Math.floor(hashU(s.seed, n, 3) * sp.length)];
+    return { kind: g.id, x: c[0], z: c[1] };
+  }
+  function guestGift(s, kind) {
+    var g = GUESTS.filter(function (k) { return k.id === kind; })[0], q = quizReward(s);
+    if (g.gift === 'mats') {
+      var top = s.unlocked.lastIndexOf(true), m = emptyMats();
+      m[0] = GUEST_MATS * ORE_STACK[top][0]; m[1] = GUEST_MATS * ORE_STACK[top][1];
+      return { coins: 0, mats: m };
+    }
+    return { coins: Math.max(1, Math.round(q * (g.gift === 'big' ? GUEST_BIG : GUEST_COINS))), mats: emptyMats() };
+  }
+  function stepGuest(s, dt) {
+    var g = s.guest;
+    if (!g) {
+      s.guestT = (s.guestT || 0) + dt;
+      if (s.guestT >= GUEST_EVERY) { s.guestT = 0; s.guest = guestMake(s); emit(s, { type: 'guest', kind: s.guest.kind, x: s.guest.x, z: s.guest.z }); }
+      return;
+    }
+    if (s.mode !== 'surface' || Math.hypot(s.hub.x - g.x, s.hub.z - g.z) > GUEST_REACH) return;
+    var gift = guestGift(s, g.kind);
+    s.coins += gift.coins; for (var i = 0; i < gift.mats.length; i++) s.mats[i] += gift.mats[i];
+    s.guest = null; s.guestT = 0;
+    emit(s, { type: 'guestGift', kind: g.kind, x: g.x, z: g.z, coins: gift.coins, mats: gift.mats });
+  }
   // held keys: one direction or a list of them ('n', 's', 'e', 'w'), or null to stop
   function hubInput(s, dirs) {
     var v = [0, 0];
@@ -663,7 +766,7 @@ var DTW = (function () {
       v: 1, seed: seed | 0, rng: (seed | 0) ^ 0x5bd1e995, coins: 0,
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
-      museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false, quiz: null, quizT: 0,
+      museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false, quiz: null, quizT: 0, guest: null, guestT: 0, guestN: 0,
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
     };
@@ -1429,6 +1532,7 @@ var DTW = (function () {
   function step(s, dt) {
     s.stats.timePlayed += dt;
     stepQuiz(s, dt);
+    stepGuest(s, dt);
     s.pile = (s.pile || 0) + museumIncome(s) * dt; // visitor coins pile up at the museum till the miner walks in
     if (s.mode === 'dig') stepDig(s, dt);
     else if (s.mode === 'surface') stepHub(s, dt);
@@ -1509,7 +1613,7 @@ var DTW = (function () {
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ICE_N: ICE_N, ICE_ROCKS: ICE_ROCKS, ICE_MIN: ICE_MIN, LOCK_ONE: LOCK_ONE, LOCK_TWO: LOCK_TWO, iceSlide: iceSlide, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, ORE_STACK: ORE_STACK, DODGE_WINDOW: DODGE_WINDOW, dodge: dodge, buyUpgrade: buyUpgrade, hireCost: hireCost,
-    hire: hire, museumIncome: museumIncome, QUIZ_EVERY: QUIZ_EVERY, quizAnswer: quizAnswer, quizReward: quizReward, _quizNow: function (s) { s.quiz = quizMake(s); }, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
+    hire: hire, museumIncome: museumIncome, QUIZ_EVERY: QUIZ_EVERY, quizAnswer: quizAnswer, quizReward: quizReward, _quizNow: function (s) { s.quiz = quizMake(s); }, DAY_LEN: DAY_LEN, dayPhase: dayPhase, WEATHER: WEATHER, WEATHER_SLOT: WEATHER_SLOT, weather: weather, GUESTS: GUESTS, GUEST_EVERY: GUEST_EVERY, GUEST_REACH: GUEST_REACH, guestSpots: guestSpots, guestGift: guestGift, _guestNow: function (s) { s.guest = guestMake(s); }, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, LADDER_DOWN: LADDER_DOWN, CLIMB_PUSH: CLIMB_PUSH, hubCell: hubCell, hubWalkable: hubWalkable,
