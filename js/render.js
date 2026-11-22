@@ -346,6 +346,8 @@ var DTWRender = (function () {
   // scale) and the planted foot keeps pace with the ground.
   var CYC_PER_CELL = 16 / (2 * DTWSprites.STEP_X);
   // the fossil piece the miner is carrying home, as the sprite draws it on its back
+  // down in the ocean world everyone wears a round glass diving helmet
+  function underSea(S) { return S.mode !== 'surface' && D.WORLDS[S.world].id === 'ocean'; }
   function carriedBone(S) { return boneOf(S, 0); }
   // carried bone i as a sprite draws it: the miner holds the first D.minerBones, helper k the one after those
   function boneOf(S, i) {
@@ -377,7 +379,7 @@ var DTWRender = (function () {
     // helpers are drawn at 0.85 scale, so they take more steps per cell
     var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / 0.85, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
     pose.lean = sw ? sw.lean : 0; pose.air = 0; pose.blink = false; if (sw) pose.body = sw.body;
-    var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', t: time });
+    var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', bowl: underSea(S), t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
     if (fc.flip) ctx.scale(-1, 1);
@@ -403,7 +405,7 @@ var DTWRender = (function () {
     // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
     var full = r && S.mode !== 'surface' ? Math.min(1, r.bag.length / D.bagCap(S)) : 0;
     var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), pose: pose, pack: S.mode === 'surface' ? null : full, surface: S.mode === 'surface',
-      lampOn: S.mode !== 'surface', climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
+      lampOn: S.mode !== 'surface', bowl: underSea(S), climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
     // squash and stretch about the feet: squash on landing and on each strike, stretch while falling

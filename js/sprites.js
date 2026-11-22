@@ -464,8 +464,26 @@ var DTWSprites = (function () {
     }
     else if (!back && !digging && !air) arm(c, X + 16, Y + 2, aN, P.r, P.S, 3);
     outline(c, W, H, OUT);
+    if (o.bowl) bowl(c, X + 13, Y - 8);
     // lx, ly: the centre of the helmet lamp (the L pixels of HEAD_MINER); facing away, the hat's front edge
     return { cv: cv, fx: FX, fy: FY, lx: back ? X + 19 : X + 22, ly: Y - 17 + (back ? 5 : 6) };
+  }
+  // The round glass diving helmet worn under the sea (o.bowl), drawn over the finished, outlined figure about the
+  // head's centre (cx, cy): faint glass, a pale rim with a dark edge, a shine at the upper left and a brass collar.
+  function bowl(c, cx, cy) {
+    var R = 14.5;
+    for (var y = Math.floor(cy - R - 1); y <= Math.ceil(cy + R + 1); y++) for (var x = Math.floor(cx - R - 1); x <= Math.ceil(cx + R + 1); x++) {
+      var dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.sqrt(dx * dx + dy * dy);
+      if (dy > 8.5) continue; // open at the neck: the collar closes it
+      if (d > R + 1) continue;
+      if (d > R) px(c, x, y, 'rgba(18,30,52,0.85)');
+      else if (d > R - 1) px(c, x, y, 'rgba(205,244,255,0.9)');
+      else { px(c, x, y, 'rgba(150,220,255,0.16)'); if (d > R - 3.2 && d < R - 1.8 && dx < -2 && dy < -2) px(c, x, y, 'rgba(255,255,255,0.75)'); }
+    }
+    px(c, cx - 4, cy - 9, 'rgba(255,255,255,0.9)', 2, 2); // a glint
+    var y0 = Math.round(cy + 8.5), x0 = Math.round(cx - 7);
+    px(c, x0 - 1, y0 - 1, '#2a1c0c', 16, 4); px(c, x0, y0, '#c8962e', 14, 2); px(c, x0, y0, '#ffe08a', 14, 1);
+    px(c, x0 + 3, y0 + 1, '#6b4a14'); px(c, x0 + 10, y0 + 1, '#6b4a14'); // rivets
   }
   // what makes a world's helper look like it, drawn over the head (origin hx, hy; the head faces screen-right)
   function headExtras(c, look, hx, hy, back, P) {
@@ -497,6 +515,7 @@ var DTWSprites = (function () {
     if (o.bone) bone(c, X0, Y, o.bone, true);
     if (o.pack != null && o.pack !== false) packBack(c, X0 + 12, Y - 4, o.pack === true ? 1 : o.pack);
     outline(c, W, H, OUT);
+    if (o.bowl) bowl(c, X0 + 13, Y - 8);
     return { cv: cv, fx: FX, fy: FY, lx: X0 + 11, ly: Y - 14 };
   }
   // cached frames for the people walking about the plaza (no pickaxe): moving, frame 0..7 is the walk cycle in eighths
