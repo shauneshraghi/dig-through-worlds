@@ -382,7 +382,7 @@ var DTWSprites = (function () {
   // b: { shape: 'bone' | 'skull' | 'tusk', moon }. It runs from (x0, y0), low behind the pack, up to (x1, y1) above the
   // shoulder. Moon pieces are rover parts, drawn in grey metal.
   function boneOnBack(c, x0, y0, x1, y1, b) {
-    var L = b.moon ? '#d4d8e2' : '#f3e6c4', D = b.moon ? '#8a90a0' : '#c9b48a', E = '#4a3a2e';
+    var L = b.gold ? '#ffe27a' : b.moon ? '#d4d8e2' : '#f3e6c4', D = b.gold ? '#c8921a' : b.moon ? '#8a90a0' : '#c9b48a', E = '#4a3a2e';
     var dx = x1 - x0, dy = y1 - y0, n = Math.sqrt(dx * dx + dy * dy), ux = dx / n, uy = dy / n, nx = -uy, ny = ux;
     function knob(x, y) { px(c, x + nx * 1.5 - 1, y + ny * 1.5 - 1, L, 2, 2); px(c, x - nx * 1.5 - 1, y - ny * 1.5 - 1, D, 2, 2); }
     if (b.shape === 'tusk') { // a curved tusk or fang: thick at the root, bending to a point
@@ -724,8 +724,9 @@ var DTWSprites = (function () {
     return '#' + ((1 << 24) + (f(r) << 16) + (f(g) << 8) + f(b)).toString(16).slice(1);
   }
   var ecache = {};
-  function exhibitCanvas(k, have) {
-    var key = k + '|' + have.join('');
+  var GOLD_BONE = '#f0b82a';
+  function exhibitCanvas(k, have, gold) {
+    var key = k + '|' + have.join('') + (gold ? '|' + gold.join('') : '');
     if (ecache[key]) return ecache[key];
     var E = EXHIBITS[k], out = canvas(EW + 2, EH + 2), oc = out.getContext('2d'), m = canvas(EW, EH), mc = m.getContext('2d');
     oc.translate(1, 1);
@@ -735,7 +736,7 @@ var DTWSprites = (function () {
       mc.clearRect(0, 0, EW, EH); mc.fillStyle = '#fff';
       part.forEach(function (s) { shape(mc, s); });
       if (have[i]) {
-        var base = (E.partColor && E.partColor[i]) || E.color || '#e2d6b8';
+        var base = gold && gold[i] ? GOLD_BONE : (E.partColor && E.partColor[i]) || E.color || '#e2d6b8';
         shadeMask(mc, EW, EH, base, hexShade(base, 0.45), hexShade(base, -0.28));
         oc.drawImage(m, 0, 0);
       } else { // a dotted ghost of the missing piece
@@ -769,10 +770,10 @@ var DTWSprites = (function () {
   }
   // piece i of exhibit k on its own, shaded in its colour and outlined, cropped to its bounds (for big fossils in the ground)
   var pcache = {};
-  function pieceCanvas(k, i) {
-    var key = k + '|' + i;
+  function pieceCanvas(k, i, gold) {
+    var key = k + '|' + i + (gold ? 'g' : '');
     if (pcache[key]) return pcache[key];
-    var E = EXHIBITS[k], m = canvas(EW, EH), mc = m.getContext('2d'), base = (E.partColor && E.partColor[i]) || E.color || '#e2d6b8';
+    var E = EXHIBITS[k], m = canvas(EW, EH), mc = m.getContext('2d'), base = gold ? GOLD_BONE : (E.partColor && E.partColor[i]) || E.color || '#e2d6b8';
     mc.fillStyle = '#fff'; E.parts[i].forEach(function (s) { shape(mc, s); });
     shadeMask(mc, EW, EH, base, hexShade(base, 0.45), hexShade(base, -0.28));
     var d = mc.getImageData(0, 0, EW, EH).data, x0 = EW, y0 = EH, x1 = -1, y1 = -1;
@@ -786,9 +787,11 @@ var DTWSprites = (function () {
     return (pcache[key] = out);
   }
   // hi (optional): {i: piece to light (-1 for all), a: 0-1 strength, col: colour}, drawn over the exhibit
-  function exhibit(c, k, pieces, open, x, y, s, hi) {
+  // gold (optional): the five gold counts; a piece with one is drawn in gold
+  function exhibit(c, k, pieces, open, x, y, s, hi, gold) {
     if (!open) return;
-    var have = pieces.map(function (n) { return n > 0 ? 1 : 0; }), ec = exhibitCanvas(k, have);
+    var gl = gold && gold.some(function (n) { return n > 0; }) ? gold.map(function (n) { return n > 0 ? 1 : 0; }) : null;
+    var have = pieces.map(function (n, i) { return n > 0 || (gl && gl[i]) ? 1 : 0; }), ec = exhibitCanvas(k, have, gl);
     c.save(); c.imageSmoothingEnabled = false;
     c.drawImage(ec, Math.round(x - ec.width * s / 2), Math.round(y - ec.height * s), Math.round(ec.width * s), Math.round(ec.height * s));
     if (hi && hi.a > 0) {
@@ -815,14 +818,15 @@ var DTWSprites = (function () {
   };
   var iconCache = {};
   // kind: 'ore' | 'fossil' | 'treasure' | 'relic'; idx: ore or fossil index; col: its colour; moon: rover parts instead of bones
-  function item(kind, idx, col, moon) {
-    var key = kind + idx + col + (moon ? 'm' : '');
+  function item(kind, idx, col, moon, gold) {
+    var key = kind + idx + col + (moon ? 'm' : '') + (gold ? 'g' : '');
     if (iconCache[key]) return iconCache[key];
     var shape = kind === 'ore' ? (idx >= 3 ? 'gem' : 'lump') : kind === 'fossil' ? (moon ? 'wheel' : 'bone') : kind === 'relic' ? 'star' : 'chest';
     var P = { o: OUT, H: hexShade(col, 0.35), h: col, d: hexShade(col, -0.35), w: '#ffffff', W: '#f4ecd6', G: '#ffd23f', Y: '#fff3b0',
       B: '#b8692a', b: '#8a4b1c' };
     if (moon && kind === 'fossil') { P.W = '#cfd8dc'; P.d = '#546e7a'; }
     else if (kind === 'fossil') P.d = '#c9bb98';
+    if (gold && kind === 'fossil') { P.W = '#ffe27a'; P.d = '#c8921a'; }
     if (kind === 'ore' && idx === 0) P.H = '#6a6a72'; // coal: a dull grey sheen on black
     var c = canvas(14, 14), g = c.getContext('2d');
     stamp(g, ICONS[shape], P, 1, 1);

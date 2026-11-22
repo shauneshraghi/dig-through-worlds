@@ -107,7 +107,7 @@
   function panelKey() {
     var afford = Object.keys(D.UPGRADES).map(function (k) { return (D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0) + (D.upgradeAvailable ? (D.upgradeAvailable(S, k) ? 'a' : 'h') : ''); }).concat(Object.keys(D.WORKERS).map(function (k) { return D.canAfford(S, D.hireCost(S, k)) ? 1 : 0; }))
       .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; })).join('');
-    return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(),
+    return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(), S.golden ? 'g' + D.WORLDS.map(function (w, wi) { return [0, 1, 2].map(function (c) { return D.goldFound(S, wi, c); }).join(''); }).join() : '',
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind].join(';');
   }
   // a price as chips: coins, then each material needed with a dot in its colour; a chip is dimmed when the player is short of it
@@ -212,7 +212,7 @@
           var wi = Math.floor(k / 3), ci = k % 3, cr = D.WORLDS[wi].creatures[ci];
           var have = D.piecesFound(S, wi, ci), done = D.exhibitDone(S, wi, ci), cd = document.createElement('div');
           cd.style.cssText = 'margin-top:8px';
-          cd.innerHTML = '<div style="font-size:1.05em"><b>' + (S.unlocked[wi] ? cr.name : '??? (' + D.WORLDS[wi].name + ' dig)') + '</b> <span class="small">' + have + ' / ' + D.PIECES + '</span>' +
+          cd.innerHTML = '<div style="font-size:1.05em"><b>' + (S.unlocked[wi] ? cr.name : '??? (' + D.WORLDS[wi].name + ' dig)') + '</b> <span class="small">' + have + ' / ' + D.PIECES + '</span>' + (S.golden && S.unlocked[wi] ? ' <span class="small" style="color:var(--gold)">✨ gold ' + D.goldFound(S, wi, ci) + ' / ' + D.PIECES + '</span>' : '') +
             (done ? ' <span style="color:var(--good)">✓ complete! +🪙 ' + fmtRate(cr.income) + '/s</span>' : '') + '</div>';
           var ps = document.createElement('div'); ps.className = 'pieces';
           cr.parts.forEach(function (fn, pi) {
@@ -228,11 +228,15 @@
         var d = document.createElement('div'); d.className = 'world' + (wi === S.world ? ' cur' : '') + (S.unlocked[wi] ? '' : ' locked');
         d.style.background = 'linear-gradient(90deg,' + w.pal.dirt[0] + '55,#2a2145)';
         d.innerHTML = '<div class="sw" style="background:linear-gradient(' + w.pal.sky[0] + ',' + w.pal.sky[1] + ' 50%,' + w.pal.top + ' 50%,' + w.pal.dirt[0] + ')"></div><div class="txt"><b>' +
-          (wi + 1) + '. ' + (S.unlocked[wi] ? w.name : '???') + '</b><small>' +
+          (wi + 1) + '. ' + (S.unlocked[wi] ? w.name : '???') + (S.golden ? ' <span style="color:var(--gold)">✨ golden</span>' : '') + '</b><small>' +
           (S.unlocked[wi] ? (S.relics[wi] ? '✓ Relic found: ' + w.relic.name : 'Find the ' + w.relic.name + ' at ' + D.DEPTH + ' m') : 'Bring home the relic from world ' + wi + ' to unlock') + '</small></div>';
         if (S.unlocked[wi]) d.onclick = function () { S.world = wi; save(); };
         body.appendChild(d);
       });
+      if (S.relics.every(Boolean) && !S.golden) {
+        var gb = document.createElement('button'); gb.className = 'btn'; gb.style.cssText = 'margin-top:8px;width:100%';
+        gb.textContent = '🌟 Dig again for golden bones'; gb.onclick = goGolden; body.appendChild(gb);
+      }
       restartRows();
     } else if (tab === 'me') {
       ['shop', 'helpers', 'museum', 'worlds'].forEach(function (key) {
@@ -305,8 +309,16 @@
       else if (e.type === 'pin') { if (!(S.run && S.run.lock && S.run.lock.kind === 'simon')) A.sfx('click'); }
       else if (e.type === 'match') A.sfx('coin');
       else if (e.type === 'miss') A.sfx('no');
-      else if (e.type === 'unlocked') { A.sfx('unlock'); toast('🔓 You picked the lock!', 2200); }
+      else if (e.type === 'unlocked') { lockWon(); A.sfx('unlock'); toast('🔓 You picked the lock!', 2200); }
       else if (e.type === 'smashed') { R.shake(0.25); toast('🔨 Smash! Only a few coins fell out.', 2200); }
+      else if (e.type === 'trapWarn') { A.sfx('alert'); R.shake(0.15); }
+      else if (e.type === 'dodged') { A.sfx('dodge'); toast('💨 Nice dodge!', 1400); }
+      else if (e.type === 'roomChest') {
+        var rcx = e.i % D.N, rcz = Math.floor(e.i / D.N) % D.N, rcy = Math.floor(e.i / (D.N * D.N));
+        if (R.roomChest) R.roomChest(rcx, rcy, rcz);
+        A.sfx('treasure'); toast('✨ A treasure room chest!', 2200);
+      }
+      else if (e.type === 'golden') { A.sfx('treasure'); lastPanelKey = ''; }
       else if (e.type === 'trap' && e.helper) { A.sfx('trap'); toast('😵 A helper sprang a trap!', 1600); }
       else if (e.type === 'trap') { A.sfx('trap'); toast('😵 A trap! Dizzy for a moment…', 1800); R.shake(0.4); }
       else if (e.type === 'bubble') { A.sfx('bubble'); R.floatText(e.x + 0.5, e.y, e.z + 0.5, 'O₂ full!', '#bff7ff'); R.spawnBreak(e.x, e.y, e.z, '#bff7ff', 10); }
@@ -328,12 +340,30 @@
         if (msg.length) { toast(msg.join('<br>'), 3500); A.sfx('coin'); }
         if (e.relic !== null) {
           var nx = e.relic + 1;
+          if (nx >= 5) startEnding();
           setTimeout(function () { A.sfx('relic'); toast(nx < 5 ? '🌍 <b>' + D.WORLDS[nx].name + '</b> unlocked! Walk to the 🗺️ Worlds signpost to travel.' : '🏆 You found all five relics! You are a Master Digger!', 5000); }, 600);
         }
         lastPanelKey = ''; save();
       }
     });
   }
+
+  // ---------- the ending and the golden replay ----------
+  var endingTimer = 0, endingEl = $('ending');
+  function startEnding() {
+    if (R.finale) R.finale();
+    A.sfx('finale');
+    clearTimeout(endingTimer);
+    endingTimer = setTimeout(function () { endingTimer = 0; if (S.relics.every(Boolean) && !S.golden) endingEl.classList.add('show'); }, 7000);
+  }
+  function goGolden() {
+    if (!D.digAgain(S)) return;
+    endingEl.classList.remove('show'); menuOpen = false; menuPick = null; lastPanelKey = '';
+    save(); A.sfx('treasure');
+    toast('🌟 Every world has fresh ground with <b>golden bones</b> to find!', 5000);
+  }
+  $('endGold').onclick = function () { audio(); goGolden(); };
+  $('endLater').onclick = function () { endingEl.classList.remove('show'); };
 
   // ---------- the chest puzzle ----------
   // Shown while the logic holds a puzzle open (run.lock). Pins: one column per pin, the key's tooth over the pin to tap.
@@ -347,23 +377,45 @@
     slide: ['🧩 A puzzle chest!', 'Tap a tile next to the gap to slide it. Put the numbers in order, 1 first.'],
     pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!', 'Tap a pipe to turn it. Make the water reach every green outlet!'],
     odd: ['🔎 An odd-one-out chest!', 'Find the one that is different.'],
-    ice: ['🧊 An ice chest!', 'Push the ice block with the arrows. It slides until it hits a rock or the edge. Get it into the hole!'],
+    ice: ['🧊 An ice chest!', 'Tap an arrow next to the ice block. It slides until it hits a rock or the edge. Get it into the hole!'],
     path: ['💎 A gem-trail chest!', 'Tap the gems in order, 1, 2, 3…', 'Remember the numbers! Look…', 'The numbers are hidden. Tap the gems in order!']
   };
   var SLIDE_ICONS = ['🍎', '🍊', '🍋', '🍐', '🍇', '🍓', '🍒', '🥝', '🍑', '🍍', '🥥', '🍉', '🥕', '🌽', '🍄'];
   // one pipe tile as inline SVG: an arm from the middle to each open side; wet pipes are blue
   function pipeSvg(L, k, wet) {
-    var tl = L.tiles[k], sd = D.pipeSides(tl.t, tl.r), col = wet ? '#46c2ff' : '#b9b2cf', ends = [[20, 0], [40, 20], [20, 40], [0, 20]];
-    var s = '<svg viewBox="0 0 40 40" aria-hidden="true">';
-    for (var d = 0; d < 4; d++) if (sd[d]) s += '<line x1="20" y1="20" x2="' + ends[d][0] + '" y2="' + ends[d][1] + '" stroke="' + col + '" stroke-width="10"/>';
-    s += '<circle cx="20" cy="20" r="7" fill="' + col + '"/>';
-    if (k === L.inlet * L.n) s += '<circle cx="2" cy="20" r="6" fill="#46c2ff"/>';
-    if (k % L.n === L.n - 1 && L.outlets.indexOf(Math.floor(k / L.n)) >= 0) s += '<circle cx="38" cy="20" r="6" fill="#4fd36b"/>';
+    var tl = L.tiles[k], sd = D.pipeSides(tl.t, tl.r), ends = [[20, 0], [40, 20], [20, 40], [0, 20]], body = '', water = '';
+    for (var d = 0; d < 4; d++) if (sd[d]) {
+      body += '<line x1="20" y1="20" x2="' + ends[d][0] + '" y2="' + ends[d][1] + '" stroke="#9a92b8" stroke-width="11" stroke-linecap="butt"/>';
+      if (wet) water += '<line class="water" x1="20" y1="20" x2="' + ends[d][0] + '" y2="' + ends[d][1] + '" stroke="#46c2ff" stroke-width="6"/>';
+    }
+    var s = '<svg viewBox="0 0 40 40" aria-hidden="true">' + body + '<circle cx="20" cy="20" r="7.5" fill="#9a92b8"/>';
+    if (wet) s += water + '<circle cx="20" cy="20" r="4" fill="#46c2ff"/>';
+    if (k === L.inlet * L.n) s += '<rect x="0" y="14" width="8" height="12" rx="3" fill="#46c2ff"/>';
+    if (k % L.n === L.n - 1 && L.outlets.indexOf(Math.floor(k / L.n)) >= 0) s += '<circle cx="35" cy="20" r="5" fill="#4fd36b" stroke="#fff" stroke-width="1.5"/>';
     return s + '</svg>';
+  }
+  var lastL = null, prevTiles = null, prevUp = [];
+  // the solved chest's frame lingers a moment: it pops and glows, and the ice block drops into its hole
+  function lockWon() {
+    var el = $('lock'); if (!el.classList.contains('show')) return;
+    var g = el.cloneNode(true); g.removeAttribute('id'); g.className = 'lockwon show'; g.style.animation = '';
+    var ids = g.querySelectorAll('[id]'); for (var q = 0; q < ids.length; q++) ids[q].removeAttribute('id');
+    var ib = g.querySelector('.iceblk'), L = lastL;
+    if (ib && L && L.kind === 'ice') {
+      var n = L.n, at = ib.dataset.at | 0, cells = Math.abs(Math.floor(at / n) - Math.floor(L.goal / n)) + Math.abs(at % n - L.goal % n);
+      ib.style.transitionDuration = cells * 80 + 'ms, ' + cells * 80 + 'ms, 220ms, 220ms'; ib.style.transitionDelay = '0s, 0s, ' + cells * 80 + 'ms, ' + cells * 80 + 'ms';
+      ib.style.left = (L.goal % n) * 100 / n + '%'; ib.style.top = Math.floor(L.goal / n) * 100 / n + '%';
+      var ar = g.querySelector('.iceArrows'); if (ar) ar.innerHTML = '';
+      setTimeout(function () { ib.classList.add('in'); }, 20);
+    }
+    var bn = document.createElement('div'); bn.className = 'winbanner'; bn.textContent = '🎉 Open!'; g.appendChild(bn);
+    $('stage').appendChild(g); setTimeout(function () { g.remove(); }, 1100);
   }
   function renderLock() {
     var L = S.mode === 'dig' && S.run && S.run.lock, el = $('lock');
     el.classList.toggle('show', !!L);
+    if (L && lastL !== L) { var pw = D.WORLDS[S.world].pal.dirt; el.style.setProperty('--wood', pw[1]); el.style.setProperty('--wood2', pw[2]); prevTiles = null; prevUp = []; }
+    if (L) lastL = L;
     if (!L) { lockKey = ''; simonStep = -1; if (smashT) smashStop(); return; }
     var kind = L.kind || 'pins', T0 = LOCK_TEXT[kind], html = '', key, hint;
     if (kind === 'slide') {
@@ -380,21 +432,38 @@
       key = 'pi|' + L.i + '|' + L.tiles.map(function (x) { return x.r; }).join('') + '|' + wet.join();
       if (key === lockKey) return;
       hint = L.outlets.length > 1 ? T0[2] : T0[1];
-      html = '<div class="pipes" style="max-width:' + L.n * 64 + 'px;grid-template-columns:repeat(' + L.n + ',minmax(0,1fr))">';
-      L.tiles.forEach(function (_, j) { html += '<button class="pipe" data-k="' + j + '" aria-label="Pipe ' + (j + 1) + '">' + pipeSvg(L, j, wet.indexOf(j) >= 0) + '</button>'; });
+      html = '<div class="pipes" style="grid-template-columns:repeat(' + L.n + ',minmax(0,1fr))">';
+      L.tiles.forEach(function (_, j) { html += '<button class="pipe' + (wet.indexOf(j) >= 0 ? ' wet' : '') + '" data-k="' + j + '" aria-label="Pipe ' + (j + 1) + '">' + pipeSvg(L, j, wet.indexOf(j) >= 0) + '</button>'; });
       html += '</div>';
     } else if (kind === 'ice') {
       // the board is drawn once per chest; after that only the block moves, so its slide animates
-      var blk = $('iceBlock'), pos = function () { return 'left:' + (L.at % L.n) * 100 / L.n + '%;top:' + Math.floor(L.at / L.n) * 100 / L.n + '%;width:' + 100 / L.n + '%;height:' + 100 / L.n + '%'; };
+      var blk = $('iceBlock'), at0 = L.at, n0 = L.n, IDX = [0, 1, 0, -1], IDZ = [-1, 0, 1, 0], ICH = ['⬆', '➡', '⬇', '⬅'];
+      var pos = function () { return 'left:' + (at0 % n0) * 100 / n0 + '%;top:' + Math.floor(at0 / n0) * 100 / n0 + '%;width:' + 100 / n0 + '%;height:' + 100 / n0 + '%'; };
+      // the four push arrows sit in the cells beside the block, only where a push would move it
+      var arrows = function (delay) {
+        var a = '';
+        if (at0 !== L.goal) for (var d = 0; d < 4; d++) {
+          var r = Math.floor(at0 / n0) + IDZ[d], c = at0 % n0 + IDX[d];
+          if (r < 0 || r >= n0 || c < 0 || c >= n0 || D.iceSlide(L, at0, d) === at0) continue;
+          a += '<button data-k="' + d + '" aria-label="Push ' + ['up', 'right', 'down', 'left'][d] + '" style="left:' + c * 100 / n0 + '%;top:' + r * 100 / n0 + '%;width:' + 100 / n0 + '%;height:' + 100 / n0 + '%;--dl:' + delay + 's"><span>' + ICH[d] + '</span></button>';
+        }
+        return a;
+      };
       key = 'ic|' + L.i;
-      if (key === lockKey && blk) { blk.style.cssText = pos(); blk.classList.toggle('in', L.at === L.goal); return; }
+      if (key === lockKey && blk) {
+        var op = blk.dataset.at | 0;
+        if (op !== at0) { // glide cell to cell, about 80 ms a cell; the arrows reappear when it stops
+          var cells = Math.abs(Math.floor(op / n0) - Math.floor(at0 / n0)) + Math.abs(op % n0 - at0 % n0), ms = Math.max(1, cells) * 80;
+          blk.style.transitionDuration = ms + 'ms'; blk.style.cssText += ';' + pos(); blk.dataset.at = at0;
+          $('iceArrows').innerHTML = arrows(ms / 1000);
+        }
+        return;
+      }
       hint = T0[1];
-      html = '<div class="ice" style="grid-template-columns:repeat(' + L.n + ',1fr)">';
+      html = '<div class="ice" style="grid-template-columns:repeat(' + n0 + ',1fr)">';
       L.rocks.forEach(function (r, j) { html += '<div class="ic' + (r ? ' rock' : '') + (j === L.goal ? ' hole' : '') + '">' + (r ? '🪨' : '') + '</div>'; });
-      html += '<div id="iceBlock" style="' + pos() + '">🧊</div></div>' +
-        '<div class="icepad"><button data-k="3" aria-label="Push left">⬅</button><button data-k="0" aria-label="Push up">⬆</button>' +
-        '<button data-k="2" aria-label="Push down">⬇</button><button data-k="1" aria-label="Push right">➡</button>' +
-        '<button class="reset" data-k="4" aria-label="Start again">↺</button></div>';
+      html += '<div id="iceBlock" class="iceblk" data-at="' + at0 + '" style="' + pos() + '">🧊</div><div id="iceArrows" class="iceArrows">' + arrows(0.1) + '</div></div>' +
+        '<button class="iceagain" data-k="4" aria-label="Start again">↺ Start again</button>';
     } else if (kind === 'odd') {
       key = 'od|' + L.i + '|' + L.round + '|' + L.cards.join('') + '|' + L.bad;
       if (key === lockKey) return;
@@ -432,9 +501,9 @@
       html = '<div class="pairs">';
       L.cards.forEach(function (c, j) {
         var up = L.done[j] || L.up.indexOf(j) >= 0;
-        html += '<button class="card' + (up ? ' up' : '') + (L.done[j] ? ' done' : '') + (L.wait > 0 && L.up.indexOf(j) >= 0 ? ' miss' : '') + '" data-k="' + j + '">' + (up ? PAIR_ICONS[c] : '') + '</button>';
+        html += '<button class="card' + (up ? ' up' : '') + (up && prevUp.indexOf(j) < 0 ? ' flip' : '') + (L.done[j] ? ' done' : '') + (L.wait > 0 && L.up.indexOf(j) >= 0 ? ' miss' : '') + '" data-k="' + j + '">' + (up ? PAIR_ICONS[c] : '') + '</button>';
       });
-      html += '</div>';
+      html += '</div>'; prevUp = L.cards.map(function (_, j) { return L.done[j] || L.up.indexOf(j) >= 0 ? j : -1; });
     } else {
       key = 'k|' + L.i + '|' + L.pins.join() + '|' + L.key.join();
       if (key === lockKey) return;
@@ -451,6 +520,18 @@
     lockKey = key;
     $('lockTitle').textContent = T0[0]; $('lockHint').textContent = hint;
     $('lockBoard').innerHTML = html;
+    if (kind === 'slide') { // tiles glide from their old cell to the new one
+      var tl = $('lockBoard').querySelectorAll('.tile'), old = prevTiles;
+      if (old) for (var q = 0; q < tl.length; q++) {
+        var v = L.tiles[+tl[q].dataset.k], was = old.indexOf(v), now = +tl[q].dataset.k;
+        if (was >= 0 && was !== now) {
+          var sz = tl[q].offsetWidth + 6, dx = ((was % L.n) - (now % L.n)) * sz, dy = (Math.floor(was / L.n) - Math.floor(now / L.n)) * sz;
+          tl[q].style.transition = 'none'; tl[q].style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; tl[q].style.zIndex = 2;
+          void tl[q].offsetWidth; tl[q].style.transition = 'transform .15s ease-out'; tl[q].style.transform = '';
+        }
+      }
+      prevTiles = L.tiles.slice();
+    }
   }
   $('lockBoard').addEventListener('pointerdown', function (e) {
     var b = e.target.closest('[data-k]'); if (!b || b.disabled) return;
@@ -485,6 +566,14 @@
       cashFloatT = now; cashToastT = now; R.floatText(S.hub.x, -0.6, S.hub.z, '+🪙 ' + fmt(cashPend), '#ffd23f'); cashPend = 0; save();
     } else cashToastT = now; // still inside: keep the toast quiet
   }
+  // A fresh press while a cracked trap warns (run.dodge) dodges it and does nothing else. Auto-repeat never dodges.
+  function tryDodge(e) {
+    if (splash || S.mode !== 'dig' || !(S.run.dodge > 0)) return false;
+    audio(); D.dodge(S);
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    return true;
+  }
+  document.addEventListener('pointerdown', tryDodge, true); // the scene and the Faster button alike
   var lastTap = 0;
   function doTap() {
     var now = performance.now(); if (now - lastTap < 70) return; lastTap = now;
@@ -609,6 +698,7 @@
     if (splash) { startGame(); return; }
     if (e.target.tagName === 'INPUT') return; // typing in the reset box
     var k = e.key.toLowerCase();
+    if (k === ' ' && S.mode === 'dig' && S.run.dodge > 0) { if (!e.repeat) tryDodge(); e.preventDefault(); return; }
     var ICE_KEY = { arrowup: 0, w: 0, arrowright: 1, d: 1, arrowdown: 2, s: 2, arrowleft: 3, a: 3, r: 4 };
     if (S.mode === 'dig' && S.run.lock && S.run.lock.kind === 'ice' && k in ICE_KEY) { if (!e.repeat) D.lockTap(S, ICE_KEY[k]); e.preventDefault(); return; }
     if (S.mode === 'dig' && S.run.lock && k >= '1' && k <= '9') { D.lockTap(S, +k - 1); e.preventDefault(); return; } // number keys tap pins

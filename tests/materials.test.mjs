@@ -150,10 +150,10 @@ test('digging coal in world 0 for a few minutes is far cheaper than buying that 
   assert.ok(buy > 3 * coal * D.MAT_PRICE[0], `buying ${coal} coal costs ${buy}, selling it earns ${coal * D.MAT_PRICE[0]}`);
 });
 
-test('save version 4 keeps the materials', () => {
+test('save version 5 keeps the materials', () => {
   const s = D.newState(3); s.mats = [5, 4, 3, 2, 1]; s.coins = 12;
   const o = JSON.parse(D.serialize(s));
-  assert.equal(o.v, 4);
+  assert.equal(o.v, 5);
   const s2 = D.deserialize(D.serialize(s));
   assert.deepEqual([...s2.mats], [5, 4, 3, 2, 1]); assert.equal(s2.coins, 12);
 });
@@ -229,21 +229,28 @@ test('Twin Picks multiply the miner swing rate by TWIN_RATE', () => {
   s.upgrades.twin = 1;
   assert.equal(D.TWIN_RATE, 1.6); assert.ok(Math.abs(D.hitRate(s) - base * 1.6) < 1e-9);
 });
-test('coal drops as a stack by world, banks n units, and is one bag item', () => {
-  assert.deepEqual([...D.COAL_BATCH], [1, 3, 3, 5, 5]);
-  for (const w of [0, 1, 4]) {
+test('every material ore drops as a stack (ORE_STACK by world and tier), banks n units, and is one bag item', () => {
+  assert.equal(D.ORE_STACK.length, 5);
+  for (const row of D.ORE_STACK) { assert.equal(row.length, 5); assert.ok(row.every(n => Number.isInteger(n) && n >= 1)); }
+  for (const w of [0, 1, 4]) for (const tier of [0, 2, 4]) {
     const s = D.newState(5); s.unlocked.fill(true); digTo(s, w); flatLayer(s, 1); s.auto = false;
-    D._setTile(s, 3, 1, 2, T.ORE, 0); s.run.grid.hp[D.idx(3, 1, 2)] = 0.001;
+    D._setTile(s, 3, 1, 2, T.ORE, tier); s.run.grid.hp[D.idx(3, 1, 2)] = 0.001;
     D.steer(s, 'n'); D.tap(s); D.step(s, 0.05);
-    const l = s.run.loot.find(l => l.item.kind === 'ore'); assert.ok(l, 'coal dropped');
-    assert.equal(l.item.n || 1, D.COAL_BATCH[w]);
+    const l = s.run.loot.find(l => l.item.kind === 'ore'); assert.ok(l, 'ore dropped');
+    assert.equal(l.item.n || 1, D.ORE_STACK[w][tier]);
     s.run.loot = []; s.run.bag = [l.item]; D.bank(s);
-    assert.equal(s.mats[0], D.COAL_BATCH[w]);
-    assert.equal(s.events.filter(e => e.type === 'banked').pop().mats[0], D.COAL_BATCH[w]);
+    assert.equal(s.mats[tier], D.ORE_STACK[w][tier]);
+    assert.equal(s.events.filter(e => e.type === 'banked').pop().mats[tier], D.ORE_STACK[w][tier]);
   }
   const s = D.newState(5); s.run = { bag: [{ kind: 'ore', world: 0, idx: 0 }, { kind: 'ore', world: 1, idx: 0, n: 3 }], loot: [] };
   D.bank(s); assert.equal(s.mats[0], 4);
   assert.equal(D.itemValue({ kind: 'ore', world: 1, idx: 0, n: 3 }), 3 * D.MAT_PRICE[0]);
+});
+test('the special tools are goals a child can save for: Splash Pick at most 7000 coins, Twin Picks at most 20000', () => {
+  const s = D.newState(1); s.unlocked.fill(true);
+  const sp = D.upgradeCost(s, 'splash'), tw = D.upgradeCost(s, 'twin');
+  assert.ok(sp.coins <= 7000 && tw.coins <= 20000, `${sp.coins}, ${tw.coins}`);
+  assert.ok(sp.mats.reduce((a, b) => a + b) <= 200 && tw.mats.reduce((a, b) => a + b) <= 400);
 });
 test('old saves load the new upgrades at 0', () => {
   const o = JSON.parse(D.serialize(D.newState(7)));

@@ -449,7 +449,7 @@ test('going home sweeps up loot left on the floor, and a save keeps it in the ba
   D.goHome(s);
   assert.equal(s.run.loot.length, 0); assert.equal(s.run.bag.length, 1);
   run(s, 6);
-  assert.equal(s.mats[0], 1, 'and the coal went to the stash');
+  assert.equal(s.mats[0], D.ORE_STACK[0][0], 'and the coal stack went to the stash');
 });
 
 test('walking onto loot picks it up', () => {
@@ -622,6 +622,26 @@ test('jungle: breaking a trap stuns for about two seconds', () => {
   assert.equal(s.stats.trapsSprung, 1);
   for (let i = 0; i < 200 && s.run.stun > 0; i++) { stunnedFor += 0.05; D.step(s, 0.05); } // the first stun only
   assert.ok(stunnedFor > 1.5 && stunnedFor < 2.5, `stunned ${stunnedFor}s`);
+});
+
+test('jungle: a cracked trap warns for DODGE_WINDOW s; a dodge in time avoids the daze, a tap of the Faster button does not', () => {
+  assert.equal(D.DODGE_WINDOW, 1);
+  const s = digAt(2, 3, 10, 3, { drill: 25 }); D.setAuto(s, false);
+  D._setTile(s, 4, 10, 3, T.TRAP); D._setTile(s, 2, 10, 3, T.TRAP);
+  assert.equal(D.dodge(s), false, 'nothing to dodge yet');
+  D.steer(s, 'e'); D.step(s, 0.05);
+  assert.ok(s.events.some(e => e.type === 'trapWarn'), 'the trap warns first');
+  assert.ok(s.run.dodge > 0 && s.run.stun === 0);
+  D.tap(s); run(s, 0.5); assert.ok(s.run.dodge > 0, 'a Faster tap is not a dodge');
+  assert.equal(D.dodge(s), true);
+  assert.ok(s.events.some(e => e.type === 'dodged'));
+  run(s, 1.5);
+  assert.equal(s.run.stun, 0); assert.equal(s.stats.trapsSprung, 0);
+  // not dodged: dazed once the window runs out
+  s.events = []; D.steer(s, 'w'); run(s, 0.05); D.steer(s, 'w'); run(s, 0.2);
+  assert.ok(s.run.dodge > 0, 'second trap warns');
+  run(s, D.DODGE_WINDOW);
+  assert.equal(s.stats.trapsSprung, 1); assert.ok(s.run.stun > 1.5);
 });
 
 test('alien: goo grows back while you drill it, so idle digging is slower and tapping wins', () => {
@@ -807,23 +827,32 @@ test('a save from the 100-layer pits keeps progress, banks its bag and digs fres
   assert.equal(g.deepest, 0);
 });
 
-// A simple bot standing in for a kid: steers toward the nearest block in its layer (the miner
-// walks and digs at full pace only while steered), taps 3 times a second, heads home when the bag is full or every 2.5 minutes,
-// and spends on the cheapest upgrade (bag and magnet weighted down). An upgrade it is short of materials for it buys
-// at the exchange (buyMat) when its coins stretch to that.
+// Simple bots standing in for a 6–9 year old. The steering bot steers toward the nearest block in its layer (the miner
+// walks and digs at full pace only while steered), taps 3 times a second, dodges a trap after CHILD_REACT s, and heads home
+// when the bag is full or every 2.5 minutes. The hands-off bot leaves auto-mining to it, never taps or dodges, goes home
+// only when it must, and hires helpers. Both take CHILD_LOCK s over each chest puzzle and spend on the cheapest upgrade
+// (bag and magnet weighted down). An upgrade they are short of materials for they buy at the exchange (buyMat) when the
+// coins stretch to that; mats.dug and mats.bought count the material units that went into purchases each way.
+const CHILD_LOCK = 30, CHILD_REACT = 0.6;
 const costValue = c => c.coins + c.mats.reduce((a, n, t) => a + n * D.MAT_PRICE[t], 0);
-function shop(s) {
-  for (let g = 0; g < 80; g++) {
-    const o = ['drill', 'speed', 'bag', 'magnet']
-      .map(k => [k, costValue(D.upgradeCost(s, k)) * (k === 'bag' ? 2 : k === 'magnet' ? 1.5 : 1)])
-      .filter(([, c]) => isFinite(c)).sort((a, b) => a[1] - b[1]);
+function shop(s, helpers = false, mats = { dug: 0, bought: 0 }) {
+  for (let g = 0; g < 120; g++) {
+    let o = ['drill', 'speed', 'bag', 'magnet']
+      .map(k => [k, costValue(D.upgradeCost(s, k)) * (k === 'bag' ? 2 : k === 'magnet' ? 1.5 : 1), false]);
+    if (helpers) o = o.concat([['diggers', costValue(D.hireCost(s, 'diggers')) * 0.7, true]],
+      s.workers.diggers ? ['crewDrill', 'crewSpeed'].map(k => [k, costValue(D.upgradeCost(s, k)), false]) : []);
+    o = o.filter(([, c]) => isFinite(c)).sort((a, b) => a[1] - b[1]);
     if (!o.length) break;
-    const c = D.upgradeCost(s, o[0][0]);
+    const [k, , hire] = o[0], c = hire ? D.hireCost(s, k) : D.upgradeCost(s, k);
     let need = c.coins;
     for (let t = 0; t < 5; t++) { const short = Math.max(0, c.mats[t] - s.mats[t]); if (short) need += D.matBuyPrice(s, t, short); }
     if (need > s.coins) break;
-    for (let t = 0; t < 5; t++) { const short = Math.max(0, c.mats[t] - s.mats[t]); if (short) assert.equal(D.buyMat(s, t, short), true); }
-    assert.equal(D.buyUpgrade(s, o[0][0]), true);
+    for (let t = 0; t < 5; t++) {
+      const short = Math.max(0, c.mats[t] - s.mats[t]);
+      mats.bought += short; mats.dug += c.mats[t] - short;
+      if (short) assert.equal(D.buyMat(s, t, short), true);
+    }
+    assert.equal(hire ? D.hire(s, k) : D.buyUpgrade(s, k), true);
   }
 }
 function botSteer(s) {
@@ -850,20 +879,21 @@ function handIn(s) {
   s.hub.x = H.rows[row].indexOf('M') + H.x0 + 0.5; s.hub.z = row + H.z0 + 0.5; D.step(s, 0.05);
   s.hub = { x: -0.5, z: D.LADDER_Z + 0.5, input: null, path: null };
 }
-function botPlay(s, w, stats) {
+function botPlay(s, w, stats, handsOff = false) {
   const dt = 0.1; let t = 0, acc = 0, lastHome = 0;
   D.startDig(s, w);
   while (!s.relics[w] && t < 3 * 3600) {
     if (s.mode === 'dig') {
-      acc += 3 * dt; while (acc >= 1) { D.tap(s); acc--; }
-      if (s.run.lock) { solveLock(s); t += 5; } // about five seconds to pick a lock
-      botSteer(s);
+      if (!handsOff) { acc += 3 * dt; while (acc >= 1) { D.tap(s); acc--; } }
+      if (s.run.lock) { solveLock(s); t += CHILD_LOCK; }
+      if (!handsOff && s.run.dodge > 0 && D.DODGE_WINDOW - s.run.dodge >= CHILD_REACT) D.dodge(s);
+      if (!handsOff) botSteer(s);
       if (s.run.bag.length >= D.bagCap(s)) { D.goHome(s); stats.fullBag++; }
-      else if (t - lastHome > 150) D.goHome(s);
+      else if (!handsOff && t - lastHome > 150) D.goHome(s);
       else if (s.events.some(e => e.type === 'boneFull')) D.goHome(s); // blocked by a bone in hand: take it to the museum
     }
     s.events = []; D.step(s, dt); t += dt;
-    if (s.mode === 'surface' && !s.relics[w]) { lastHome = t; handIn(s); shop(s); D.startDig(s, w); }
+    if (s.mode === 'surface' && !s.relics[w]) { lastHome = t; handIn(s); shop(s, handsOff, stats.mats); D.startDig(s, w); }
   }
   return t;
 }
@@ -878,17 +908,27 @@ test('the first upgrade is affordable after one trip', () => {
   assert.ok(['drill', 'speed', 'bag', 'magnet'].some(k => D.canAfford(s, D.upgradeCost(s, k))), `earned ${s.coins} coins and [${s.mats}] without buying anything`);
 });
 
-test('playthrough: each world takes a kid-sized 8–20 minutes, all five finish, and a full bag sends the miner home', () => {
+test('playthrough: steering, each world takes a kid-sized 10–20 minutes with puzzles, and digging supplies most materials', () => {
   const s = D.newState(2024);
-  const mins = [], stats = { fullBag: 0 };
+  const mins = [], stats = { fullBag: 0, mats: { dug: 0, bought: 0 } };
   for (let w = 0; w < 5; w++) {
     assert.ok(s.unlocked[w], `world ${w} unlocked`);
     mins.push(botPlay(s, w, stats) / 60);
     assert.ok(s.relics[w], `world ${w} relic`);
   }
-  console.log('bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| trips home with a full bag:', stats.fullBag);
-  for (const m of mins) assert.ok(m >= 8 && m <= 20, `world took ${m.toFixed(1)} min`);
+  const dug = stats.mats.dug / (stats.mats.dug + stats.mats.bought);
+  console.log('steering bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| full-bag trips:', stats.fullBag, '| materials dug:', dug.toFixed(2));
+  for (const m of mins) assert.ok(m >= 10 && m <= 20, `world took ${m.toFixed(1)} min`);
   assert.ok(stats.fullBag >= 8, `${stats.fullBag} trips home with a full bag`);
+  assert.ok(dug >= 0.6, `only ${(100 * dug).toFixed(0)}% of materials were dug`);
+});
+
+test('playthrough: hands-off, a child who leaves auto-mining on and hires helpers finishes each world in at most 22 minutes', () => {
+  const s = D.newState(2024);
+  const mins = [], stats = { fullBag: 0, mats: { dug: 0, bought: 0 } };
+  for (let w = 0; w < 5; w++) { mins.push(botPlay(s, w, stats, true) / 60); assert.ok(s.relics[w], `world ${w} relic`); }
+  console.log('hands-off bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| helpers', s.workers.diggers);
+  for (const m of mins) assert.ok(m <= 22, `world took ${m.toFixed(1)} min`);
 });
 
 test('each world buries two copies of all 15 fossil pieces, the first creature shallow and the last deep', () => {
@@ -901,11 +941,56 @@ test('each world buries two copies of all 15 fossil pieces, the first creature s
   }
 });
 
+test('the forest hint does not ask for steering around roots, which must be dug', () => {
+  assert.doesNotMatch(D.WORLDS[0].ruleText, /around/);
+});
+
+test('golden replay: once all five relics are home, dig again regenerates every world and its bones come up gold', () => {
+  const s = D.newState(3); s.unlocked.fill(true); s.relics = [true, true, true, true, false];
+  assert.equal(D.digAgain(s), false, 'not before the fifth relic');
+  s.relics[4] = true; s.museum[0].pieces.fill(1);
+  D.startDig(s, 0); run(s, 5); D.goHome(s); run(s, 10);
+  assert.ok(D.site(s, 0).deepest > 0);
+  assert.equal(D.digAgain(s), true); assert.equal(s.golden, true);
+  for (let w = 0; w < 5; w++) { assert.equal(D.site(s, w).deepest, 0); assert.equal(s.museum[w].gold.length, D.FOSSILS); assert.ok(s.museum[w].gold.every(n => n === 0)); }
+  assert.ok(s.events.some(e => e.type === 'golden'));
+  // a bone dug now is gold, is carried even though the plain one is on show, and fills the gold shelf
+  D.startDig(s, 0); run(s, 5); D._clearLayer(s, 3); D._teleport(s, 3, 3, 3); D.setAuto(s, false);
+  D._setTile(s, 4, 3, 3, T.FOSSIL, 2); s.run.grid.hp[D.idx(4, 3, 3)] = 0.001;
+  D.steer(s, 'e'); run(s, 3);
+  assert.equal(s.carry.length, 1); assert.equal(s.carry[0].gold, true); assert.equal(s.carry[0].idx, 2);
+  D.goHome(s); run(s, 10);
+  const H = D.HUB, row = H.rows.findIndex(r => r.includes('M'));
+  s.hub.x = H.rows[row].indexOf('M') + H.x0 + 0.5; s.hub.z = row + H.z0 + 0.5; D.step(s, 0.05);
+  assert.equal(s.museum[0].gold[2], 1); assert.equal(s.museum[0].pieces[2], 1, 'the plain shelf is unchanged');
+  assert.equal(D.goldFound(s, 0), 1);
+  // the save keeps it
+  const t = D.deserialize(D.serialize(s));
+  assert.equal(t.golden, true); assert.equal(t.museum[0].gold[2], 1);
+  // an older save has no gold
+  const o = JSON.parse(D.serialize(D.newState(4))); delete o.golden; o.museum.forEach(m => delete m.gold);
+  const u = D.deserialize(JSON.stringify(o)); assert.equal(u.golden, false); assert.ok(u.museum[0].gold.every(n => n === 0));
+});
+
+test('jungle treasure-room chests open without a puzzle and give their contents plus the bonus gem', () => {
+  const g = D.genWorld(2, 5); let room = 0;
+  for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.CHEST && g.v[i] === 1) room++;
+  assert.ok(room >= 4, `${room} room chests`);
+  const s = digAt(2, 3, 10, 3, { drill: 25 }); D.setAuto(s, false);
+  D._setTile(s, 4, 10, 3, T.CHEST, 1); s.events = [];
+  D.steer(s, 'e'); run(s, 2);
+  assert.ok(!s.run.lock, 'no puzzle');
+  assert.ok(s.events.some(e => e.type === 'roomChest'));
+  const items = s.run.bag.concat(s.run.loot.map(l => l.item), s.carry);
+  assert.ok(items.some(it => it.gem), 'the bonus gem');
+  assert.ok(items.some(it => it.kind === 'treasure' && !it.gem || it.kind === 'fossil'), 'the contents');
+});
+
 test('every world has treasure chests, and a chest can hold a missing fossil piece', () => {
   for (let w = 0; w < 5; w++) {
     const g = D.genWorld(w, 8); let n = 0;
-    for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.CHEST) n++;
-    assert.ok(n >= 15, `world ${w} has ${n} chests`);
+    for (let i = 0; i < g.t.length; i++) if (g.t[i] === T.CHEST && g.v[i] !== 1) n++; // puzzle chests (treasure-room chests have no lock)
+    assert.ok(n >= 9 && n <= 17, `world ${w} has ${n} chests`);
   }
   let fossils = 0, coins = 0;
   for (let k = 0; k < 40; k++) {
@@ -1140,7 +1225,7 @@ test('slide: always a 3×3 board, scrambled by legal moves so it can always be s
 });
 
 test('pipes: turn tiles so water runs from the left edge to every outlet on the right; later worlds have more outlets; every board can be solved and it starts unsolved', () => {
-  assert.deepEqual([...D.PIPE_N], [3, 4, 4, 5, 5]);
+  assert.deepEqual([...D.PIPE_N], [3, 4, 4, 4, 4]); // a 6–9 year old: never bigger than 4×4
   assert.deepEqual([...D.PIPE_OUTS], [1, 1, 2, 2, 3]);
   for (let w = 0; w < 5; w++) for (let k = 0; k < 20; k++) {
     const s = openChest(w, 'pipes', 31 * w + k), L = s.run.lock;
@@ -1171,6 +1256,7 @@ test('pipes: with two outlets, water reaching only one of them does not open the
 
 test('ice: push the block and it slides until a rock or the edge stops it; into the hole opens the chest; more pushes needed later', () => {
   assert.deepEqual([...D.ICE_N], [5, 5, 6, 6, 6]);
+  assert.ok(Math.max(...D.ICE_MIN) <= 4, 'never more than 4 pushes');
   for (let w = 0; w < 5; w++) for (let k = 0; k < 20; k++) {
     const s = openChest(w, 'ice', 41 * w + k), L = s.run.lock, n = L.n;
     assert.equal(n, D.ICE_N[w]); assert.equal(L.rocks.length, n * n);
@@ -1213,7 +1299,7 @@ test('odd: all cards the same but one; a wrong tap waits a moment, a right tap s
 });
 
 test('path: tap the numbered gems in order; later worlds hide the numbers after a preview and a miss shows them again and starts over', () => {
-  assert.deepEqual([...D.PATH_N], [4, 5, 6, 7, 8]);
+  assert.deepEqual([...D.PATH_N], [4, 5, 6, 7, 7]);
   for (let w = 0; w < 5; w++) {
     const s = openChest(w, 'path', 9 + w), L = s.run.lock;
     assert.equal(L.n, D.PATH_N[w]);

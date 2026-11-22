@@ -15,6 +15,7 @@ var DTWRender = (function () {
   // the part of the stage the surface menu covers: a bottom sheet (portrait) or a side panel (wide), in CSS pixels
   var view = { right: 0, sheet: true };
   var TW = 48, hw = 24, hh = 12, bh = 24, ox = 0, oy = 0;
+  var golden = false; // the golden replay: bones in the ground are gold (set from the state each frame)
   var time = 0, shakeT = 0, parts = [], floaters = [], shocks = [];
   // smoothed camera and miner display state
   var cam = { fx: 3.5, fy: 1, fz: 3.5, zoom: 0.62, anchor: 0.17, init: false };
@@ -61,6 +62,15 @@ var DTWRender = (function () {
     px(c, 4, 7, a, 8, 2); px(c, 3, 6, a, 2, 2); px(c, 3, 8, a, 2, 2); px(c, 11, 6, a, 2, 2); px(c, 11, 8, a, 2, 2);
     px(c, 5, 9, d, 6, 1);
   }
+  function ln(c, x0, y0, x1, y1, col) { // a one-pixel line
+    var n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
+    for (var i = 0; i <= n; i++) px(c, Math.round(x0 + (x1 - x0) * i / n), Math.round(y0 + (y1 - y0) * i / n), col);
+  }
+  function boneG(c) { // a gold bone, for fossil blocks once the game is finished
+    var a = '#ffd23f', d = '#b8801a';
+    px(c, 4, 7, a, 8, 2); px(c, 3, 6, a, 2, 2); px(c, 3, 8, a, 2, 2); px(c, 11, 6, a, 2, 2); px(c, 11, 8, a, 2, 2);
+    px(c, 5, 9, d, 6, 1); px(c, 5, 7, '#fff3b0', 4, 1);
+  }
   function textures(w) {
     if (TEX[w]) return TEX[w];
     var W = D.WORLDS[w], P_ = W.pal, t = {}, r = prng(w * 99 + 7), id = W.id;
@@ -69,11 +79,18 @@ var DTWRender = (function () {
       t['stone' + L] = mk(function (c) { noiseFill(c, shade(P_.stone, -0.1 * L), r, 30); px(c, 2, 4, shade(P_.stone, 0.25), 5, 1); px(c, 9, 10, shade(P_.stone, 0.25), 4, 1); px(c, 3, 12, shade(P_.stone, -0.35), 6, 1); });
       for (var k = 0; k < 6; k++) (function (k) { t['ore' + L + '_' + k] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); gem(c, W.ores[k].color, r, 2 + (k > 2 ? 1 : 0)); }); })(k);
       t['fossil' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); if (id === 'moon') { px(c, 4, 4, '#cfd8dc', 8, 8); px(c, 5, 5, '#78909c', 6, 6); px(c, 7, 2, '#cfd8dc', 2, 12); px(c, 2, 7, '#cfd8dc', 12, 2); px(c, 7, 7, '#ffd23f', 2, 2); } else bone(c); px(c, 0, 0, '#ffe9a8'); px(c, 15, 15, '#ffe9a8'); });
+      t['fossilG' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); boneG(c); px(c, 0, 0, '#fff3b0'); px(c, 15, 15, '#fff3b0'); px(c, 1, 0, '#ffd23f'); px(c, 15, 14, '#ffd23f'); });
       t['goo' + L] = mk(function (c) { noiseFill(c, '#3fbf5a', r, 30); px(c, 0, 0, '#9dff8a', 16, 2); px(c, 3, 2, '#9dff8a', 2, 3); px(c, 10, 2, '#9dff8a', 2, 5); px(c, 5, 7, '#cfffc4', 2, 2); px(c, 11, 11, '#1f7a33', 3, 2); });
     })(L);
     t.grass = mk(function (c) { noiseFill(c, P_.top, r, 50); for (var i = 0; i < 10; i++) px(c, r() * 16 | 0, r() * 16 | 0, shade(P_.top, 0.25)); });
     t.root = mk(function (c) { noiseFill(c, '#4a2f17', r, 20); for (var x = 0; x < 16; x++) { var y = 7 + Math.round(Math.sin(x * 0.8) * 2); px(c, x, y - 2, '#7a4f2a', 1, 5); px(c, x, y - 2, '#9a6a3a'); } });
-    t.trap = mk(function (c) { noiseFill(c, '#8a8268', r, 20); px(c, 1, 1, '#6a6450', 14, 1); px(c, 1, 14, '#6a6450', 14, 1); px(c, 4, 5, '#3a3428', 8, 6); px(c, 5, 6, '#c0392b', 2, 2); px(c, 9, 6, '#c0392b', 2, 2); px(c, 6, 9, '#e8d8a0', 4, 1); });
+    t.trap = mk(function (c) { // a pale cracked slab with glowing red cracks and a faint warning diamond, unlike plain dirt or stone
+      noiseFill(c, '#9a927a', r, 14); px(c, 1, 1, '#6a6450', 14, 1); px(c, 1, 14, '#6a6450', 14, 1);
+      var d = '#c0392b'; px(c, 7, 6, d, 2, 1); px(c, 6, 7, d, 4, 2); px(c, 7, 9, d, 2, 1); px(c, 7, 7, '#e9806a', 2, 2); // diamond rune
+      var cr = [[8, 0, 6, 3], [6, 3, 9, 5], [9, 5, 6, 8], [6, 8, 7, 11], [7, 11, 4, 15], [6, 3, 3, 4], [3, 4, 1, 3], [9, 5, 13, 4], [13, 4, 15, 5], [6, 8, 3, 9], [3, 9, 0, 8], [7, 11, 11, 12], [11, 12, 14, 11]];
+      cr.forEach(function (s) { ln(c, s[0], s[1], s[2], s[3], '#1f1810'); });
+      cr.forEach(function (s, i) { if (i < 5) ln(c, s[0] + 1, s[1], s[2] + 1, s[3], '#ff6a2a'); });
+    });
     t.chest = mk(function (c) { // a wooden chest: planks, dark iron bands, a gold lock and trim
       noiseFill(c, '#a8622a', r, 14);
       for (var py = 3; py < 16; py += 4) px(c, 0, py, '#7a421a', 16, 1);
@@ -90,6 +107,12 @@ var DTWRender = (function () {
       px(c, 0, 0, '#ffd23f', 16, 1); px(c, 0, 15, '#ffd23f', 16, 1); px(c, 0, 0, '#ffd23f', 1, 16); px(c, 15, 0, '#e0a820', 1, 16);
       px(c, 7, 7, '#fff3b0', 2, 2);
     });
+    t.chestR = mk(function (c) { // a treasure-room chest: the plain chest with thick gold trim, a jewel and a gold lock plate
+      c.drawImage(t.chest, 0, 0);
+      px(c, 0, 0, '#fff3b0', 16, 1); px(c, 0, 15, '#ffd23f', 16, 1); px(c, 0, 0, '#ffd23f', 1, 16); px(c, 15, 0, '#ffd23f', 1, 16); px(c, 1, 1, '#ffe27a', 14, 1); px(c, 1, 14, '#ffd23f', 14, 1);
+      px(c, 5, 4, '#ffd23f', 6, 7); px(c, 6, 5, '#fff3b0', 4, 5); px(c, 7, 6, '#e8334a', 2, 3); px(c, 7, 6, '#ff9aa8');
+    });
+    t.chestTopR = mk(function (c) { c.drawImage(t.chestTop, 0, 0); px(c, 1, 1, '#ffe27a', 14, 1); px(c, 1, 14, '#ffe27a', 14, 1); px(c, 1, 1, '#ffe27a', 1, 14); px(c, 14, 1, '#ffe27a', 1, 14); px(c, 6, 6, '#e8334a', 4, 4); px(c, 7, 7, '#ff9aa8', 2, 2); });
     t.relic = mk(function (c) { noiseFill(c, '#3a2c5a', r, 20); px(c, 0, 0, '#ffd23f', 16, 1); px(c, 0, 15, '#ffd23f', 16, 1); px(c, 7, 3, W.relic.color, 2, 10); px(c, 3, 7, W.relic.color, 10, 2); px(c, 6, 6, '#fff', 4, 4); });
     t.bed = mk(function (c) { noiseFill(c, P_.bed, r, 25); });
     t.path = mk(function (c) { // cobbles
@@ -116,11 +139,11 @@ var DTWRender = (function () {
       case T.DIRT: return 'dirt' + L;
       case T.STONE: return 'stone' + L;
       case T.ORE: return 'ore' + L + '_' + v;
-      case T.FOSSIL: return 'fossil' + L;
+      case T.FOSSIL: return (golden ? 'fossilG' : 'fossil') + L;
       case T.GOO: return 'goo' + L;
       case T.ROOT: return 'root';
       case T.TRAP: return 'trap';
-      case T.CHEST: return 'chest';
+      case T.CHEST: return v === 1 ? 'chestR' : 'chest';
       case T.RELIC: return 'relic';
       default: return 'bed';
     }
@@ -170,9 +193,9 @@ var DTWRender = (function () {
     return (pc[key] = c);
   }
   function bigFossil(w, y, f) {
-    var L = layerOf(y), key = w + '|big|' + L + '|' + f.idx + '|' + f.w + 'x' + f.d + '|' + f.dx + ',' + f.dz + '|' + TW;
+    var L = layerOf(y), key = golden + '|' + w + '|big|' + L + '|' + f.idx + '|' + f.w + 'x' + f.d + '|' + f.dx + ',' + f.dz + '|' + TW;
     if (cubes[key]) return cubes[key];
-    var pc = DTWSprites.pieceCanvas(w * 3 + Math.floor(f.idx / D.PIECES), f.idx % D.PIECES);
+    var pc = DTWSprites.pieceCanvas(w * 3 + Math.floor(f.idx / D.PIECES), f.idx % D.PIECES, golden);
     var c = document.createElement('canvas'); c.width = TW; c.height = TW;
     var g = c.getContext('2d'); g.imageSmoothingEnabled = false;
     g.drawImage(cube(w, 'dirt' + L, 'dirt' + L), 0, 0);
@@ -201,7 +224,7 @@ var DTWRender = (function () {
   function itemColor(it) {
     var wd = D.WORLDS[it.world];
     if (it.kind === 'ore') return wd.ores[it.idx].color;
-    if (it.kind === 'fossil') return '#f4ecd6';
+    if (it.kind === 'fossil') return it.gold ? '#ffd23f' : '#f4ecd6';
     if (it.kind === 'relic') return wd.relic.color;
     return '#ffd23f';
   }
@@ -354,7 +377,7 @@ var DTWRender = (function () {
     var it = S.carry && S.carry[i];
     if (!it || it.kind !== 'fossil') return null;
     var w = D.WORLDS[it.world], cr = w && w.creatures[Math.floor(it.idx / 5)], part = cr ? cr.parts[it.idx % 5] : '';
-    return { shape: /Skull/.test(part) ? 'skull' : /Tusk|Fang|Horn|Antenna/.test(part) ? 'tusk' : 'bone', moon: w && w.id === 'moon' };
+    return { shape: /Skull/.test(part) ? 'skull' : /Tusk|Fang|Horn|Antenna/.test(part) ? 'tusk' : 'bone', moon: w && w.id === 'moon', gold: !!it.gold };
   }
   // ---------- helper diggers ----------
   // The logic gives each helper a block of the miner's layer and a cell to stand on (run.crew); here they
@@ -382,6 +405,7 @@ var DTWRender = (function () {
     var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', bowl: underSea(S), t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
+    if (S.mode === 'surface') ctx.translate(0, -cheerHop(h.k + 3));
     if (fc.flip) ctx.scale(-1, 1);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
@@ -417,6 +441,7 @@ var DTWRender = (function () {
     var sh = 1 - disp.air * 0.35;
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.45 * sh, hh * 0.45 * sh, 0, 0, 7); ctx.fill();
     if (r && r.stun > 0) ctx.rotate(Math.sin(time * 14) * 0.1); // dazed wobble
+    if (S.mode === 'surface') ctx.translate(0, -cheerHop(0));
     ctx.scale(fc.flip ? -scx : scx, scy);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
@@ -426,8 +451,26 @@ var DTWRender = (function () {
       octx.font = 'bold ' + Math.round(TW * 0.22) + 'px sans-serif'; octx.textAlign = 'center'; octx.fillStyle = '#ffeb3b';
       for (var i = 0; i < 3; i++) { var a = time * 6 + i * 2.1; octx.fillText('★', sx + Math.cos(a) * TW * 0.3, sy - 36 * p + Math.sin(a) * TW * 0.08); }
     }
+    if (r && r.dodge > 0 && S.mode === 'dig') dodgeSign(sx, sy - TW * 1.25 - TW * 0.3, r.dodge / D.DODGE_WINDOW);
     return p;
   }
+  // a cracked trap is about to go off: a big bouncing warning sign over the miner's head, with a ring that runs down
+  // as the dodge window closes (tap now!). Drawn on the overlay so the blur never touches it.
+  function dodgeSign(x, y, left) {
+    left = Math.max(0, Math.min(1, left));
+    var u = TW * 0.44, bob = Math.abs(Math.sin(time * 11)) * TW * 0.16, pulse = 1 + 0.08 * Math.sin(time * 22), cy = Math.max(u * 2.7, y - bob);
+    glow(x, cy, TW * 1.1, '#ffd60a', 0.55); light(x, cy, TW * 2.4, 0.3, '#ff8a2a');
+    octx.save(); octx.translate(x, cy); octx.scale(pulse, pulse); octx.lineJoin = 'round'; octx.lineCap = 'round';
+    octx.lineWidth = Math.max(5, u * 0.3); octx.strokeStyle = 'rgba(0,0,0,0.45)'; octx.beginPath(); octx.arc(0, u * 0.1, u * 1.05, 0, 7); octx.stroke(); // ring track
+    octx.strokeStyle = left > 0.4 ? '#ffe14a' : '#ff3b30'; octx.beginPath(); octx.arc(0, u * 0.1, u * 1.05, -Math.PI / 2, -Math.PI / 2 + left * 6.2832); octx.stroke(); // time left
+    octx.beginPath(); octx.moveTo(0, -u * 0.8); octx.lineTo(u * 0.85, u * 0.7); octx.lineTo(-u * 0.85, u * 0.7); octx.closePath();
+    octx.fillStyle = '#ffd60a'; octx.fill(); octx.lineWidth = Math.max(3, u * 0.2); octx.strokeStyle = '#1a1020'; octx.stroke();
+    octx.fillStyle = '#1a1020'; octx.font = '900 ' + Math.round(u * 1.25) + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.fillText('!', 0, u * 0.22);
+    octx.font = '700 ' + Math.round(u * 0.75) + 'px Fredoka, sans-serif'; octx.lineWidth = Math.max(3, u * 0.2); octx.strokeStyle = '#000c'; octx.textAlign = 'left'; octx.strokeText('TAP!', u * 1.25, u * 0.1);
+    octx.fillStyle = '#fff'; octx.fillText('TAP!', u * 1.25, u * 0.1); octx.restore();
+  }
+  // plaza cheering during the finale: a hop height in pixels, out of step per person
+  function cheerHop(seed) { return fin && fin.t < fin.dur ? Math.abs(Math.sin(time * 9 + seed * 2.1)) * TW * 0.3 : 0; }
 
   // ---------- surface scenery: iso boxes on the rim ----------
   function poly(pts, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fill(); }
@@ -508,6 +551,7 @@ var DTWRender = (function () {
       else if ((k = 'abcde'.indexOf(c)) >= 0) fn = function () { relicCase(k, b, S); };
       items.push({ x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, fn: fn });
     });
+    if (all && (S.relics[4] || fin)) items.push({ x0: STAR.x0, x1: STAR.x0 + 2, z0: STAR.z0, z1: STAR.z0 + 2, fn: starTree });
     if (all && (S.pile >= 1 || burstT > 0)) { var px = HUB_DOOR[0] + 2.5, pz = HUB_DOOR[1] + 1.5; items.push(feet(px, pz, function () { coinPile(px, pz, S.pile); }, 0.4)); }
   }
   // visitor coins waiting just inside the museum door: the heap grows with the sum (log scale), and bursts when collected
@@ -671,7 +715,7 @@ var DTWRender = (function () {
       if (ct.piece >= 0) hi = { i: ct.piece, a: 0.3 + 0.5 * pu, col: '#ffe27a' };
     }
     if (ce) hi = { i: -1, a: Math.max(0, 1 - ce.t / 1.0), col: '#ffffff' }; // the new bone flashes in
-    DTWSprites.exhibit(ctx, k, S.museum[w].pieces.slice(c * 5, c * 5 + 5), open, q[0], q[1], TW / 27 * Math.max(1, Math.min(2, Math.min(sx, sz * 1.25) / 2)), hi);
+    DTWSprites.exhibit(ctx, k, S.museum[w].pieces.slice(c * 5, c * 5 + 5), open, q[0], q[1], TW / 27 * Math.max(1, Math.min(2, Math.min(sx, sz * 1.25) / 2)), hi, S.museum[w].gold && S.museum[w].gold.slice(c * 5, c * 5 + 5));
     if (!open) { // roped off
       ctx.strokeStyle = '#c0392b'; ctx.lineWidth = Math.max(2, TW / 18);
       [[b.x1 + 0.1, b.z0 + 0.2], [b.x1 + 0.1, b.z1 - 0.2]].forEach(function (pp) { box(pp[0] - 0.05, pp[1] - 0.05, 0.1, 0.1, 1, 0.55, '#c9a46a'); });
@@ -718,7 +762,9 @@ var DTWRender = (function () {
   function stepPeople(dt, S) {
     if (S.mode !== 'surface') return;
     var want = wantVisitors(S), door = [HUB_DOOR[0] + 0.5, HUB_DOOR[1] + 0.5];
-    visitT -= dt;
+    if (fin) want = Math.max(want, 7);
+    visitT -= dt * (fin ? 4 : 1);
+    if (fin && fin.t < fin.dur) { fin.cheer -= dt; if (fin.cheer <= 0 && visitors.length) { fin.cheer = 0.25; var cv0 = visitors[Math.floor(Math.random() * visitors.length)]; floatText(cv0.x, -0.6, cv0.z, ['🎉', '🎆', '⭐', 'Yay!', 'Wow!'][Math.floor(Math.random() * 5)], '#ffe9a8'); } }
     if (visitors.length < want && visitT <= 0) {
       visitors.push({ x: door[0], z: door[1], path: null, wait: 0, visits: 2 + Math.floor(Math.random() * 3), seed: Math.floor(Math.random() * 4096), face: 'e', walk: 0, moving: false, leaving: false, look: -1 });
       visitT = 1.5 + Math.random() * 2.5;
@@ -765,6 +811,7 @@ var DTWRender = (function () {
     var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time), q = P(x, 1, z), p = charScale();
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.4, hh * 0.4, 0, 0, 7); ctx.fill();
+    ctx.translate(0, -cheerHop(seed));
     if (fc.flip) ctx.scale(-1, 1);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
@@ -831,7 +878,7 @@ var DTWRender = (function () {
     var cand = [[b.x0, b.z1], [b.x1 - 1, b.z1], [b.x0, b.z0 - 1], [b.x1 - 1, b.z0 - 1], [b.x0 - 1, b.z0], [b.x1, b.z0]], cell = null;
     for (var i = 0; i < cand.length && !cell; i++) if (D.hubWalkable(cand[i][0], cand[i][1])) cell = [cand[i][0] + 0.5, cand[i][1] + 0.5];
     if (!cell) return null;
-    var missing = (S.museum[it.world].pieces[it.idx] | 0) === 0;
+    var missing = ((it.gold ? S.museum[it.world].gold : S.museum[it.world].pieces)[it.idx] | 0) === 0;
     return { k: k, b: b, cell: cell, piece: missing ? it.idx % 5 : -1 };
   }
   function deskCell() {
@@ -960,7 +1007,7 @@ var DTWRender = (function () {
   var HILLS = {
     forest: { far: '#7fb4c9', near: '#4f8f5a', amp: [1.2, 0.9], trees: true },
     ocean: { far: '#2f7fb0', near: '#1f5f8a', amp: [1.0, 1.4], kelp: true },
-    jungle: { far: '#6d9c7c', near: '#2f6f3a', amp: [2.6, 1.3], trees: true },
+    jungle: { far: '#c9a070', near: '#3f7a4a', amp: [2.6, 1.3], trees: true },
     moon: { far: '#3a3f5a', near: '#5a5d6e', amp: [0.8, 0.5] },
     alien: { far: '#5a2f7a', near: '#3a1f55', amp: [1.6, 2.2], spires: true }
   };
@@ -1080,6 +1127,7 @@ var DTWRender = (function () {
     var fx = 3.5 + (disp.x + 0.5 - 3.5) * 0.5, fz = 3.5 + (disp.z + 0.5 - 3.5) * 0.5, fy = disp.y + 1;
     var zoom = surf ? (view.sheet ? 1.15 : 1.05) : 1, anchor = surf ? (view.sheet && view.open ? 0.2 : 0.5) : 0.3;
     if (surf) { fx = disp.x + 0.5; fz = disp.z + 0.5; fy = 1; } // on the plaza the camera follows the miner
+    if (surf && fin && fin.t < fin.dur) { fx = STAR.x0 + 1; fz = STAR.z0 + 1; } // the finale: look at where the Star Tree grows
     var k = cam.init ? Math.min(1, dt * 6) : 1; cam.init = true;
     cam.fx += (fx - cam.fx) * k; cam.fz += (fz - cam.fz) * k; cam.fy += (fy - cam.fy) * k;
     if (Math.abs(fy - cam.fy) > 12) cam.fy = fy;
@@ -1092,11 +1140,14 @@ var DTWRender = (function () {
     }
     for (var f = floaters.length - 1; f >= 0; f--) { var fl = floaters[f]; fl.life -= dt; fl.y -= dt * 0.8; if (fl.life <= 0) floaters.splice(f, 1); }
     updateFinds(dt, S);
+    for (var ri = roomFx.length - 1; ri >= 0; ri--) { roomFx[ri].age += dt; if (roomFx[ri].age > 1.6 || S.mode === 'surface') roomFx.splice(ri, 1); }
+    updateFinale(dt);
   }
 
   // ---------- the scene ----------
   function draw(S) {
     var w = S.world, g = D.site(S, w), r = S.run, id = D.WORLDS[w].id, Pl = D.WORLDS[w].pal;
+    golden = !!S.golden;
     setTile(cam.zoom);
     // project the camera focus to (vw/2, anchor*vh)
     ox = 0; oy = 0; var f0 = P(cam.fx, cam.fy, cam.fz);
@@ -1168,7 +1219,7 @@ var DTWRender = (function () {
           var side = texKey(tt, pit ? g.v[i] : 0, y);
           if (!pit && y > 1) side = 'dirt' + layerOf(y);
           var hc = y === 1 && !pit ? D.hubCell(x, z) : '';
-          var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : tt === T.CHEST ? 'chestTop' : side;
+          var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : tt === T.CHEST ? (g.v[i] === 1 ? 'chestTopR' : 'chestTop') : side;
           spr = cube(w, top, side === 'grass' ? 'dirt0' : side);
           if (pit && tt === T.FOSSIL) { var fo = D.fossilAt(g, i); if (fo.w * fo.d > 1) spr = bigFossil(w, y, fo); }
           var gh = pit && y === viewTop && S.mode !== 'surface' && ghost[x + ',' + z];
@@ -1206,6 +1257,7 @@ var DTWRender = (function () {
     if (r) drawReach(r, S);
     if (r && r.loot) drawLoot(r, S);
     drawFinds();
+    drawRoomFx();
     for (var sk = 0; sk < shocks.length; sk++) { // the Splash Pick's shock ring: a diamond spreading over the neighbouring blocks
       var sh = shocks[sk], sa = sh.age / 0.45, sq = P(sh.x + 0.5, sh.y + 0.5, sh.z + 0.5), sr = (0.5 + 1.1 * sa) * hw * 1.4;
       ctx.strokeStyle = 'rgba(255,214,90,' + (0.9 * (1 - sa)) + ')'; ctx.lineWidth = Math.max(2, TW / 16);
@@ -1236,7 +1288,7 @@ var DTWRender = (function () {
       for (var b = 0; b < 12; b++) { var bx2 = ((b * 0.61) % 1) * vw, by2 = vh - ((time * (14 + b * 2) * TW / 32 + b * 71) % (vh + 20)); ctx.fillStyle = '#9dff8a66'; ctx.fillRect(bx2, by2, TW * 0.06, TW * 0.06); }
     }
     motes(id, viewTop);
-    if (surfaceView) { hubLabels(S); handInTop(S); celebTop(); }
+    if (surfaceView) { hubLabels(S); handInTop(S); celebTop(); if (S.mode === 'surface') drawFinale(); }
     for (var fi = 0; fi < floaters.length; fi++) { // short notes (O2 full, hearts) on the overlay
       var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z), fs = Math.max(16, Math.round(TW * 0.4));
       octx.globalAlpha = Math.min(1, fl.life * 2);
@@ -1294,7 +1346,7 @@ var DTWRender = (function () {
   var GRADE = { // ambient tint, shadow tint, highlight tint per world
     forest: { amb: [1.0, 0.97, 0.9], sh: [0.9, 0.95, 1.1], hi: [1.06, 1.01, 0.9] },
     ocean: { lamp: 0.6, amb: [0.72, 0.86, 1.0], sh: [0.85, 0.97, 1.12], hi: [0.98, 1.04, 1.04] },
-    jungle: { amb: [1.0, 1.0, 0.86], sh: [0.88, 1.0, 1.0], hi: [1.07, 1.03, 0.88] },
+    jungle: { amb: [1.06, 0.98, 0.84], sh: [0.92, 0.96, 1.0], hi: [1.1, 1.0, 0.84] },
     moon: { lamp: 0.75, amb: [0.72, 0.76, 0.92], sh: [0.88, 0.92, 1.15], hi: [1.02, 1.01, 1.0] },
     alien: { amb: [0.92, 1.0, 0.94], sh: [1.0, 0.88, 1.12], hi: [0.98, 1.06, 0.96] }
   };
@@ -1440,12 +1492,14 @@ var DTWRender = (function () {
         glow(cq[0], cq[1], TW * 0.45, D.WORLDS[w].relic.color, 0.14 + 0.06 * Math.sin(time * 2 + x + z));
         if ((x + z) % 3 === 0) light(cq[0], cq[1], TW * 1.8, 0.18, D.WORLDS[w].relic.color);
       }
-      else if (tt === T.FOSSIL) glow(cq[0], cq[1], TW * 0.35, '#ffe9a8', 0.3);
+      else if (tt === T.FOSSIL) glow(cq[0], cq[1], TW * 0.35, golden ? '#ffd23f' : '#ffe9a8', golden ? 0.5 : 0.3);
+      else if (tt === T.TRAP) glow(cq[0], cq[1], TW * 0.45, '#ff5a2a', 0.14 + 0.08 * Math.sin(time * 4 + x + z));
       else if (tt === T.CHEST) { // chests shine gold and twinkle
-        var tw = 0.5 + 0.5 * Math.sin(time * 3 + x * 2 + z); glow(cq[0], cq[1], TW * 0.85, '#ffd23f', 0.35 + 0.25 * tw); light(cq[0], cq[1], TW * 2.2, 0.35, '#ffd23f');
-        if (tw > 0.7) cross(cq[0] + Math.sin(time * 1.3 + z) * hw * 0.5, cq[1] - hh * 0.7, Math.max(1, TW * 0.035), '#fff8d0', (tw - 0.7) * 3);
+        var tw = 0.5 + 0.5 * Math.sin(time * 3 + x * 2 + z), rm = g.v[i] === 1; glow(cq[0], cq[1], TW * (rm ? 1.15 : 0.85), '#ffd23f', (rm ? 0.5 : 0.35) + 0.25 * tw); light(cq[0], cq[1], TW * 2.2, rm ? 0.5 : 0.35, '#ffd23f');
+        if (tw > (rm ? 0.45 : 0.7)) cross(cq[0] + Math.sin(time * 1.3 + z) * hw * 0.5, cq[1] - hh * 0.7, Math.max(1, TW * 0.035), '#fff8d0', (tw - 0.7) * 3);
       }
     }
+    if (tt === T.TRAP) { ctx.globalAlpha = 0.07 + 0.05 * Math.sin(time * 4 + x + z); ctx.fillStyle = '#ff5a2a'; hexPath(ctx, q[0] - hw, q[1]); ctx.fill(); ctx.globalAlpha = 1; }
     if (tt === T.RELIC && !S.relics[w]) { ctx.globalAlpha = 0.06 + 0.05 * Math.sin(time * 3); ctx.fillStyle = '#ffd23f'; hexPath(ctx, q[0] - hw, q[1]); ctx.fill(); ctx.globalAlpha = 1; }
     if (!isTarget) return;
     var mh = D.maxHp(w, tt, y);
@@ -1459,13 +1513,126 @@ var DTWRender = (function () {
     ctx.stroke();
   }
 
+  // ---------- treasure room chests: the lid flies open in a burst of golden light, sparkles and coins ----------
+  var roomFx = [];
+  function roomChest(x, y, z) { roomFx.push({ x: x, y: y, z: z, age: 0, seed: (x * 7 + z * 13 + y) | 0 }); if (roomFx.length > 6) roomFx.shift(); }
+  function drawRoomFx() {
+    for (var i = 0; i < roomFx.length; i++) {
+      var f = roomFx[i], t = f.age, u = t / 1.6, q = P(f.x + 0.5, f.y + 0.5, f.z + 0.5), cp = chestParts(), s = findScale() * 1.5;
+      var cw = cp.body.width * s, bw = Math.round(cw), bh2 = Math.round(cp.body.height * s), lh = Math.round(cp.lid.height * s);
+      var ba = t < 0.7 ? 1 : Math.max(0, 1 - (t - 0.7) / 0.4), fl = Math.max(0, 1 - Math.abs(t - 0.25) / 0.25);
+      ctx.save(); ctx.imageSmoothingEnabled = false;
+      if (ba > 0) { ctx.globalAlpha = ba; ctx.drawImage(cp.body, Math.round(q[0] - cw / 2), Math.round(q[1] - bh2 * 0.3), bw, bh2); }
+      var lt = Math.max(0, t - 0.12), ly = q[1] - bh2 * 0.3 - lt * TW * 2.6 + lt * lt * TW * 1.6; // the lid pops up, spinning
+      var la = t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.4);
+      if (la > 0) { ctx.globalAlpha = la; ctx.translate(q[0], ly); ctx.rotate(-lt * 5 * (f.seed % 2 ? 1 : -1)); ctx.drawImage(cp.lid, -bw / 2, -lh, bw, lh); }
+      ctx.restore();
+      // the light: a bright flash, then a column of rays turning slowly
+      var ga = Math.max(0, 1 - u * 1.1);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      var fg = ctx.createRadialGradient(q[0], q[1] - TW * 0.2, 0, q[0], q[1] - TW * 0.2, TW * (0.4 + 2.2 * Math.sqrt(u)));
+      fg.addColorStop(0, 'rgba(255,240,170,' + (0.4 * ga) + ')'); fg.addColorStop(1, 'rgba(255,200,60,0)'); ctx.fillStyle = fg;
+      ctx.fillRect(q[0] - TW * 3, q[1] - TW * 3, TW * 6, TW * 6);
+      ctx.fillStyle = 'rgba(255,236,150,' + (0.35 * ga) + ')';
+      for (var k = 0; k < 8; k++) { var a = k * 0.785 + t * 1.2, r0 = TW * (0.5 + 1.6 * u); ctx.beginPath(); ctx.moveTo(q[0], q[1] - TW * 0.2); ctx.lineTo(q[0] + Math.cos(a - 0.1) * r0, q[1] - TW * 0.2 + Math.sin(a - 0.1) * r0 * 0.6); ctx.lineTo(q[0] + Math.cos(a + 0.1) * r0, q[1] - TW * 0.2 + Math.sin(a + 0.1) * r0 * 0.6); ctx.fill(); }
+      ctx.restore();
+      glow(q[0], q[1] - TW * 0.2, TW * (0.8 + 2.4 * Math.sqrt(u)), '#ffd23f', 0.5 * ga + 0.25 * fl); light(q[0], q[1], TW * 3.2, 0.5 * ga, '#ffd96a');
+      // sparkles burst out, coins arc up and fall back
+      for (var j = 0; j < 14; j++) { var aa = j * 2.4 + f.seed, rd = TW * (0.25 + 1.5 * Math.sqrt(u)) * (0.6 + 0.4 * ((j * 37) % 10) / 10); cross(q[0] + Math.cos(aa) * rd, q[1] - TW * 0.2 + Math.sin(aa) * rd * 0.55 - u * TW * 0.5, Math.max(1.5, TW * 0.04) * (1 - u * 0.6), j % 3 ? '#fff8d0' : '#ffd23f', Math.max(0, 1 - u * 1.2)); }
+      var cc = coinCanvas();
+      for (var m = 0; m < 9; m++) {
+        var ang = m * 0.7 + f.seed, vx = Math.cos(ang) * TW * 0.9, vy = -TW * (2.2 + 0.5 * ((m * 5) % 3)), tt2 = Math.max(0, t - 0.12), cxx = q[0] + vx * tt2, cyy = q[1] - TW * 0.2 + vy * tt2 + TW * 4 * tt2 * tt2;
+        if (tt2 > 0) drawSprite(cc, cxx, cyy, TW / 44, Math.max(0, 1 - Math.max(0, t - 1.0) / 0.5));
+      }
+    }
+  }
+
+  // ---------- the finale: fireworks, cheering, and the Star Seed planted and growing into the Star Tree ----------
+  var fin = null, FW_COLS = ['#ff5a7a', '#ffd23f', '#5dd8ff', '#9dff8a', '#c58bff', '#ffffff', '#ff9a3a'];
+  function finale() { if (fin) return; fin = { t: 0, dur: 7.5, next: 0.3, rockets: [], sparks: [], cheer: 0, banner: true }; }
+  function updateFinale(dt) {
+    if (!fin) return;
+    fin.t += dt;
+    while (fin.t >= fin.next && fin.next < fin.dur - 0.9) {
+      fin.rockets.push({ x: 0.12 + Math.random() * 0.76, y0: 0.62, y1: 0.08 + Math.random() * 0.32, t: 0, col: FW_COLS[Math.floor(Math.random() * FW_COLS.length)] });
+      fin.next += 0.3 + Math.random() * 0.35;
+    }
+    for (var i = fin.rockets.length - 1; i >= 0; i--) {
+      var rk = fin.rockets[i]; rk.t += dt / 0.6;
+      if (rk.t >= 1) { // burst
+        var n = 36, c2 = FW_COLS[Math.floor(Math.random() * FW_COLS.length)];
+        for (var j = 0; j < n; j++) { var a = j / n * 6.2832 + Math.random() * 0.2, sp = 1.4 + Math.random() * 1.6; fin.sparks.push({ x: rk.x, y: rk.y1, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1.1 + Math.random() * 0.5, max: 1.5, col: j % 4 ? rk.col : c2 }); }
+        fin.flash = fin.flash || []; fin.flash.push({ x: rk.x, y: rk.y1, col: rk.col, life: 0.35 });
+        fin.rockets.splice(i, 1);
+      }
+    }
+    var uw = Math.max(1, vw - view.right * vw / cssW);
+    for (var k = fin.sparks.length - 1; k >= 0; k--) {
+      var sk = fin.sparks[k]; sk.life -= dt; if (sk.life <= 0) { fin.sparks.splice(k, 1); continue; }
+      sk.vy += 2.2 * dt; sk.vx *= 1 - 0.8 * dt; sk.vy *= 1 - 0.5 * dt;
+      sk.x += sk.vx * dt * TW / uw; sk.y += sk.vy * dt * TW / vh;
+    }
+    if (fin.flash) for (var m = fin.flash.length - 1; m >= 0; m--) { fin.flash[m].life -= dt; if (fin.flash[m].life <= 0) fin.flash.splice(m, 1); }
+    if (fin.t > fin.dur && !fin.sparks.length && !fin.rockets.length) fin = null;
+  }
+  function drawFinale() {
+    if (!fin) return;
+    var uw = Math.max(1, vw - view.right * vw / cssW), sz = Math.max(3, Math.round(TW * 0.08));
+    fin.rockets.forEach(function (rk) {
+      var e = 1 - Math.pow(1 - rk.t, 2), x = rk.x * uw, y = (rk.y0 + (rk.y1 - rk.y0) * e) * vh;
+      octx.fillStyle = '#fff3b0'; octx.fillRect(x - sz / 2, y, sz, sz * 2); octx.fillStyle = rgba('#ffd23f', 0.5); octx.fillRect(x - sz / 2, y + sz * 2, sz, sz * 3);
+      glow(x, y, TW * 0.4, '#ffd23f', 0.7);
+    });
+    fin.sparks.forEach(function (sk, i) {
+      var a = Math.min(1, sk.life / 0.6), x = sk.x * uw, y = sk.y * vh;
+      octx.globalAlpha = a; octx.fillStyle = sk.col; octx.fillRect(x - sz / 2, y - sz / 2, sz, sz);
+      octx.globalAlpha = a * 0.45; octx.fillRect(x - sz / 2 - sk.vx * TW * 0.05, y - sz / 2 - sk.vy * TW * 0.05, sz, sz); octx.globalAlpha = 1; // a short trail
+      glow(x, y, TW * 0.4, sk.col, 0.75 * a);
+    });
+    (fin.flash || []).forEach(function (f) { var a = f.life / 0.35; glow(f.x * uw, f.y * vh, TW * 2.6 * (1.2 - a * 0.4), f.col, 0.55 * a); light(f.x * uw, f.y * vh + TW, TW * 6, 0.45 * a, f.col); });
+    if (fin.t > 0.2 && fin.t < fin.dur) { // a banner a young child can read
+      var ba = Math.min(1, (fin.t - 0.2) / 0.4, (fin.dur - fin.t) / 0.6);
+      octx.globalAlpha = ba; tagText(uw / 2, vh * 0.17 + Math.sin(time * 3) * TW * 0.04, '🌟 You did it! The Star Tree grows! 🌟', Math.max(14, TW * 0.4), '#ffe9a8', 'rgba(26,19,40,0.72)'); octx.globalAlpha = 1;
+    }
+  }
+  // 0 to 1: how grown the Star Tree is. Fully grown unless the finale is playing.
+  function treeGrow() { if (!fin) return 1; var k = Math.max(0, Math.min(1, (fin.t - 2.6) / 3.6)); return k * k * (3 - 2 * k); }
+  // the Star Tree stands on a 2×2 plot of plaza grass once the fifth relic is home; during the finale the seed drops, is planted and grows
+  var STAR = { x0: -3, z0: 5 }; // HUB cells (-3, 5) to (-2, 6): grass just below-left of the dig pad, in view from the default plaza camera
+  function starTree() {
+    var cx = STAR.x0 + 1, cz = STAR.z0 + 1, g = treeGrow(), t = fin ? fin.t : 99, i;
+    blob(cx, cz, 0.4 + 0.9 * g, 0.25);
+    if (fin && t < 2.7) { // the Star Seed falls from the sky and sinks into the ground with a ring of light
+      var k = Math.max(0, Math.min(1, (t - 0.6) / 1.3)), e = k * k, sy2 = 1 - (1 - e) * 7 - 0.25, sq = P(cx, sy2, cz), sc = t > 2.0 ? Math.max(0, 1 - (t - 2.0) / 0.6) : 1;
+      if (t > 0.6 && sc > 0) { sparkle(sq[0], sq[1], TW * 0.2 * sc, 1, '#fff3b0'); glow(sq[0], sq[1], TW * 1.2 * sc, '#ffd23f', 0.8); light(sq[0], sq[1], TW * 3, 0.5 * sc, '#ffd96a'); }
+      if (t > 1.9) { var rp = (t - 1.9) / 0.8, rq = P(cx, 1, cz); ctx.strokeStyle = rgba('#8afff0', Math.max(0, 1 - rp)); ctx.lineWidth = Math.max(2, TW / 14); ctx.beginPath(); ctx.ellipse(rq[0], rq[1], hw * (0.4 + 2 * rp), hh * (0.4 + 2 * rp), 0, 0, 7); ctx.stroke(); glow(rq[0], rq[1], TW * 1.6 * Math.max(0, 1 - rp), '#8afff0', 0.6); }
+    }
+    if (g <= 0) return;
+    box(cx - 0.4, cz - 0.4, 0.8, 0.8, 1, 0.3 * g, '#a79a78');
+    box(cx - 0.3, cz - 0.3, 0.6, 0.6, 1, 2.0 * g, '#cdbf9a');
+    [[2.6, 0.65, 1.2, '#1f9e9a'], [2.05, 0.6, 1.75, '#33c9b5'], [1.5, 0.55, 2.3, '#66e8cf'], [0.9, 0.5, 2.8, '#b4fff0']].forEach(function (tr) {
+      var s = tr[0] * g; box(cx - s / 2, cz - s / 2, s, s, 1 - tr[2] * g, tr[1] * g, tr[3]);
+    });
+    var cq = P(cx, 1 - 2.2 * g, cz), pu = 0.5 + 0.5 * Math.sin(time * 1.8);
+    glow(cq[0], cq[1], TW * 2.2 * g, '#7dfff0', 0.32 + 0.12 * pu); light(cq[0], cq[1], TW * 5 * g, 0.5, '#7dfff0');
+    var top = P(cx, 1 - 3.6 * g, cz); sparkle(top[0], top[1], TW * 0.34 * g, 1, '#fff3b0'); glow(top[0], top[1], TW * 1.0 * g, '#ffd23f', 0.8); light(top[0], top[1], TW * 3 * g, 0.4, '#ffd96a');
+    for (i = 0; i < 10; i++) { // little stars hung over the canopy, twinkling
+      var an = i * 2.4 + 0.5, ty = [1.5, 2.1, 2.6][i % 3], rr = (1.35 - (ty - 1.2) * 0.5) * g + 0.1, oq = P(cx + Math.cos(an) * rr, 1 - ty * g, cz + Math.sin(an) * rr), tw = 0.5 + 0.5 * Math.sin(time * 3 + i * 1.9);
+      cross(oq[0], oq[1], Math.max(1.5, TW * 0.045) * (0.7 + 0.5 * tw), i % 2 ? '#fff3b0' : '#ffffff', 0.6 + 0.4 * tw); glow(oq[0], oq[1], TW * 0.3, '#ffe27a', 0.5 * tw);
+    }
+    for (i = 0; i < 5; i++) { // star dust drifting down
+      var ph = (time * 0.35 + i * 0.2) % 1, dq = P(cx + Math.cos(i * 2.7) * 1.1 * g, 1 - 3 * g + ph * 2.6 * g, cz + Math.sin(i * 2.7) * 1.1 * g);
+      cross(dq[0], dq[1], Math.max(1, TW * 0.03), '#d8fff8', Math.sin(ph * Math.PI) * 0.9);
+    }
+  }
+
   // ---------- effects API ----------
   function spawnBreak(x, y, z, color, n) {
     for (var i = 0; i < n; i++) parts.push({ x: x + 0.5, y: y + 0.4, z: z + 0.5, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 4, vz: (Math.random() - 0.5) * 3, life: 0.5 + Math.random() * 0.4, c: color, s: 0.05 + Math.random() * 0.05 });
   }
   // short floating text over a spot (finds use spawnFind instead)
   function floatText(x, y, z, text, color) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: 1.3 }); }
-  function itemIcon(it) { return DTWSprites.item(it.kind, it.idx || 0, itemColor(it), D.WORLDS[it.world].id === 'moon'); }
+  function itemIcon(it) { return DTWSprites.item(it.kind, it.idx || 0, itemColor(it), D.WORLDS[it.world].id === 'moon', !!it.gold); }
   // swipe on screen -> compass direction. In this projection +x runs down-right and +z down-left.
   function screenDir(dx, dy) {
     if (dx >= 0 && dy >= 0) return 'e';
@@ -1487,7 +1654,7 @@ var DTWRender = (function () {
     get hd() { return post; },
     resize: resize, update: update, draw: draw,
     setView: function (v) { view = v; },
-    celebrate: celebrate,
+    celebrate: celebrate, roomChest: roomChest, finale: finale, finaleTime: function () { return fin ? fin.t : -1; },
     spawnBreak: spawnBreak, floatText: floatText, coinBurst: function () { burstT = 0.8; }, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
     // the point on the ground (y = 1) under a pointer, in plaza cells

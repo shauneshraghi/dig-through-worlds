@@ -47,6 +47,17 @@ var DTWAudio = (function () {
     trap: function () { tone(600, 0.5, 'sawtooth', 0.12, 0, 0.2); },
     bubble: function () { tone(300, 0.2, 'sine', 0.2, 0, 3); },
     relic: function () { [523, 659, 784, 1047, 784, 1047].forEach(function (f, i) { tone(f, 0.25, 'square', 0.12, AC.currentTime + i * 0.13); }); },
+    alert: function () { var t = AC.currentTime; tone(1568, 0.1, 'square', 0.12, t); tone(1568, 0.1, 'square', 0.12, t + 0.14); tone(1175, 0.2, 'square', 0.1, t + 0.28); },
+    dodge: function () { noise(0.2, 0.15, 3000); tone(300, 0.25, 'sine', 0.18, 0, 4); tone(523, 0.1, 'triangle', 0.14, AC.currentTime + 0.18); tone(784, 0.18, 'triangle', 0.14, AC.currentTime + 0.26); },
+    treasure: function () { var t = AC.currentTime; [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { tone(f, 0.22, 'triangle', 0.14, t + i * 0.07); tone(f * 2, 0.15, 'sine', 0.05, t + i * 0.07); }); tone(1568, 0.5, 'triangle', 0.12, t + 0.45); },
+    // fireworks pops and a cheer over about 6 seconds
+    finale: function () {
+      var t = AC.currentTime;
+      for (var i = 0; i < 14; i++) { var w = t + 0.2 + i * 0.4 + (i % 3) * 0.07; tone(900 + (i * 137) % 700, 0.5, 'sawtooth', 0.05, w, 0.2); tone(110, 0.2, 'sine', 0.2, w + 0.45, 0.4); noise(0.25, 0.22, 1500 + (i % 4) * 500); }
+      [523, 659, 784, 1047].forEach(function (f, j) { tone(f, 0.3, 'square', 0.1, t + j * 0.15); });
+      [523, 659, 784, 1047, 1319].forEach(function (f) { tone(f, 0.9, 'triangle', 0.1, t + 2.5); });
+      for (var c = 0; c < 8; c++) tone(500 + c * 90, 0.35, 'sawtooth', 0.04, t + 3.6 + c * 0.05, 1.6);
+    },
     buy: function () { tone(660, 0.08, 'square', 0.1); tone(990, 0.12, 'square', 0.1, AC.currentTime + 0.06); },
     up: function () { tone(200, 0.6, 'triangle', 0.12, 0, 4); },
     down: function () { tone(500, 0.5, 'triangle', 0.1, 0, 0.3); },

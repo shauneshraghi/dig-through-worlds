@@ -51,69 +51,97 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #toast { position:absolute; left:50%; top:12px; transform:translateX(-50%); display:flex; flex-direction:column; gap:6px; align-items:center; pointer-events:none; z-index:3; width:92%; }
 .toast { background:#000c; border:2px solid var(--gold); border-radius:12px; padding:10px 16px; font-size:22px; font-weight:500; text-align:center; animation:tin .25s ease-out; }
 @keyframes tin { from { transform:scale(.6); opacity:0; } }
-/* the chest lock: one column per pin, the key's tooth above the pin's button, both drawn as bars on the same scale */
-#lock { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:6px; width:min(92%,420px); padding:14px 16px 16px; background:var(--panel); border:3px solid var(--gold); border-radius:18px; box-shadow:0 8px 30px #000a; z-index:5; text-align:center; animation:tin .25s ease-out; }
+/* the chest lock: a chunky treasure-chest frame (wood tinted per world, brass trim) around one puzzle board */
+#lock { --wood:#8a5a32; --wood2:#5c3a24; --bw:min(300px, calc(100vw - 84px), calc(100vh - 400px)); position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:6px; width:min(96%,400px); box-sizing:border-box; padding:12px 12px 12px; background:linear-gradient(180deg,color-mix(in srgb,var(--wood) 55%,#d9a15f),var(--wood) 30%,var(--wood2)); border:5px solid #e0a82e; border-radius:22px; box-shadow:inset 0 0 0 3px #7a5410, inset 0 0 0 7px #0003, 0 10px 34px #000b; z-index:5; text-align:center; animation:lpop .3s cubic-bezier(.2,1.4,.4,1); }
+#lock::before, #lock::after { content:''; position:absolute; top:8px; width:12px; height:12px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff3b0,#e0a82e 55%,#7a5410); box-shadow:0 1px 2px #0008; }
+#lock::before { left:8px; } #lock::after { right:8px; }
 #lock.show { display:flex; }
-#bSmash { position:relative; overflow:hidden; padding:10px 16px; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+@keyframes lpop { from { transform:translate(-50%,-46%) scale(.8); opacity:0; } }
+#lock h3 { margin:0; font-size:24px; line-height:1.15; padding:2px 26px; color:#fff3c4; text-shadow:0 2px 0 #0007; }
+#lock p { margin:0; color:#ffe9c2; font-size:16px; line-height:1.2; text-shadow:0 1px 0 #0006; }
+#lock .prize { display:none; }
+#lockBoard { width:100%; margin:4px 0 2px; box-sizing:border-box; padding:10px; border-radius:14px; background:radial-gradient(circle at 50% 30%,#35294f,#1d1530); box-shadow:inset 0 3px 10px #000b, 0 0 0 3px #0004; display:flex; flex-direction:column; align-items:center; }
+#lockBoard button { font-family:inherit; -webkit-tap-highlight-color:transparent; transition:transform .1s, box-shadow .1s, background .2s; }
+#lockBoard button:not(:disabled):active { transform:translateY(3px) scale(.95); box-shadow:0 0 0 #0008 !important; }
+#bSmash { position:relative; overflow:hidden; margin-top:2px; padding:5px 14px; min-height:36px; font-size:15px; border-radius:12px; border:2px solid #0005; background:#3a2a22; color:#ffe9c2; opacity:.9; touch-action:none; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+#bSmash small { font-size:13px; opacity:.8; }
 #bSmash .lbl { position:relative; }
 #smashFill { position:absolute; left:0; top:0; bottom:0; width:0; background:#a0452f; }
 #bSmash.holding #smashFill { width:100%; transition:width 1s linear; }
-#lock h3 { margin:0; font-size:26px; }
-#lock p { margin:0; color:var(--muted); font-size:17px; }
-#lock .prize { color:var(--ink); }
-#lockBoard { width:100%; margin:6px 0; }
-#lockBoard .pinrow { display:flex; gap:8px; width:100%; justify-content:center; align-items:stretch; }
-#lockBoard .pairs { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; max-width:320px; margin:0 auto; }
-#lockBoard .card { aspect-ratio:1; max-height:64px; border:none; border-radius:10px; font-size:30px; cursor:pointer; touch-action:manipulation; background:repeating-linear-gradient(45deg,#4a3d6e 0 6px,#3d3160 6px 12px); box-shadow:0 3px 0 #0008; transition:transform .12s; }
-#lockBoard .card.up { background:#fff7e8; transform:rotateY(0); }
-#lockBoard .card.done { background:#c9f5d2; box-shadow:0 0 0 3px var(--good); }
-#lockBoard .card.miss { background:#ffd0cc; }
-#lockBoard .simon { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; max-width:240px; margin:0 auto; }
-#lockBoard .pad { aspect-ratio:1; max-height:110px; border:none; border-radius:18px; font-size:40px; cursor:pointer; touch-action:manipulation; opacity:.45; filter:saturate(.6); box-shadow:0 4px 0 #0008; transition:opacity .08s, transform .08s; }
-#lockBoard .pad:disabled { cursor:default; }
-#lockBoard .pad.p0 { background:#e5483a; } #lockBoard .pad.p1 { background:#3f7fe0; } #lockBoard .pad.p2 { background:#3fbf63; } #lockBoard .pad.p3 { background:#ffc83a; }
-#lockBoard .pad.lit { opacity:1; filter:saturate(1.2) brightness(1.25); transform:scale(1.06); box-shadow:0 0 18px #fff8; }
-#lockBoard .pad:not(:disabled):active { opacity:1; }
-#lockBoard .dots { display:flex; gap:6px; justify-content:center; margin-top:10px; }
-#lockBoard .dots i { width:12px; height:12px; border-radius:50%; background:#0005; border:2px solid #8a7fa8; }
-#lockBoard .dots i.on { background:var(--gold); border-color:var(--gold); }
-#lockBoard .slide { display:grid; gap:6px; margin:0 auto; max-width:300px; }
-#lockBoard .slide.s3 { grid-template-columns:repeat(3,1fr); } #lockBoard .slide.s4 { grid-template-columns:repeat(4,1fr); max-width:320px; }
-#lockBoard .tile, #lockBoard .gap { aspect-ratio:1; border-radius:10px; }
-#lockBoard .tile { border:none; cursor:pointer; touch-action:manipulation; background:#fff7e8; color:#2a2140; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 3px 0 #0008; padding:0; }
-#lockBoard .tile b { font-size:28px; line-height:1; font-weight:400; } #lockBoard .tile small { font-size:15px; font-weight:700; }
-#lockBoard .slide.s4 .tile b { font-size:24px; }
-#lockBoard .gap { background:#0004; }
-#lockBoard .pipes { display:grid; gap:3px; margin:0 auto; }
-#lockBoard .pipe { aspect-ratio:1; min-width:0; padding:0; border:2px solid #4a3d6e; border-radius:8px; background:#1a1426; cursor:pointer; touch-action:manipulation; }
-#lockBoard .pipe svg { width:100%; height:100%; display:block; }
-#lockBoard .ice { position:relative; display:grid; gap:0; max-width:300px; aspect-ratio:1; margin:0 auto; border:3px solid #8fd0ff; border-radius:10px; background:linear-gradient(135deg,#dff4ff,#a9dcf7); overflow:hidden; }
-#lockBoard .ic { display:flex; align-items:center; justify-content:center; font-size:26px; border:1px solid #ffffff55; }
-#lockBoard .ic.rock { background:#6d6a7a55; }
-#lockBoard .ic.hole { background:radial-gradient(circle,#0a1a30 45%,#2d5d8a 70%,transparent 72%); }
-#iceBlock { position:absolute; display:flex; align-items:center; justify-content:center; font-size:30px; transition:left .25s ease-out, top .25s ease-out, transform .25s; pointer-events:none; }
-#iceBlock.in { transform:scale(.4); }
-#lockBoard .icepad { display:flex; gap:8px; justify-content:center; margin-top:10px; }
-#lockBoard .icepad button { width:56px; height:56px; border:none; border-radius:12px; font-size:26px; background:#3f7fe0; color:#fff; cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #0008; padding:0; }
-#lockBoard .icepad .reset { background:#4a3a5a; margin-left:8px; }
-#lockBoard .odd { display:grid; gap:8px; margin:0 auto; }
-#lockBoard .oc { aspect-ratio:1; max-height:76px; border:none; border-radius:12px; font-size:36px; background:#fff7e8; cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #0008; padding:0; }
-#lockBoard .oc.bad { background:#ffd0cc; animation:shake .3s; }
+#lockBoard .dots { display:flex; gap:7px; justify-content:center; margin-top:10px; }
+#lockBoard .dots i { width:14px; height:14px; border-radius:50%; background:#0005; border:2px solid #8a7fa8; transition:background .2s, transform .2s; }
+#lockBoard .dots i.on { background:var(--gold); border-color:var(--gold); box-shadow:0 0 8px var(--gold); transform:scale(1.15); }
 @keyframes shake { 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); } }
-#lockBoard .gems { display:grid; gap:8px; margin:0 auto; }
-#lockBoard .gem { aspect-ratio:1; max-height:76px; border:none; border-radius:50%; font-size:30px; cursor:pointer; touch-action:manipulation; background:radial-gradient(circle at 35% 30%,#bff0ff,#3f9fe0 60%,#2a68b0); color:#fff; box-shadow:0 3px 0 #0008; padding:0; }
-#lockBoard .gem b { font-size:30px; text-shadow:0 2px 0 #0008; }
-#lockBoard .gem.got { opacity:.35; }
-#lockBoard .col { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1 1 0; max-width:52px; min-width:0; }
-#lockBoard .tooth, #lockBoard .pin { width:100%; height:78px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:10px; }
-#lockBoard .tooth { background:#0003; }
+/* pins: the golden key's tooth above, the pin rises or falls below to match it */
+#lockBoard .pinrow { display:flex; gap:4px; width:100%; justify-content:center; align-items:stretch; }
+#lockBoard .col { display:flex; flex-direction:column; align-items:center; gap:6px; flex:1 1 0; max-width:60px; min-width:0; }
+#lockBoard .tooth, #lockBoard .pin { width:100%; height:84px; display:flex; flex-direction:column; justify-content:flex-end; border-radius:12px; box-sizing:border-box; }
+#lockBoard .tooth { background:#0005; border:3px solid #6a5410; }
 #lockBoard .tooth i { display:block; background:linear-gradient(#fff3b0,var(--gold) 40%,#c98a10); border-radius:8px; }
-#lockBoard .pin { border:3px solid #8a7fa8; background:#1a1426; padding:0; cursor:pointer; touch-action:manipulation; }
-#lockBoard .pin i { display:block; background:linear-gradient(#ffffff,#c8c8d2 40%,#8d8d96); border-radius:6px; transition:height .12s; }
-#lockBoard .pin.ok { border-color:var(--good); }
-#lockBoard .pin.ok i { background:linear-gradient(#d8ffe0,var(--good) 40%,#2f9a4a); }
-#lockBoard .link { align-self:flex-end; margin:0 -8px 26px; min-width:12px; text-align:center; color:var(--accent); font-size:20px; }
-#bSmash { margin-top:6px; font-size:19px; background:#4a3a5a; color:var(--ink); padding:10px 16px; }
+#lockBoard .pin { border:3px solid #8a7fa8; background:#120d1e; padding:0; cursor:pointer; touch-action:manipulation; min-height:84px; box-shadow:0 4px 0 #0008; }
+#lockBoard .pin i { display:block; background:linear-gradient(90deg,#8d8d96,#fff 45%,#8d8d96); border-radius:7px; transition:height .22s cubic-bezier(.3,1.6,.5,1); }
+#lockBoard .pin.ok { border-color:var(--good); box-shadow:0 0 12px #58e07a99, 0 4px 0 #0008; }
+#lockBoard .pin.ok i { background:linear-gradient(90deg,#2f9a4a,#d8ffe0 45%,#2f9a4a); }
+#lockBoard .link { align-self:flex-end; margin:0 -6px 30px; min-width:14px; text-align:center; color:var(--accent); font-size:20px; }
+/* pairs */
+#lockBoard .pairs { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; width:var(--bw); max-width:100%; }
+#lockBoard .card { aspect-ratio:1; min-height:56px; border:3px solid #2a2048; border-radius:12px; font-size:32px; cursor:pointer; touch-action:manipulation; background:repeating-linear-gradient(45deg,#5a4a8e 0 6px,#4a3d78 6px 12px); box-shadow:0 4px 0 #0008; padding:0; }
+#lockBoard .card.up { background:#fff7e8; border-color:#e0c9a0; }
+#lockBoard .card.flip { animation:flip .3s ease-out; }
+@keyframes flip { from { transform:rotateY(90deg) scale(.9); } }
+#lockBoard .card.done { background:#c9f5d2; border-color:var(--good); animation:flip .3s ease-out, glow 1s ease-out; }
+#lockBoard .card.miss { background:#ffd0cc; }
+@keyframes glow { 40% { box-shadow:0 0 18px #58e07a; } }
+/* simon */
+#lockBoard .simon { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; width:min(250px,var(--bw)); }
+#lockBoard .pad { aspect-ratio:1; border:4px solid #0004; border-radius:22px; font-size:42px; cursor:pointer; touch-action:manipulation; opacity:.5; filter:saturate(.6) brightness(.8); box-shadow:0 5px 0 #0008; transition:opacity .1s, transform .1s, filter .1s, box-shadow .1s; padding:0; }
+#lockBoard .pad:disabled { cursor:default; }
+#lockBoard .pad.p0 { background:radial-gradient(circle at 35% 30%,#ff9a8a,#e5483a 60%,#a82a20); } #lockBoard .pad.p1 { background:radial-gradient(circle at 35% 30%,#9ac4ff,#3f7fe0 60%,#2a58a8); } #lockBoard .pad.p2 { background:radial-gradient(circle at 35% 30%,#a8f5b8,#3fbf63 60%,#25883f); } #lockBoard .pad.p3 { background:radial-gradient(circle at 35% 30%,#fff0a0,#ffc83a 60%,#c98a10); }
+#lockBoard .pad.lit { opacity:1; filter:saturate(1.3) brightness(1.3); transform:scale(1.08); box-shadow:0 0 28px 6px #fffb, 0 0 0 3px #fff; }
+#lockBoard .pad:not(:disabled):active { opacity:1; filter:brightness(1.3); }
+/* slide */
+#lockBoard .slide { display:grid; gap:6px; width:var(--bw); max-width:100%; }
+#lockBoard .slide.s3 { grid-template-columns:repeat(3,1fr); } #lockBoard .slide.s4 { grid-template-columns:repeat(4,1fr); }
+#lockBoard .tile, #lockBoard .gap { aspect-ratio:1; border-radius:14px; }
+#lockBoard .tile { border:3px solid #e0c9a0; cursor:pointer; touch-action:manipulation; background:linear-gradient(#fffaf0,#f0dcb8); color:#2a2140; display:flex; flex-direction:column; align-items:center; justify-content:center; box-shadow:0 4px 0 #0008; padding:0; }
+#lockBoard .tile b { font-size:34px; line-height:1; font-weight:400; } #lockBoard .tile small { font-size:16px; font-weight:700; }
+#lockBoard .slide.s4 .tile b { font-size:26px; }
+#lockBoard .gap { background:#0005; box-shadow:inset 0 2px 6px #000a; }
+/* pipes: a dark pipe with water running through the wet ones */
+#lockBoard .pipes { display:grid; gap:4px; width:var(--bw); max-width:100%; }
+#lockBoard .pipe { aspect-ratio:1; min-width:0; min-height:56px; padding:0; border:3px solid #5a4a8e; border-radius:12px; background:linear-gradient(#2a2040,#1a1426); cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #0008; }
+#lockBoard .pipe svg { width:100%; height:100%; display:block; }
+#lockBoard .pipe .water { stroke-dasharray:30; stroke-dashoffset:0; animation:fill .6s ease-out; }
+@keyframes fill { from { stroke-dashoffset:30; } }
+#lockBoard .pipe.wet { border-color:#46c2ff; box-shadow:0 0 10px #46c2ff88, 0 3px 0 #0008; }
+/* ice: arrows sit on the board next to the block */
+#lockBoard .ice { position:relative; display:grid; gap:0; width:var(--bw); max-width:100%; aspect-ratio:1; border:4px solid #8fd0ff; border-radius:14px; background:linear-gradient(135deg,#eaf8ff,#a9dcf7); overflow:hidden; box-shadow:0 0 14px #8fd0ff66; }
+#lockBoard .ic { display:flex; align-items:center; justify-content:center; font-size:28px; border:1px solid #ffffff77; }
+#lockBoard .ic.rock { background:#6d6a7a44; }
+#lockBoard .ic.hole { background:radial-gradient(circle,#06101e 48%,#2d5d8a 72%,transparent 74%); }
+#iceBlock { position:absolute; display:flex; align-items:center; justify-content:center; font-size:34px; transition-property:left, top, transform, opacity; transition-timing-function:linear; pointer-events:none; z-index:1; filter:drop-shadow(0 3px 3px #0006); }
+#iceBlock.in { transform:scale(.2) rotate(120deg); opacity:.2; transition-timing-function:ease-in; }
+#iceArrows { position:absolute; inset:0; z-index:2; pointer-events:none; }
+#iceArrows button { position:absolute; display:flex; align-items:center; justify-content:center; border:none; padding:0; background:none; font-size:30px; color:#fff; cursor:pointer; touch-action:manipulation; pointer-events:auto; animation:arin .25s ease-out both; animation-delay:var(--dl,0s); }
+#iceArrows button span { width:82%; height:82%; display:flex; align-items:center; justify-content:center; border-radius:12px; background:linear-gradient(#5aa0f0,#3f7fe0); box-shadow:0 3px 0 #1d3f80, 0 0 10px #fff9; animation:nudge .8s ease-in-out infinite; }
+@keyframes arin { from { opacity:0; transform:scale(.4); } }
+@keyframes nudge { 50% { transform:scale(1.08); } }
+#lockBoard .iceagain { margin-top:8px; min-height:40px; padding:4px 14px; border:2px solid #0005; border-radius:12px; background:#4a3a5a; color:#fff; font-size:16px; cursor:pointer; box-shadow:0 3px 0 #0008; }
+/* odd one out */
+#lockBoard .odd { display:grid; gap:8px; width:var(--bw); max-width:100%; }
+#lockBoard .oc { aspect-ratio:1; min-height:56px; border:3px solid #e0c9a0; border-radius:14px; font-size:36px; background:linear-gradient(#fffaf0,#f0dcb8); cursor:pointer; touch-action:manipulation; box-shadow:0 4px 0 #0008; padding:0; }
+#lockBoard .oc.bad { background:#ffd0cc; animation:shake .3s; }
+/* gem trail */
+#lockBoard .gems { display:grid; gap:8px; width:var(--bw); max-width:100%; }
+#lockBoard .gem { aspect-ratio:1; min-height:56px; border:3px solid #cfeeff; border-radius:50%; font-size:30px; cursor:pointer; touch-action:manipulation; background:radial-gradient(circle at 35% 30%,#bff0ff,#3f9fe0 60%,#2a68b0); color:#fff; box-shadow:0 4px 0 #0008, 0 0 10px #6fd0ff88; padding:0; }
+#lockBoard .gem b { font-size:30px; text-shadow:0 2px 0 #0008; }
+#lockBoard .gem.got { opacity:.35; box-shadow:none; }
+/* solved: the chest frame lingers for a moment, pops and glows */
+.lockwon { pointer-events:none; animation:won .9s ease-in forwards !important; border-color:#fff3b0 !important; }
+.lockwon::after { display:none; }
+.lockwon .winbanner { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:700; color:#fff; text-shadow:0 3px 0 #0008, 0 0 18px var(--gold); background:radial-gradient(circle,#ffe58acc,#0000 70%); animation:banner .5s ease-out both; }
+@keyframes won { 0% { transform:translate(-50%,-50%) scale(1); box-shadow:0 0 0 #ffd23f; } 35% { transform:translate(-50%,-50%) scale(1.07); box-shadow:0 0 50px 14px #ffd23fcc; } 100% { transform:translate(-50%,-50%) scale(1.15); opacity:0; box-shadow:0 0 60px 20px #ffd23f00; } }
+@keyframes banner { from { transform:scale(.3); opacity:0; } }
 #bSmash small { color:var(--muted); font-size:14px; }
 #surface { position:absolute; inset:auto 0 0 0; max-height:62%; /* portrait: lifted above the controls, see --ctl */ display:none; flex-direction:column; background:var(--panel); border-radius:18px 18px 0 0; z-index:4; box-shadow:0 -6px 20px #0009; }
 #surface.show { display:flex; }
@@ -236,3 +264,10 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 .xhead.special { color:var(--gold); margin-top:6px; }
 .row.special { background:linear-gradient(135deg,#3a2c52,#2a2145); border:2px solid var(--gold); box-shadow:0 0 10px rgba(255,210,63,.25); }
 .row.special.owned { opacity:.7; box-shadow:none; }
+
+/* the ending panel: shown after the fifth relic's fireworks */
+#ending { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:10px; width:min(92%,420px); box-sizing:border-box; padding:18px 16px; background:var(--panel); border:3px solid var(--gold); border-radius:18px; box-shadow:0 8px 30px #000a; z-index:6; text-align:center; animation:tin .25s ease-out; }
+#ending.show { display:flex; }
+#ending h3 { margin:0; font-size:26px; color:var(--gold); }
+#ending p { margin:0; color:var(--ink); font-size:18px; }
+#ending .btn { max-width:100%; }

@@ -13,7 +13,7 @@ var DTW = (function () {
   var HP_MULT = { 1: 1, 2: 2, 3: 1.4, 4: 1.5, 5: 5, 7: 1.5, 8: 1.6, 9: 1.2, 10: 3 };
 
   var WORLDS = [
-    { id: 'forest', name: 'Whispering Forest', rule: 'roots', ruleText: 'Tough tree roots: steer around them!',
+    { id: 'forest', name: 'Whispering Forest', rule: 'roots', ruleText: 'Tough tree roots take lots of hits!',
       hp: 3, oreMult: 1,
       gem: { name: 'Emerald', color: '#2fd56b' }, // the world's rare themed gem: the one ore that sells for coins
       creatures: [{ name: 'Woolly Mammoth', parts: ['Skull', 'Tusks', 'Ribs', 'Legs', 'Tail'] },
@@ -43,8 +43,9 @@ var DTW = (function () {
                   { name: 'Stegosaurus', parts: ['Skull', 'Plates', 'Ribs', 'Legs', 'Tail Spikes'] }],
       exhibit: { income: 32 },
       relic: { name: 'Golden Jaguar Idol', color: '#ffd23f' },
-      pal: { sky: ['#5fbf6f', '#c9f2a0'], top: '#2e8f3e', dirt: ['#6b4a2b', '#5a5a3a', '#4a4030'], stone: '#8a8268',
-             feature: '#b8a070', bed: '#20241a', hills: '#1f6e33' },
+      // red laterite soil under moss and carved temple stone, in a warm misty sky: kept well apart from the forest's brown and green
+      pal: { sky: ['#e0a65a', '#f7e3a8'], top: '#7fae2e', dirt: ['#b8582e', '#9a4526', '#73341f'], stone: '#8f9a86',
+             feature: '#d9b45a', bed: '#2a1610', hills: '#2f7a5a' },
       music: { tempo: 128, root: 62, scale: [0, 2, 3, 7, 8], wave: 'square' } },
     { id: 'moon', name: 'The Moon', rule: 'lowgrav', ruleText: 'Low gravity: loot bounces around before you grab it.',
       hp: 750, oreMult: 125,
@@ -84,7 +85,7 @@ var DTW = (function () {
   FOOT.forEach(function (f) { for (var dz = 0; dz < f[1]; dz++) for (var dx = 0; dx < f[0]; dx++) PARTS.push({ w: f[0], d: f[1], dx: dx, dz: dz }); });
   function partOf(w, d, dx, dz) { for (var p = 0; p < PARTS.length; p++) { var q = PARTS[p]; if (q.w === w && q.d === d && q.dx === dx && q.dz === dz) return p; } return 0; }
   function fossilForm(w, k) { var c = BIG_FORMS[w].charAt(k); return c === '2' ? [2, 1] : c === '3' ? [3, 1] : c === '4' ? [2, 2] : [1, 1]; }
-  var CHEST_EVERY = 3;  // layers between treasure chests
+  var CHEST_EVERY = 4;  // layers between treasure chests (jungle treasure rooms add their own, which open without a puzzle)
   var CHEST_FOSSIL = 0.6; // chance a chest holds a missing fossil piece of the creature buried at that depth
   // A chest is locked. The miner reaching one opens the lock puzzle (run.lock) and the dig waits: pins sit at one
   // of LOCK_LEVELS heights and must match the key's teeth; a tap moves a pin up one (wrapping round) and its linked
@@ -108,11 +109,11 @@ var DTW = (function () {
   // 1, 2, 3...; from world 3 on the numbers show for PATH_PREVIEW s and then hide, and a miss shows them for PATH_RECALL s
   // and starts over.
   var SLIDE_N = [3, 3, 3, 3, 3], SLIDE_K = [8, 12, 14, 16, 18];
-  var PIPE_N = [3, 4, 4, 5, 5], PIPE_OUTS = [1, 1, 2, 2, 3];
+  var PIPE_N = [3, 4, 4, 4, 4], PIPE_OUTS = [1, 1, 2, 2, 3];
   // 'ice': an ice block on an ICE_N x ICE_N board with ICE_ROCKS rocks; a push (lockTap 0-3, N E S W) slides it until a
   // rock or the edge stops it, and it drops into the hole if it passes over it. The board is dealt so the fewest pushes
   // into the hole is exactly ICE_MIN[w]; lockTap 4 puts the block back at the start.
-  var ICE_N = [5, 5, 6, 6, 6], ICE_ROCKS = [3, 4, 6, 7, 8], ICE_MIN = [2, 3, 3, 4, 5];
+  var ICE_N = [5, 5, 6, 6, 6], ICE_ROCKS = [3, 4, 6, 7, 8], ICE_MIN = [2, 3, 3, 4, 4];
   var ODD_ROUNDS = [3, 3, 4, 4, 5], ODD_CARDS = [4, 6, 9, 12, 16], ODD_WAIT = 0.8;
   var ODD_SETS = [
     [['🍎', '🐟'], ['🐸', '🚗'], ['⭐', '🌳']],
@@ -121,7 +122,7 @@ var DTW = (function () {
     [['🌕', '🌝'], ['😀', '😃'], ['🕐', '🕑']],
     [['🌕', '🌝'], ['🌑', '🌚'], ['😀', '😃'], ['🔺', '🔻']]
   ];
-  var PATH_N = [4, 5, 6, 7, 8], PATH_GRID = [3, 3, 4, 4, 4], PATH_PREVIEW = [0, 0, 3, 3.5, 4], PATH_RECALL = 1.5;
+  var PATH_N = [4, 5, 6, 7, 7], PATH_GRID = [3, 3, 4, 4, 4], PATH_PREVIEW = [0, 0, 3, 3.5, 4], PATH_RECALL = 1.5;
   var forceKind = null;
   WORLDS.forEach(function (w) {
     w.fossils = [];
@@ -193,14 +194,17 @@ var DTW = (function () {
     bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy, and an extra bone every 6 levels' },
     magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 4,  text: 'Pulls in finds from further away' },
     // one-time stretch items: a fixed price, and only offered once world `world` is unlocked (upgradeAvailable)
-    splash: { name: 'Splash Pick', max: 1, world: 2, fixed: { coins: 20000, mats: [200, 150, 100, 50, 20] }, text: 'Each strike also chips the blocks beside it' },
-    twin:   { name: 'Twin Picks',  max: 1, world: 3, fixed: { coins: 60000, mats: [400, 300, 200, 100, 60] }, text: 'Swing 60% faster' }
+    splash: { name: 'Splash Pick', max: 1, world: 2, fixed: { coins: 7000, mats: [70, 50, 35, 15, 7] }, text: 'Each strike also chips the blocks beside it' },
+    twin:   { name: 'Twin Picks',  max: 1, world: 3, fixed: { coins: 20000, mats: [130, 100, 70, 35, 20] }, text: 'Swing 60% faster' }
   };
   var SPLASH_FRAC = 0.4; // share of a miner strike's damage that also hits each orthogonal neighbour block
   var TWIN_RATE = 1.6;   // the miner's swing and tap damage multiplier with Twin Picks
-  var COAL_BATCH = [1, 3, 3, 5, 5]; // coal units in one coal ore stack, by world index
+  // units of material in one ore block's stack, by world index and tier (coal..crystal); a stack is one bag item
+  // (upgrade prices need coal and copper in bulk at high levels, and late worlds hold little of them, so their stacks are big)
+  var ORE_STACK = [[4, 2, 1, 1, 1], [20, 8, 3, 1, 1], [60, 25, 5, 2, 1], [200, 80, 10, 3, 1], [400, 150, 15, 4, 1]];
+  var DODGE_WINDOW = 1; // seconds a cracked trap warns before it dazes the miner; DTW.dodge in time avoids the daze
   var WORKERS = {
-    diggers: { name: 'Helper Digger', base: 80, mult: 2.5, max: 6, text: 'Digs blocks next to you' },
+    diggers: { name: 'Helper Digger', base: 50, mult: 2.5, max: 6, text: 'Digs blocks next to you' },
     staff:   { name: 'Museum Guide',  base: 100, mult: 2.5, max: 5, text: '+30% visitor coins' }
   };
   // the helpers' own tools, sold at their hut: power and speed work like the miner's Drill Power and Dig Speed
@@ -376,7 +380,7 @@ var DTW = (function () {
     var given = [], keep = [];
     s.carry.forEach(function (it) {
       var ok = desk || (it.world === near.world && Math.floor(it.idx / PIECES) === near.creature);
-      if (ok) { s.museum[it.world].pieces[it.idx]++; given.push(itemName(it)); } else keep.push(it);
+      if (ok) { shelf(s, it)[it.idx]++; given.push(itemName(it)); } else keep.push(it);
     });
     s.carry = keep;
     if (given.length) emit(s, { type: 'delivered', names: given, world: desk ? -1 : near.world, creature: desk ? -1 : near.creature });
@@ -539,8 +543,8 @@ var DTW = (function () {
           set(rx + dx, y, rz + dz, TILE.AIR); set(rx + dx, y + 1, rz + dz, TILE.AIR); set(rx + dx, y + 2, rz + dz, TILE.STONE);
         }
         var c1 = ri(9), c2 = (c1 + 1 + ri(8)) % 9;
-        set(rx + c1 % 3, y + 2, rz + Math.floor(c1 / 3), TILE.CHEST);
-        set(rx + c2 % 3, y + 2, rz + Math.floor(c2 / 3), TILE.CHEST);
+        set(rx + c1 % 3, y + 2, rz + Math.floor(c1 / 3), TILE.CHEST, 1); // value 1: a treasure-room chest, no puzzle
+        set(rx + c2 % 3, y + 2, rz + Math.floor(c2 / 3), TILE.CHEST, 1);
       }
     } else if (rule === 'lowgrav') { // spherical craters
       for (y = 6; y < DEPTH - 3; y += 5 + ri(4)) {
@@ -595,7 +599,7 @@ var DTW = (function () {
       v: 1, seed: seed | 0, rng: (seed | 0) ^ 0x5bd1e995, coins: 0,
       unlocked: [true, false, false, false, false], relics: [false, false, false, false, false],
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
-      museum: WORLDS.map(function () { return { pieces: emptyPieces() }; }),
+      museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false,
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
       stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
     };
@@ -647,6 +651,22 @@ var DTW = (function () {
   function twinMul(s) { return s.upgrades.twin ? TWIN_RATE : 1; }
   function hitRate(s) { return 2 * (1 + 0.35 * s.upgrades.speed) * twinMul(s); } // the miner's own swings per second
 
+  // The golden replay: once all five relics are home, every world is dug again and its bones come up gold. A gold bone
+  // goes on the gold shelf (museum[w].gold), drawn gold on the plinths; it pays nothing extra.
+  function shelf(s, it) { var m = s.museum[it.world]; return it.gold ? (m.gold || (m.gold = emptyPieces())) : m.pieces; }
+  function sameBone(a, b) { return a.world === b.world && a.idx === b.idx && !a.gold === !b.gold; }
+  function digAgain(s) {
+    if (s.mode !== 'surface' || !s.relics.every(Boolean)) return false;
+    s.golden = true;
+    for (var w = 0; w < WORLDS.length; w++) { resetSite(s, w); if (!s.museum[w].gold) s.museum[w].gold = emptyPieces(); }
+    emit(s, { type: 'golden' }); return true;
+  }
+  // gold pieces of world w (creature c, or all) on show
+  function goldFound(s, w, c) {
+    var p = s.museum[w].gold || [], a = c == null ? 0 : c * PIECES, b = c == null ? FOSSILS : a + PIECES, n = 0;
+    for (var i = a; i < b; i++) if (p[i] > 0) n++;
+    return n;
+  }
   // pieces of world w's creature c found so far (0-5), or of all its creatures when c is left out
   function piecesFound(s, w, c) {
     var p = s.museum[w].pieces, a = c == null ? 0 : c * PIECES, b = c == null ? FOSSILS : a + PIECES, n = 0;
@@ -673,7 +693,7 @@ var DTW = (function () {
   function itemName(it) {
     var wd = WORLDS[it.world];
     if (it.kind === 'ore') return wd.ores[it.idx].name;
-    if (it.kind === 'fossil') return wd.fossils[it.idx];
+    if (it.kind === 'fossil') return (it.gold ? 'Golden ' : '') + wd.fossils[it.idx];
     if (it.kind === 'relic') return wd.relic.name;
     return 'Treasure';
   }
@@ -692,7 +712,12 @@ var DTW = (function () {
     s.mode = 'down';
     emit(s, { type: 'descend' });
   }
-  function tap(s) { if (s.mode === 'dig' && s.run.stun <= 0) s.run.taps++; }
+  function tap(s) { if (s.mode === 'dig' && s.run.stun <= 0 && !(s.run.dodge > 0)) s.run.taps++; }
+  // a fresh tap while a cracked trap warns (not the held Faster button): the miner jumps clear
+  function dodge(s) {
+    if (s.mode !== 'dig' || !(s.run.dodge > 0)) return false;
+    s.run.dodge = 0; emit(s, { type: 'dodged' }); return true;
+  }
   // the player takes over: auto-walk waits MANUAL_HOLD seconds after the last steer
   function steer(s, dir) { if (s.mode === 'dig') { s.run.steer = dirKey(dir); s.run.manual = MANUAL_HOLD; s.run.goal = -1; } }
   // the player picked a block of the layer being cleared (a tap on it): walk next to it and dig it
@@ -977,12 +1002,15 @@ var DTW = (function () {
       solved = L.pins.join() === L.key.join();
     }
     if (solved) {
-      s.run.lock = null; breakTile(s, L.i);
-      var it = { kind: 'treasure', world: s.world, value: Math.round(LOCK_GEM * WORLDS[s.world].oreMult), gem: true };
-      s.run.loot.push({ x: L.i % N + 0.5, y: FLOOR_Y + Math.floor(L.i / NN), z: Math.floor(L.i / N) % N + 0.5, layer: Math.floor(L.i / NN), rest: true, item: it, age: 0, delay: 0.8, vx: 0, vy: 0, vz: 0 });
+      s.run.lock = null; breakTile(s, L.i); lockGem(s, L.i);
       emit(s, { type: 'unlocked', i: L.i, taps: L.taps });
     }
     return true;
+  }
+  // the bonus gem a picked lock (or a treasure-room chest) drops beside its contents
+  function lockGem(s, i) {
+    var it = { kind: 'treasure', world: s.world, value: Math.round(LOCK_GEM * WORLDS[s.world].oreMult), gem: true };
+    s.run.loot.push({ x: i % N + 0.5, y: FLOOR_Y + Math.floor(i / NN), z: Math.floor(i / N) % N + 0.5, layer: Math.floor(i / NN), rest: true, item: it, age: 0, delay: 0.8, vx: 0, vy: 0, vz: 0 });
   }
   function lockSmash(s) {
     var L = s.mode === 'dig' && s.run.lock;
@@ -994,7 +1022,7 @@ var DTW = (function () {
   function goHome(s, reason) {
     if (s.mode !== 'dig') return;
     var r = s.run;
-    r.lock = null;
+    r.lock = null; r.dodge = 0;
     r.loot.forEach(function (l) { if (lootWaits(s, l)) leaveBone(s, l.item); else r.bag.push(l.item); }); r.loot = [];
     s.mode = 'up'; r.elevT = Math.min(3, 1 + r.y * 0.02);
     emit(s, { type: 'ascend', reason: reason || 'button' });
@@ -1006,8 +1034,8 @@ var DTW = (function () {
     var r = s.run, coins = 0, pieces = [], relic = null, gained = emptyMats();
     r.bag.forEach(function (it) {
       if (it.kind === 'fossil') { // a new bone is carried to the museum by hand; a copy is sold
-        var have = s.museum[it.world].pieces[it.idx] > 0 || s.carry.some(function (c) { return c.world === it.world && c.idx === it.idx; });
-        if (have) coins += itemValue(it); else { s.carry.push({ kind: 'fossil', world: it.world, idx: it.idx }); pieces.push(itemName(it)); }
+        var have = shelf(s, it)[it.idx] > 0 || s.carry.some(function (c) { return sameBone(c, it); });
+        if (have) coins += itemValue(it); else { var cb = { kind: 'fossil', world: it.world, idx: it.idx }; if (it.gold) cb.gold = true; s.carry.push(cb); pieces.push(itemName(it)); }
       } else if (it.kind === 'relic') {
         if (!s.relics[it.world]) { s.relics[it.world] = true; relic = it.world; if (it.world < 4) s.unlocked[it.world + 1] = true; }
       } else if (it.kind === 'ore' && WORLDS[it.world].ores[it.idx].mat != null) { var mt = WORLDS[it.world].ores[it.idx].mat, n = it.n || 1; gained[mt] += n; s.mats[mt] += n; }
@@ -1018,7 +1046,7 @@ var DTW = (function () {
   }
 
   function isNewBone(s, it) {
-    return it.kind === 'fossil' && !s.museum[it.world].pieces[it.idx] && !s.carry.some(function (c) { return c.world === it.world && c.idx === it.idx; });
+    return it.kind === 'fossil' && !shelf(s, it)[it.idx] && !s.carry.some(function (c) { return sameBone(c, it); });
   }
   function collect(s, it, at) { // at: where the find lay (loot picked up off the floor); none for the relic
     var r = s.run;
@@ -1031,24 +1059,24 @@ var DTW = (function () {
   function chestLoot(s, w, y, smashed) {
     if (smashed) return { kind: 'treasure', world: w, value: Math.round(SMASH_COINS * WORLDS[w].oreMult) };
     var c = 0; while (c < CREATURES - 1 && y >= BAND[c + 1][0]) c++;
-    var have = s.museum[w].pieces, inBag = {}, miss = [];
-    s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })).forEach(function (b) { if (b.kind === 'fossil' && b.world === w) inBag[b.idx] = 1; });
+    var have = s.golden ? s.museum[w].gold : s.museum[w].pieces, inBag = {}, miss = [];
+    s.run.bag.concat(s.run.loot.map(function (l) { return l.item; })).forEach(function (b) { if (b.kind === 'fossil' && b.world === w && !b.gold === !s.golden) inBag[b.idx] = 1; });
     for (var p = c * PIECES; p < (c + 1) * PIECES; p++) if (!have[p] && !inBag[p]) miss.push(p);
-    if (miss.length && !handsFull(s) && rand(s) < CHEST_FOSSIL) return { kind: 'fossil', world: w, idx: miss[Math.floor(rand(s) * miss.length)], chest: true };
+    if (miss.length && !handsFull(s) && rand(s) < CHEST_FOSSIL) { var cf = { kind: 'fossil', world: w, idx: miss[Math.floor(rand(s) * miss.length)], chest: true }; if (s.golden) cf.gold = true; return cf; }
     return { kind: 'treasure', world: w, value: Math.round(25 * WORLDS[w].oreMult) };
   }
   function breakTile(s, i, helper, smashed) {
     var r = s.run, g = r.grid, w = s.world, tt = g.t[i], vv = g.v[i], it = null;
     var bx = i % N, bz = Math.floor(i / N) % N, by = Math.floor(i / NN);
-    if (tt === TILE.ORE) { it = { kind: 'ore', world: w, idx: vv }; if (vv === 0) it.n = COAL_BATCH[w] || 1; }
+    if (tt === TILE.ORE) { it = { kind: 'ore', world: w, idx: vv }; var om = WORLDS[w].ores[vv].mat, stack = om == null ? 1 : ORE_STACK[w][om]; if (stack > 1) it.n = stack; } // the gem never stacks
     else if (tt === TILE.FOSSIL) { // a big fossil gives its bone when its last cell breaks
       var fo = fossilAt(g, i);
       if (fo.cells.length > 1) emit(s, { type: 'bigBone', x: bx, y: by, z: bz, left: fo.cells.length - 1 });
-      else it = { kind: 'fossil', world: w, idx: fo.idx };
+      else { it = { kind: 'fossil', world: w, idx: fo.idx }; if (s.golden) it.gold = true; }
     }
     else if (tt === TILE.CHEST) it = chestLoot(s, w, by, smashed);
     else if (tt === TILE.TRAP && helper) { helper.stun = 2; emit(s, { type: 'trap', helper: true }); }
-    else if (tt === TILE.TRAP) { r.stun = 2; s.stats.trapsSprung++; emit(s, { type: 'trap' }); }
+    else if (tt === TILE.TRAP) { r.dodge = DODGE_WINDOW; emit(s, { type: 'trapWarn', x: bx, y: by, z: bz }); } // the miner may still dodge it
     else if (tt === TILE.RELIC) {
       var have = s.relics[w] || r.bag.some(function (b) { return b.kind === 'relic'; });
       it = have ? { kind: 'treasure', world: w, value: Math.round(100 * WORLDS[w].oreMult) } : { kind: 'relic', world: w };
@@ -1210,7 +1238,12 @@ var DTW = (function () {
     }
     stepLoot(s, dt);
     if (r.relicTimer > 0) { r.relicTimer -= dt; if (r.relicTimer <= 0) { goHome(s, 'relic'); return; } }
-    if (r.stun > 0) { r.stun = Math.max(0, r.stun - dt); r.taps = 0; }
+    if (r.dodge > 0) { // a cracked trap is about to go off: the miner freezes; no dodge in time and it dazes
+      r.dodge -= dt; r.taps = 0; r.state = 'idle';
+      if (r.dodge <= 0) { r.dodge = 0; r.stun = 2; s.stats.trapsSprung++; emit(s, { type: 'trap' }); }
+      else stepCrew(s, dt, hit);
+    }
+    else if (r.stun > 0) { r.stun = Math.max(0, r.stun - dt); r.taps = 0; }
     else {
       var y = r.y, tgt = -1, steered = false, moved = false, auto = s.auto !== false;
       var crewT = crewTargets(r);
@@ -1293,7 +1326,11 @@ var DTW = (function () {
         else { r.state = 'idle'; r.taps = 0; }
       }
       if (moved) { r.state = 'walk'; r.taps = 0; }
-      if (tgt >= 0 && g.t[tgt] === TILE.CHEST) { r.face = faceTo(r.x, r.z, tgt % N, Math.floor(tgt / N) % N); openLock(s, tgt); return; }
+      if (tgt >= 0 && g.t[tgt] === TILE.CHEST) {
+        r.face = faceTo(r.x, r.z, tgt % N, Math.floor(tgt / N) % N);
+        if (g.v[tgt] === 1) { breakTile(s, tgt); lockGem(s, tgt); r.path = null; if (r.goal === tgt) r.goal = -1; emit(s, { type: 'roomChest', i: tgt }); return; }
+        openLock(s, tgt); return;
+      }
       if (tgt >= 0) {
         r.walkAcc = 0; r.fallAcc = 0; r.state = 'dig';
         var wf = weightFactor(s, r.bag.length);
@@ -1338,7 +1375,7 @@ var DTW = (function () {
     var digging = s.run && s.mode !== 'surface', left = [];
     var bag = digging ? s.run.bag.concat(s.run.loot.filter(function (l) { if (lootWaits(s, l)) { left.push(l.item); return false; } return true; }).map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 4, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 5, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0,
         bones: (g.bones || []).concat(digging && s.run.grid === g ? left : []) }; })
@@ -1347,9 +1384,9 @@ var DTW = (function () {
   function deserialize(str) {
     try {
       var o = JSON.parse(str);
-      if (!o || [1, 2, 3, 4].indexOf(o.v) < 0) return null;
+      if (!o || [1, 2, 3, 4, 5].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
-      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats', 'golden'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
       if (!Array.isArray(s.mats) || s.mats.length !== 5) s.mats = emptyMats();
       s.upgrades = Object.assign(newState(0).upgrades, s.upgrades); s.workers = Object.assign(newState(0).workers, s.workers);
       // before v3 each world had one creature of five pieces: it is now that world's middle creature
@@ -1357,7 +1394,9 @@ var DTW = (function () {
       s.museum = s.museum.map(function (m) {
         var p = emptyPieces(), src = m && m.pieces || [];
         for (var i = 0; i < src.length && i < FOSSILS; i++) p[old ? PIECES + i : i] = src[i] | 0;
-        return { pieces: p };
+        var gold = emptyPieces(), gs = m && m.gold || [];
+        for (i = 0; i < gs.length && i < FOSSILS; i++) gold[i] = gs[i] | 0;
+        return { pieces: p, gold: gold };
       });
       s.sites = o.sites.map(function (g, w) {
         // v1 saves hold the old flat 11-wide slice: drop the site so a fresh 3D one is dug
@@ -1404,8 +1443,8 @@ var DTW = (function () {
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ICE_N: ICE_N, ICE_ROCKS: ICE_ROCKS, ICE_MIN: ICE_MIN, LOCK_ONE: LOCK_ONE, LOCK_TWO: LOCK_TWO, iceSlide: iceSlide, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
-    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, COAL_BATCH: COAL_BATCH, buyUpgrade: buyUpgrade, hireCost: hireCost,
-    hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
+    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, ORE_STACK: ORE_STACK, DODGE_WINDOW: DODGE_WINDOW, dodge: dodge, buyUpgrade: buyUpgrade, hireCost: hireCost,
+    hire: hire, museumIncome: museumIncome, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, LADDER_DOWN: LADDER_DOWN, CLIMB_PUSH: CLIMB_PUSH, hubCell: hubCell, hubWalkable: hubWalkable,
