@@ -553,13 +553,13 @@ var DTWSprites = (function () {
   }
   // cached frames for the people walking about the plaza (no pickaxe): moving, frame 0..7 is the walk cycle in eighths
   var cache = {};
-  function npc(kind, seed, back, frame, moving, t) {
-    var key = kind + '|' + seed + '|' + (back ? 1 : 0) + '|' + frame + '|' + (moving ? 1 : 0) + (kind === 'keeper' ? '|' + (Math.sin(t * 10) > 0 ? 1 : 0) : '');
+  function npc(kind, seed, back, frame, moving, t, helm) {
+    var key = (helm ? 'b|' : '') + kind + '|' + seed + '|' + (back ? 1 : 0) + '|' + frame + '|' + (moving ? 1 : 0) + (kind === 'keeper' ? '|' + (Math.sin(t * 10) > 0 ? 1 : 0) : '');
     if (cache[key]) return cache[key];
     var P = kind === 'guide' ? GUIDE : kind === 'keeper' ? KEEPER : kind === 'prof' ? PROF : visitorPal(seed);
     var pose = moving ? walkPose((frame & 7) / 8, 1) : { bob: 0, body: frame & 1 ? 1 : 0, gait: 0, cyc: 0, blink: frame === 3 };
     pose.lean = 0; pose.air = 0;
-    person({ back: back, pose: pose, ang: null, P: P, hair: true, arms: kind === 'keeper' || (kind === 'prof' && seed === 1) ? 'wave' : '', t: t });
+    person({ back: back, pose: pose, ang: null, P: P, hair: true, arms: kind === 'keeper' || (kind === 'prof' && seed === 1) ? 'wave' : '', bowl: !!helm, t: t });
     var out = canvas(W, H); out.getContext('2d').drawImage(cv, 0, 0);
     if (Object.keys(cache).length > 600) cache = {};
     return (cache[key] = { cv: out, fx: FX, fy: FY });

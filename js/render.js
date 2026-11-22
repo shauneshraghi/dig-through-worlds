@@ -926,9 +926,11 @@ var DTWRender = (function () {
     }
   }
   function plinthBlock(k) { return hubBlocks().filter(function (bb) { return bb.c === PL.charAt(k); })[0]; }
+  // everyone on the moon's plaza wears the glass helmet (no air there); set once a frame in draw
+  var npcBowl = false;
   function drawPerson(kind, seed, x, z, face, moving, walk, hop) {
     var fc = FACE[face] || FACE.e, frame = moving ? Math.floor(walk * CYC_PER_CELL * 8) & 7 : Math.floor(time * 1.5 + seed) & 3;
-    var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time), q = P(x, 1, z), p = charScale();
+    var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time, npcBowl), q = P(x, 1, z), p = charScale();
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.4, hh * 0.4, 0, 0, 7); ctx.fill();
     ctx.translate(0, -cheerHop(seed) - (hop ? Math.abs(Math.sin(time * 12)) * TW * 0.3 : 0));
@@ -1817,7 +1819,7 @@ var DTWRender = (function () {
     ox = Math.round((vw - view.right * vw / cssW) / 2 - f0[0] + (shakeT > 0 ? (Math.random() - 0.5) * TW * 0.08 : 0)); oy = Math.round(vh * cam.anchor - f0[1]);
     var viewTop = Math.max(0, Math.floor(disp.y + 0.001)), yBot = Math.min(D.DEPTH + 1, viewTop + VIEW_LAYERS);
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
-    lights = []; padLabels = [];
+    lights = []; padLabels = []; npcBowl = D.WORLDS[S.world].id === 'moon';
     if (post) { ectx.setTransform(1, 0, 0, 1, 0, 0); ectx.globalCompositeOperation = 'source-over'; ectx.fillStyle = '#000'; ectx.fillRect(0, 0, ecv.width, ecv.height); ectx.setTransform(0.5, 0, 0, 0.5, 0, 0); ectx.globalCompositeOperation = 'lighter'; }
     if (octx !== ctx) { octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, vw, vh); }
     var surfaceView = viewTop <= 1;

@@ -22,6 +22,22 @@
 
   // ---------- helpers ----------
   function $(id) { return document.getElementById(id); }
+  // the control buttons' icons: one drawn set (24-unit strokes in the text colour), so they look the same on every
+  // device instead of each system's emoji
+  var ICONS = {
+    up: '<path d="M12 20V7M6 12l6-6 6 6M5 3h14"/>',
+    pick: '<path d="M4.5 20.5L14 11"/><path d="M7.5 4.5Q19.5 4.5 19.5 16.5"/>',
+    bot: '<rect x="5" y="8.5" width="14" height="11" rx="3"/><path d="M12 8.5V5"/><circle cx="12" cy="4" r="1.3" fill="currentColor"/><circle cx="9.3" cy="13.5" r="1.4" fill="currentColor" stroke="none"/><circle cx="14.7" cy="13.5" r="1.4" fill="currentColor" stroke="none"/><path d="M3 12.5v3M21 12.5v3"/>',
+    hand: '<path d="M8.5 12.5V5.8a1.6 1.6 0 0 1 3.2 0V11M11.7 10.5V4.6a1.6 1.6 0 0 1 3.2 0v6.2M14.9 10.8V6.6a1.6 1.6 0 0 1 3.2 0v7.2c0 4-2.6 7.2-6.3 7.2-2.6 0-4.3-1.3-5.6-3.4l-2.2-3.7a1.6 1.6 0 0 1 2.6-1.8l1.9 2.2"/>',
+    bag: '<path d="M5.5 9h13l-1.2 11H6.7z"/><path d="M9 9V7.5a3 3 0 0 1 6 0V9"/>',
+    menu: '<path d="M4.5 6.5h15M4.5 12h15M4.5 17.5h15"/>',
+    close: '<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+    back: '<path d="M14.5 5.5L8 12l6.5 6.5"/>',
+    next: '<path d="M9.5 5.5L16 12l-6.5 6.5"/>',
+    restart: '<path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4.5 4v4.5H9"/>',
+    erase: '<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13"/>'
+  };
+  function icon(n) { return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">' + ICONS[n] + '</svg>'; }
   function fmtRate(n) { return n > 0 && n < 10 ? n.toFixed(1) : fmt(n); }
   function fmt(n) {
     n = Math.floor(n);
@@ -60,7 +76,7 @@
       var c = document.createElement('span'); c.className = 'chip mat'; c.title = m.name;
       c.innerHTML = '<i class="dot" style="background:' + m.color + '"></i><span></span>'; box.appendChild(c);
     });
-    var key = S.mats.join() + ':' + S.mode + ':' + $('app').className + ':' + innerWidth + 'x' + innerHeight;
+    var key = S.mats.join() + ':' + S.mode + ':' + $('app').className + ':' + innerWidth + 'x' + innerHeight + ':' + ($('hInc').textContent + $('hCoins').textContent + $('hDepth').textContent).length;
     if (key === matsKey) return; matsKey = key;
     D.MATS.forEach(function (m, t) { var c = box.children[t]; c.lastChild.textContent = fmt(S.mats[t]); c.classList.toggle('zero', !S.mats[t]); });
     hud.classList.remove('tight');
@@ -85,15 +101,20 @@
     $('bFast').style.display = S.mode === 'dig' && !S.run.lock ? '' : 'none';
     // a full bag lights up the Home button so the way back to the surface is easy to spot
     var full = S.mode === 'dig' && n >= cap;
-    var bh = $('bHome'), label = surf ? '⛏ Dig!' : full ? '🎒 Full! ⬆ Home' : '⬆ Home';
-    if (bh.textContent !== label) { bh.textContent = label; bh.classList.toggle('dig', surf); bh.classList.toggle('full', full); }
+    var bh = $('bHome'), label = surf ? 'dig' : full ? 'full' : 'home';
+    if (bh.dataset.k !== label) {
+      bh.dataset.k = label;
+      bh.innerHTML = surf ? icon('pick') + '<span>Dig!</span>' : full ? icon('bag') + '<span>Full! Home</span>' : icon('up') + '<span>Home</span>';
+      bh.classList.toggle('dig', surf); bh.classList.toggle('primary', surf); bh.classList.toggle('full', full); bh.classList.toggle('gold', full); bh.classList.toggle('glass', !surf && !full);
+    }
     // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
     if (!surf || splash) { menuOpen = false; menuPick = null; }
     var plaza = surf && !splash;
     $('bMenu').style.display = $('hInc').style.display = plaza ? '' : 'none';
     $('hDepth').style.display = hb.style.display = surf ? 'none' : '';
     $('bClose').style.display = menuOpen ? '' : 'none';
-    $('bClose').textContent = menuPick ? '‹ Menu' : '✕';
+    var ck = menuPick ? 'back' : 'close', bc = $('bClose');
+    if (bc.dataset.k !== ck) { bc.dataset.k = ck; bc.innerHTML = menuPick ? icon('back') + '<span>Menu</span>' : icon('close'); bc.classList.toggle('iconly', !menuPick); bc.setAttribute('aria-label', menuPick ? 'Back to the menu' : 'Close'); }
     var st = surf && !splash ? (menuOpen ? menuPick || 'menu' : D.hubStation(S)) : null;
     if (st !== station) { station = st; lastPanelKey = ''; confirmKind = null; }
     var showPanel = !!station;
@@ -127,16 +148,16 @@
   function exchangeRows(body) {
     var h = document.createElement('div'); h.className = 'xhead';
     h.innerHTML = '<b>Your materials</b>';
-    var tg = document.createElement('button'); tg.className = 'btn small'; tg.textContent = '× ' + xferN; tg.onclick = function () { xferN = xferN === 1 ? 10 : 1; lastPanelKey = ''; };
+    var tg = document.createElement('button'); tg.className = 'btn small glass'; tg.setAttribute('aria-label', 'Trade ' + (xferN === 1 ? 10 : 1) + ' at a time'); tg.textContent = '× ' + xferN; tg.onclick = function () { xferN = xferN === 1 ? 10 : 1; lastPanelKey = ''; };
     h.appendChild(tg); body.appendChild(h);
     var note = document.createElement('p'); note.className = 'small'; note.textContent = 'Buying costs more than selling, and more with each one you buy. Dig what you need where it is common!'; body.appendChild(note);
     D.MATS.forEach(function (m, t) {
       var d = document.createElement('div'); d.className = 'row xrow';
       d.innerHTML = '<div class="xdot" style="background:' + m.color + '"></div><div class="txt"><b>' + m.name + ' <span class="have">' + fmt(S.mats[t]) + '</span></b></div>';
-      var sell = document.createElement('button'); sell.className = 'btn xbtn sell'; sell.innerHTML = 'Sell<br><small>+🪙 ' + fmt(D.MAT_PRICE[t] * xferN) + '</small>'; sell.disabled = S.mats[t] < xferN;
+      var sell = document.createElement('button'); sell.className = 'btn xbtn sell blue'; sell.innerHTML = '<span>Sell</span><small>+🪙 ' + fmt(D.MAT_PRICE[t] * xferN) + '</small>'; sell.disabled = S.mats[t] < xferN;
       sell.onclick = function () { if (!D.sellMat(S, t, xferN)) A.sfx('no'); else save(); };
       var cost = D.matBuyPrice(S, t, xferN);
-      var buy = document.createElement('button'); buy.className = 'btn xbtn buy'; buy.innerHTML = 'Buy<br><small>−🪙 ' + fmt(cost) + '</small>'; buy.disabled = S.coins < cost;
+      var buy = document.createElement('button'); buy.className = 'btn xbtn buy go'; buy.innerHTML = '<span>Buy</span><small>−🪙 ' + fmt(cost) + '</small>'; buy.disabled = S.coins < cost;
       buy.onclick = function () { if (!D.buyMat(S, t, xferN)) A.sfx('no'); else save(); };
       d.appendChild(sell); d.appendChild(buy); body.appendChild(d);
     });
@@ -148,13 +169,10 @@
     if (!station) return;
     if (confirmKind && lastPanelKey) return;
     var k = panelKey(); if (k === lastPanelKey) return; lastPanelKey = k;
-    var wd = D.WORLDS[S.world], g = D.site(S, S.world), tab = STATION_TAB[station], dig = station === 'dig';
+    var wd = D.WORLDS[S.world], g = D.site(S, S.world), top = D.topLayer(g), tab = STATION_TAB[station], dig = station === 'dig';
     $('sTitle').textContent = dig ? wd.name + (S.relics[S.world] ? ' ✓' : '') : STATION_TITLE[station];
-    $('sRule').textContent = dig ? wd.ruleText : '';
+    $('sRule').textContent = dig ? wd.ruleText + (top > 1 ? ' Your dig goes on at ' + top + ' m.' : '') : '';
     $('sRule').style.display = dig ? '' : 'none';
-    var top = D.topLayer(g);
-    $('bDig').textContent = top > 1 ? '⛏ Dig! (back to ' + top + ' m)' : '⛏ Dig!';
-    $('bDig').style.display = dig ? '' : 'none';
     var body = $('tabBody'); body.innerHTML = ''; body.style.display = dig ? 'none' : '';
     function row(ic, title, sub, btnText, enabled, onClick, cost) {
       var d = document.createElement('div'); d.className = 'row';
@@ -162,7 +180,7 @@
       i.textContent = ic;
       var t = document.createElement('div'); t.className = 'txt'; t.innerHTML = '<b>' + title + '</b><small>' + sub + '</small>' + (cost ? priceHtml(cost) : '');
       d.appendChild(i); d.appendChild(t);
-      if (btnText) { var b = document.createElement('button'); b.className = 'btn'; b.textContent = btnText; b.disabled = !enabled; b.onclick = onClick; d.appendChild(b); }
+      if (btnText) { var b = document.createElement('button'); b.className = 'btn go'; b.textContent = btnText; b.disabled = !enabled; b.onclick = onClick; d.appendChild(b); }
       body.appendChild(d);
     }
     if (tab === 'up') {
@@ -238,23 +256,27 @@
         body.appendChild(d);
       });
       if (S.relics.every(Boolean) && !S.golden) {
-        var gb = document.createElement('button'); gb.className = 'btn'; gb.style.cssText = 'margin-top:8px;width:100%';
+        var gb = document.createElement('button'); gb.className = 'btn gold'; gb.style.cssText = 'margin-top:8px;width:100%';
         gb.textContent = '🌟 Dig again for golden bones'; gb.onclick = goGolden; body.appendChild(gb);
       }
       restartRows();
     } else if (tab === 'me') {
+      // each station is one big row to tap, with a chevron; sound is a switch
       ['shop', 'helpers', 'museum', 'worlds'].forEach(function (key) {
-        var t = STATION_TITLE[key].split(' ');
-        row(t[0], t.slice(1).join(' '), '', 'Open', true, function () { menuPick = key; });
+        var t = STATION_TITLE[key].split(' '), b = document.createElement('button');
+        b.className = 'row nav'; b.innerHTML = '<span class="ic">' + t[0] + '</span><span class="txt"><b>' + t.slice(1).join(' ') + '</b></span>' + icon('next');
+        b.onclick = function () { menuPick = key; }; body.appendChild(b);
       });
-      var muted = A.isMuted();
-      row(muted ? '🔇' : '🔊', 'Sound', muted ? 'Off' : 'On', muted ? 'Turn on' : 'Turn off', true, function () { audio(); setMute(!A.isMuted()); });
+      var on = !A.isMuted(), sw = document.createElement('button');
+      sw.className = 'row nav'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on);
+      sw.innerHTML = '<span class="ic">' + (on ? '🔊' : '🔇') + '</span><span class="txt"><b>Sound</b><small>' + (on ? 'On' : 'Off') + '</small></span><span class="switch' + (on ? ' on' : '') + '"><i></i></span>';
+      sw.onclick = function () { audio(); setMute(!A.isMuted()); }; body.appendChild(sw);
       restartRows();
     }
     function restartRows() {
       var bar = document.createElement('div'); bar.className = 'resets';
-      [['site', '🔄 Restart world'], ['wipe', '🧹 Start over']].forEach(function (o) {
-        var b = document.createElement('button'); b.className = 'btn small' + (confirmKind === o[0] ? ' on' : ''); b.textContent = o[1];
+      [['site', 'restart', 'Restart world'], ['wipe', 'erase', 'Start over']].forEach(function (o) {
+        var b = document.createElement('button'); b.className = 'btn small ghost' + (o[0] === 'wipe' ? ' warn' : '') + (confirmKind === o[0] ? ' on' : ''); b.innerHTML = icon(o[1]) + '<span>' + o[2] + '</span>';
         b.onclick = function () { confirmKind = confirmKind === o[0] ? null : o[0]; lastPanelKey = ''; };
         bar.appendChild(b);
       });
@@ -266,7 +288,7 @@
         : 'This erases ALL progress: coins, museum, worlds. Type yes to start over.';
       var inp = document.createElement('input'); inp.type = 'text'; inp.placeholder = 'type yes'; inp.autocomplete = 'off'; inp.autocapitalize = 'off'; inp.spellcheck = false;
       var go = document.createElement('button'); go.className = 'btn small danger'; go.textContent = confirmKind === 'site' ? 'Restart world' : 'Erase everything'; go.disabled = true;
-      var no = document.createElement('button'); no.className = 'btn small'; no.textContent = 'Cancel';
+      var no = document.createElement('button'); no.className = 'btn small glass'; no.textContent = 'Cancel';
       function typedYes() { return inp.value.trim().toLowerCase() === 'yes'; }
       inp.oninput = function () { go.disabled = !typedYes(); };
       inp.onkeydown = function (e) { e.stopPropagation(); if (e.key === 'Enter' && typedYes()) go.onclick(); else if (e.key === 'Escape') no.onclick(); };
@@ -286,7 +308,6 @@
   function toggleMenu() { audio(); if (S.mode !== 'surface' || splash) return; menuOpen = !menuOpen; menuPick = null; }
   $('bMenu').onclick = toggleMenu;
   $('bClose').onclick = function () { if (menuPick) menuPick = null; else menuOpen = false; };
-  $('bDig').onclick = function () { audio(); D.startDig(S, S.world); };
 
   // ---------- events from logic ----------
   function drain() {
@@ -485,7 +506,7 @@
     if (k % L.n === L.n - 1 && L.outlets.indexOf(Math.floor(k / L.n)) >= 0) s += '<circle cx="35" cy="20" r="5" fill="#4fd36b" stroke="#fff" stroke-width="1.5"/>';
     return s + '</svg>';
   }
-  var lastL = null, prevTiles = null, prevUp = [];
+  var lastL = null, prevTiles = null, prevUp = [], prevDone = []; // prevDone: matched cards already shown, which stay still
   // the solved chest's frame lingers a moment: it pops and glows, and the ice block drops into its hole
   function lockWon() {
     var el = $('lock'); if (!el.classList.contains('show')) return;
@@ -505,7 +526,7 @@
   function renderLock() {
     var L = S.mode === 'dig' && S.run && S.run.lock, el = $('lock');
     el.classList.toggle('show', !!L);
-    if (L && lastL !== L) { var pw = D.WORLDS[S.world].pal.dirt; el.style.setProperty('--wood', pw[1]); el.style.setProperty('--wood2', pw[2]); prevTiles = null; prevUp = []; }
+    if (L && lastL !== L) { var pw = D.WORLDS[S.world].pal.dirt; el.style.setProperty('--wood', pw[1]); el.style.setProperty('--wood2', pw[2]); prevTiles = null; prevUp = []; prevDone = []; }
     if (L) lastL = L;
     if (!L) { lockKey = ''; simonStep = -1; if (smashT) smashStop(); return; }
     var kind = L.kind || 'pins', T0 = LOCK_TEXT[kind], html = '', key, hint;
@@ -592,9 +613,9 @@
       html = '<div class="pairs">';
       L.cards.forEach(function (c, j) {
         var up = L.done[j] || L.up.indexOf(j) >= 0;
-        html += '<button class="card' + (up ? ' up' : '') + (up && prevUp.indexOf(j) < 0 ? ' flip' : '') + (L.done[j] ? ' done' : '') + (L.wait > 0 && L.up.indexOf(j) >= 0 ? ' miss' : '') + '" data-k="' + j + '">' + (up ? PAIR_ICONS[c] : '') + '</button>';
+        html += '<button class="card' + (up ? ' up' : '') + (up && prevUp.indexOf(j) < 0 ? ' flip' : '') + (L.done[j] ? ' done' + (prevDone[j] ? '' : ' matched') : '') + (L.wait > 0 && L.up.indexOf(j) >= 0 ? ' miss' : '') + '" data-k="' + j + '">' + (up ? PAIR_ICONS[c] : '') + '</button>';
       });
-      html += '</div>'; prevUp = L.cards.map(function (_, j) { return L.done[j] || L.up.indexOf(j) >= 0 ? j : -1; });
+      html += '</div>'; prevDone = L.done.slice(); prevUp = L.cards.map(function (_, j) { return L.done[j] || L.up.indexOf(j) >= 0 ? j : -1; });
     } else {
       key = 'k|' + L.i + '|' + L.pins.join() + '|' + L.key.join();
       if (key === lockKey) return;
@@ -772,6 +793,7 @@
   // the Faster button: a press is one extra swing, and holding it keeps swinging at FAST_TPS swings a second.
   // The held swings are counted on the game clock in advance(), so slow frames do not lose any.
   var FAST_TPS = 7, fastHeld = false, fastAcc = 0, bFast = $('bFast');
+  bFast.innerHTML = icon('pick') + '<small>Faster</small>'; $('bMenu').innerHTML = icon('menu');
   function fastStop() { fastHeld = false; bFast.classList.remove('held'); }
   bFast.addEventListener('pointerdown', function (e) {
     e.preventDefault(); audio(); doTap();
@@ -781,7 +803,7 @@
   ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { bFast.addEventListener(ev, fastStop); });
   bFast.addEventListener('contextmenu', function (e) { e.preventDefault(); });
   // auto-mining on or off
-  function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.textContent = on ? '🤖 Auto' : '✋ Me'; }
+  function setAutoBtn() { var b = $('bAuto'), on = S.auto !== false; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.innerHTML = icon(on ? 'bot' : 'hand') + '<span>' + (on ? 'Auto' : 'Me') + '</span><i class="led"></i>'; }
   $('bAuto').onclick = function () { audio(); D.setAuto(S, S.auto === false); setAutoBtn(); save(); };
   $('bHome').onclick = function () { audio(); if (S.mode === 'surface') D.startDig(S, S.world); else D.goHome(S); };
   var KEYS = { arrowup: 'up', w: 'up', arrowright: 'right', d: 'right', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left' };

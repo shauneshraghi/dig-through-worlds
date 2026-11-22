@@ -7,7 +7,7 @@
 <link rel="icon" href="data:,">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=42">
+<link rel="stylesheet" href="css/style.css?v=43">
 </head>
 <body>
 <div id="app">
@@ -19,7 +19,7 @@
     <div id="o2" title="Oxygen"><div></div></div>
     <span id="hMats"></span>
     <span class="sp"></span>
-    <button id="bMenu" title="Menu (Esc)">☰</button>
+    <button class="btn gold" id="bMenu" title="Menu (Esc)" aria-label="Menu"></button>
   </div>
   <div id="stage">
     <canvas id="cv"></canvas>
@@ -41,11 +41,11 @@
     <div id="ending" role="dialog" aria-label="You found all five relics">
       <h3>🏆 All five relics are home!</h3>
       <p>You are a Master Digger! But the ground still has secrets.</p>
-      <button class="btn" id="endGold">🌟 Dig again for golden bones!</button>
-      <button class="btn small" id="endLater">Later</button>
+      <button class="btn gold" id="endGold">🌟 Dig again for golden bones!</button>
+      <button class="btn ghost" id="endLater">Later</button>
     </div>
     <div id="surface">
-      <div id="sTop"><button class="btn" id="bClose">✕</button><h2 id="sTitle"></h2><p id="sRule"></p><button class="btn" id="bDig">⛏ Dig!</button></div>
+      <div id="sTop"><button class="btn glass" id="bClose" aria-label="Close"></button><h2 id="sTitle"></h2><p id="sRule"></p></div>
       <div id="tabBody"></div>
     </div>
     <div id="splash">
@@ -58,17 +58,17 @@
   </div>
   <div id="controls">
     <div id="btns">
-      <button id="bHome">⬆ Home</button>
-      <button id="bAuto" class="on" aria-label="Auto or manual digging">🤖 Auto</button>
+      <button class="btn glass" id="bHome"></button>
+      <button class="btn toggle on" id="bAuto" aria-label="Auto or manual digging"></button>
     </div>
-    <button id="bFast" aria-label="Dig faster">⛏<small>Faster</small></button>
+    <button class="btn primary" id="bFast" aria-label="Dig faster"></button>
   </div>
 </div>
-<script src="js/logic.js?v=42"></script>
-<script src="js/post.js?v=42"></script>
-<script src="js/sprites.js?v=42"></script>
-<script src="js/render.js?v=42"></script>
-<script src="js/audio.js?v=42"></script>
-<script src="js/ui.js?v=42"></script>
+<script src="js/logic.js?v=43"></script>
+<script src="js/post.js?v=43"></script>
+<script src="js/sprites.js?v=43"></script>
+<script src="js/render.js?v=43"></script>
+<script src="js/audio.js?v=43"></script>
+<script src="js/ui.js?v=43"></script>
 </body>
 </html>
