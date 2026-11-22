@@ -3,7 +3,7 @@
 var DTWAudio = (function () {
   'use strict';
   var D = DTW, MUTE_KEY = 'dig-through-worlds-v1-mute';
-  var AC = null, master = null, muted = false, musicTimer = null, musicStep = 0, nextNote = 0;
+  var AC = null, master = null, limiter = null, shared = null, pm = 1, muted = false, musicTimer = null, musicStep = 0, nextNote = 0;
   var getWorld = function () { return 0; };
   try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) {}
 
@@ -12,7 +12,13 @@ var DTWAudio = (function () {
     if (worldFn) getWorld = worldFn;
     if (AC) { if (AC.state !== 'running') AC.resume(); return; }
     try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
-    master = AC.createGain(); master.gain.value = muted ? 0 : 0.5; master.connect(AC.destination);
+    master = AC.createGain(); master.gain.value = muted ? 0 : 0.5;
+    // limiter so many overlapping effects never clip
+    limiter = AC.createDynamicsCompressor(); limiter.threshold.value = -14; limiter.knee.value = 10; limiter.ratio.value = 12;
+    limiter.attack.value = 0.003; limiter.release.value = 0.2; master.connect(limiter); limiter.connect(AC.destination);
+    // one shared second of white noise; every noise effect plays a slice of it
+    var nn = AC.sampleRate | 0; shared = AC.createBuffer(1, nn, AC.sampleRate);
+    var sd = shared.getChannelData(0); for (var i = 0; i < nn; i++) sd[i] = Math.random() * 2 - 1;
     musicTimer = setInterval(scheduleMusic, 50);
     // Browsers keep a context created outside a real activation (a pointerdown, a ?nosplash=1 load) suspended, so
     // retry on every later gesture until it runs.
@@ -26,17 +32,17 @@ var DTWAudio = (function () {
   function tone(freq, dur, type, vol, when, slide, dest) {
     if (!AC) return; var t0 = when || AC.currentTime;
     var o = AC.createOscillator(), g = AC.createGain();
-    o.type = type || 'square'; o.frequency.setValueAtTime(freq, t0);
+    freq *= pm; o.type = type || 'square'; o.frequency.setValueAtTime(freq, t0);
     if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq * slide), t0 + dur);
     g.gain.setValueAtTime(vol || 0.15, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
     o.connect(g); g.connect(dest || master); o.start(t0); o.stop(t0 + dur + 0.02);
   }
   function noise(dur, vol, freq) {
-    if (!AC) return; var n = AC.sampleRate * dur, b = AC.createBuffer(1, n, AC.sampleRate), d = b.getChannelData(0);
-    for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+    if (!AC) return; var t0 = AC.currentTime;
     var src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
-    src.buffer = b; f.type = 'lowpass'; f.frequency.value = freq || 800; g.gain.value = vol || 0.2;
-    src.connect(f); f.connect(g); g.connect(master); src.start();
+    src.buffer = shared; src.loop = true; f.type = 'lowpass'; f.frequency.value = freq || 800;
+    g.gain.setValueAtTime(vol || 0.2, t0); g.gain.linearRampToValueAtTime(0, t0 + dur);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t0, Math.random() * 0.7); src.stop(t0 + dur + 0.02);
   }
   var SFX = {
     tap: function () { noise(0.05, 0.08, 1200); tone(140, 0.05, 'square', 0.05); },
@@ -74,11 +80,22 @@ var DTWAudio = (function () {
     pad0: function () { tone(523, 0.3, 'triangle', 0.14); }, pad1: function () { tone(659, 0.3, 'triangle', 0.14); },
     pad2: function () { tone(784, 0.3, 'triangle', 0.14); }, pad3: function () { tone(1047, 0.3, 'triangle', 0.14); }
   };
-  function sfx(n) { if (AC && !muted && SFX[n]) SFX[n](); }
+  // Repeats inside GAP[n] seconds are dropped; PITCH names the effects that get a slight random pitch each time.
+  var GAP = { brk: 0.045, tap: 0.045, coin: 0.045, ding: 0.045, step: 0.045, click: 0.045, crack: 0.045 }, lastSfx = {};
+  var PITCH = { brk: 1, tap: 1, step: 1 };
+  function sfx(n) {
+    if (!AC || muted || !SFX[n]) return;
+    var now = AC.currentTime;
+    if (GAP[n] && now - (lastSfx[n] || -1) < GAP[n]) return;
+    lastSfx[n] = now;
+    if (PITCH[n]) pm = 1 + (Math.random() * 2 - 1) * 0.06;
+    try { SFX[n](); } finally { pm = 1; }
+  }
   // Two moods of music. Overworld: one bright major tune shared by all worlds, keyed by the world's root and wave.
   // Mine: the world's own darker tune, lower, with echo that grows with depth. Each mood has its own bus; a mood
   // switch crossfades the buses (about 1 s) and only the active mood schedules notes.
   var tunes = {}, buses = null, mineDelay = null, mineWet = null, mineLp = null, noiseBuf = null;
+  var amb = null, ambDrip = null, ambWind = null, ambWindLp = null, ambHum = null, ambDrone = null, nextAmb = 0, ambKey = '';
   var curMood = '', curDepth = 0, MAJOR = [0, 2, 4, 5, 7, 9, 11];
   var OVER_MEL = [4, -1, 2, 4, 7, -1, 4, 2,   6, -1, 4, 1, 4, -1, 6, 8,   7, -1, 5, 7, 9, -1, 7, 5,   5, -1, 3, 5, 4, 2, 1, 0];
   var OVER_CHORD = [0, 7, 9, 5];
@@ -106,6 +123,58 @@ var DTWAudio = (function () {
     buses = { over: over, mine: mine };
     var n = Math.floor(AC.sampleRate * 0.06); noiseBuf = AC.createBuffer(1, n, AC.sampleRate);
     var d = noiseBuf.getChannelData(0); for (var i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+  }
+  // Ambience: its own bus into master (before the limiter), well under the music. Beds run all the time and are
+  // faded by gain; the one-off events (birds, drips, swells) are scheduled only for the active mood.
+  function pair(f1, f2, dest) {
+    var g = AC.createGain(); g.gain.value = 0; g.connect(dest);
+    [f1, f2].forEach(function (f) { var o = AC.createOscillator(), h = AC.createGain(); o.type = 'sine'; o.frequency.value = f; h.gain.value = 0.5; o.connect(h); h.connect(g); o.start(); });
+    return g;
+  }
+  function makeAmbience() {
+    amb = AC.createGain(); amb.gain.value = 1; amb.connect(master);
+    var nn = AC.sampleRate * 4 | 0, wb = AC.createBuffer(1, nn, AC.sampleRate), d = wb.getChannelData(0);
+    for (var i = 0; i < nn; i++) d[i] = Math.random() * 2 - 1;
+    var src = AC.createBufferSource(); src.buffer = wb; src.loop = true;
+    ambWindLp = AC.createBiquadFilter(); ambWindLp.type = 'lowpass'; ambWindLp.frequency.value = 450;
+    ambWind = AC.createGain(); ambWind.gain.value = 0; src.connect(ambWindLp); ambWindLp.connect(ambWind); ambWind.connect(amb); src.start();
+    var lfo = AC.createOscillator(), lg = AC.createGain(); lfo.frequency.value = 0.11; lg.gain.value = 180; lfo.connect(lg); lg.connect(ambWindLp.frequency); lfo.start();
+    ambHum = pair(62, 62.7, amb); ambDrone = pair(55, 55.5, amb);
+    ambDrip = AC.createGain(); ambDrip.gain.value = 1; ambDrip.connect(amb); ambDrip.connect(mineDelay);
+  }
+  function swell(t, dur, peak) {
+    var src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+    src.buffer = shared; src.loop = true; f.type = 'lowpass'; f.frequency.value = 500;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + dur * 0.5); g.gain.linearRampToValueAtTime(0, t + dur);
+    src.connect(f); f.connect(g); g.connect(amb); src.start(t, Math.random() * 0.5); src.stop(t + dur + 0.02);
+  }
+  function rnd(a, b) { return a + Math.random() * (b - a); }
+  function scheduleAmbience(st, now) {
+    if (!amb) makeAmbience();
+    var id = D.WORLDS[st.world].id, over = st.mood === 'over', moon = id === 'moon', key = st.mood + st.world;
+    if (ambKey !== key) {
+      ambKey = key; nextAmb = now + rnd(1, 3);
+      ambWind.gain.setTargetAtTime(over && !moon ? 0.05 : 0, now, 0.3);
+      ambHum.gain.setTargetAtTime(over && moon ? 0.02 : 0, now, 0.3);
+      ambDrone.gain.setTargetAtTime(over ? 0 : 0.03, now, 0.3);
+    }
+    if (now < nextAmb) return;
+    var t = now + 0.05, i, n;
+    if (over) {
+      if (moon) { nextAmb = now + 20; return; }
+      if (id === 'ocean') { swell(t, rnd(3, 5), 0.04); nextAmb = now + rnd(5, 8); return; }
+      if (id === 'alien') {
+        n = 2 + Math.floor(Math.random() * 3);
+        for (i = 0; i < n; i++) tone(rnd(500, 1100), 0.12, 'sine', 0.04, t + i * 0.13, i % 2 ? 0.6 : 1.6, amb);
+        nextAmb = now + rnd(3, 9); return;
+      }
+      var base = rnd(2000, 3400); n = 2 + Math.floor(Math.random() * 3);
+      for (i = 0; i < n; i++) tone(base * rnd(0.9, 1.15), 0.08, i % 2 ? 'triangle' : 'sine', 0.04, t + i * 0.11, i % 2 ? 0.75 : 1.3, amb);
+      nextAmb = now + rnd(3, 9); return;
+    }
+    tone(rnd(1500, 3000), 0.12, 'sine', 0.04, t, 0.5, ambDrip);
+    if (id === 'ocean' && Math.random() < 0.5) tone(rnd(300, 500), 0.2, 'sine', 0.025, t + 0.4, 3, amb);
+    nextAmb = now + rnd(2, 6) * (1 - 0.5 * st.depth);
   }
   function tick(when, vol, freq, dest) {
     var src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
@@ -141,6 +210,7 @@ var DTWAudio = (function () {
       mineDelay.delayTime.setTargetAtTime(Math.min(1.9, 60 / m.tempo * 0.75), now, 0.05);
     }
     curDepth = st.depth;
+    scheduleAmbience(st, now);
     mineWet.gain.setTargetAtTime(0.15 + 0.5 * st.depth, now, 0.5);
     mineLp.frequency.setTargetAtTime(2600 - 1500 * st.depth, now, 0.5);
     var tempo = st.mood === 'over' ? 120 + (m.tempo - 100) / 4 : m.tempo * 0.8, stepDur = 60 / tempo / 2, dest = buses[st.mood];

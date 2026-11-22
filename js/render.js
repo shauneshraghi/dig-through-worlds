@@ -23,7 +23,8 @@ var DTWRender = (function () {
 
   // ---------- helpers ----------
   function shade(hex, amt) {
-    var c = parseInt(hex.slice(1), 16), r = c >> 16, g = c >> 8 & 255, b = c & 255;
+    var m = hex.charAt(0) === 'r' && hex.match(/\d+/g); // also takes its own rgb() output
+    var c = m ? (+m[0] << 16) | (+m[1] << 8) | +m[2] : parseInt(hex.slice(1, 7), 16), r = c >> 16, g = c >> 8 & 255, b = c & 255;
     function f(v) { return Math.max(0, Math.min(255, Math.round(amt < 0 ? v * (1 + amt) : v + (255 - v) * amt))); }
     return 'rgb(' + f(r) + ',' + f(g) + ',' + f(b) + ')';
   }
@@ -76,13 +77,23 @@ var DTWRender = (function () {
     var W = D.WORLDS[w], P_ = W.pal, t = {}, r = prng(w * 99 + 7), id = W.id;
     for (var L = 0; L < 3; L++) (function (L) {
       t['dirt' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 40); if (id === 'moon') for (var i = 0; i < 2; i++) { var x = r() * 12 | 0, y = r() * 12 | 0; px(c, x, y, shade(P_.dirt[L], -0.25), 3, 1); px(c, x, y + 1, shade(P_.dirt[L], 0.15), 3, 1); } });
-      t['stone' + L] = mk(function (c) { noiseFill(c, shade(P_.stone, -0.1 * L), r, 30); px(c, 2, 4, shade(P_.stone, 0.25), 5, 1); px(c, 9, 10, shade(P_.stone, 0.25), 4, 1); px(c, 3, 12, shade(P_.stone, -0.35), 6, 1); });
+      t['stone' + L] = mk(function (c) { noiseFill(c, shade(P_.stone, -0.1 * L), r, 30); px(c, 2, 4, shade(P_.stone, 0.25), 5, 1); px(c, 9, 10, shade(P_.stone, 0.25), 4, 1); px(c, 3, 12, shade(P_.stone, -0.35), 6, 1);
+        for (var i = 0; i < 7; i++) { var x = r() * 15 | 0, y = r() * 15 | 0; px(c, x, y, shade(P_.stone, -0.32 - 0.08 * L), 2, 1); px(c, x, y + 1, shade(P_.stone, -0.15), 1, 1); px(c, r() * 16 | 0, r() * 16 | 0, shade(P_.stone, 0.3)); } });
       for (var k = 0; k < 6; k++) (function (k) { t['ore' + L + '_' + k] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); gem(c, W.ores[k].color, r, 2 + (k > 2 ? 1 : 0)); }); })(k);
       t['fossil' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); if (id === 'moon') { px(c, 4, 4, '#cfd8dc', 8, 8); px(c, 5, 5, '#78909c', 6, 6); px(c, 7, 2, '#cfd8dc', 2, 12); px(c, 2, 7, '#cfd8dc', 12, 2); px(c, 7, 7, '#ffd23f', 2, 2); } else bone(c); px(c, 0, 0, '#ffe9a8'); px(c, 15, 15, '#ffe9a8'); });
       t['fossilG' + L] = mk(function (c) { noiseFill(c, P_.dirt[L], r, 30); boneG(c); px(c, 0, 0, '#fff3b0'); px(c, 15, 15, '#fff3b0'); px(c, 1, 0, '#ffd23f'); px(c, 15, 14, '#ffd23f'); });
       t['goo' + L] = mk(function (c) { noiseFill(c, '#3fbf5a', r, 30); px(c, 0, 0, '#9dff8a', 16, 2); px(c, 3, 2, '#9dff8a', 2, 3); px(c, 10, 2, '#9dff8a', 2, 5); px(c, 5, 7, '#cfffc4', 2, 2); px(c, 11, 11, '#1f7a33', 3, 2); });
     })(L);
-    t.grass = mk(function (c) { noiseFill(c, P_.top, r, 50); for (var i = 0; i < 10; i++) px(c, r() * 16 | 0, r() * 16 | 0, shade(P_.top, 0.25)); });
+    [[0, 0], [-0.07, 0.02], [0.05, -0.03], [-0.03, 0.06]].forEach(function (v, k) { // plaza grass, four tints so the lawn reads as one field
+      var tc = rgb3(P_.top), ol = id === 'forest' || id === 'jungle' ? 0.3 : 0; // forest lawns lean olive, less lime
+      var base = shade('rgb(' + [0.43, 0.49, 0.17].map(function (o, j) { return Math.round(255 * (tc[j] * (1 - ol) + o * ol)); }).join(',') + ')', v[0]);
+      t['grass' + k] = mk(function (c) {
+        noiseFill(c, base, r, 46);
+        for (var i = 0; i < 5; i++) { var x = r() * 14 | 0, y = r() * 14 | 0; px(c, x, y, shade(base, -0.16), 3, 2); px(c, x + 1, y + 2, shade(base, -0.1), 2, 1); }
+        for (var j = 0; j < 9; j++) { var bx = r() * 16 | 0, by = 1 + r() * 15 | 0; px(c, bx, by, shade(base, 0.22 + v[1])); px(c, bx, by - 1, shade(base, 0.34)); }
+        if (k === 3) { px(c, r() * 15 | 0, r() * 15 | 0, '#e8d88a'); px(c, r() * 15 | 0, r() * 15 | 0, '#c9e07a'); }
+      });
+    });
     t.root = mk(function (c) { noiseFill(c, '#4a2f17', r, 20); for (var x = 0; x < 16; x++) { var y = 7 + Math.round(Math.sin(x * 0.8) * 2); px(c, x, y - 2, '#7a4f2a', 1, 5); px(c, x, y - 2, '#9a6a3a'); } });
     t.trap = mk(function (c) { // a pale cracked slab with glowing red cracks and a faint warning diamond, unlike plain dirt or stone
       noiseFill(c, '#9a927a', r, 14); px(c, 1, 1, '#6a6450', 14, 1); px(c, 1, 14, '#6a6450', 14, 1);
@@ -126,7 +137,7 @@ var DTWRender = (function () {
     });
     t.stoneRim = mk(function (c) { noiseFill(c, shade(P_.stone, 0.1), r, 30); px(c, 0, 15, shade(P_.stone, -0.3), 16, 1); px(c, 15, 0, shade(P_.stone, -0.3), 1, 16); });
     Object.keys(t).forEach(function (k) {
-      if (k === 'grass' || k === 'stoneRim') return;
+      if (k.indexOf('grass') === 0 || k === 'stoneRim') return;
       var c = t[k].getContext('2d');
       px(c, 0, 0, 'rgba(255,255,255,0.13)', 16, 1); px(c, 0, 1, 'rgba(255,255,255,0.07)', 1, 15);
       px(c, 0, 15, 'rgba(0,0,0,0.22)', 16, 1); px(c, 15, 0, 'rgba(0,0,0,0.14)', 1, 15);
@@ -173,9 +184,11 @@ var DTWRender = (function () {
     face(g, tt, hw / 16, hh / 16, -hw / 16, hh / 16, hw, 0, [hw, 0, TW, hh, hw, 2 * hh, 0, hh], 0);
     face(g, st, hw / 16, hh / 16, 0, bh / 16, 0, hh, [0, hh, hw, 2 * hh, hw, 2 * hh + bh, 0, hh + bh], 0.22);
     face(g, st, hw / 16, -hh / 16, 0, bh / 16, hw, 2 * hh, [hw, 2 * hh, TW, hh, TW, hh + bh, hw, 2 * hh + bh], 0.42);
-    g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 1;
-    g.beginPath(); g.moveTo(0.5, hh); g.lineTo(hw, 2 * hh - 0.5); g.lineTo(TW - 0.5, hh); g.stroke();
-    g.strokeStyle = 'rgba(0,0,0,0.25)'; hexPath(g, 0, 0); g.stroke();
+    if (top.indexOf('grass') !== 0) {
+      g.strokeStyle = 'rgba(255,255,255,0.18)'; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(0.5, hh); g.lineTo(hw, 2 * hh - 0.5); g.lineTo(TW - 0.5, hh); g.stroke();
+      g.strokeStyle = 'rgba(0,0,0,0.25)'; hexPath(g, 0, 0); g.stroke();
+    }
     return (cubes[key] = c);
   }
   // A cell of a big fossil: a plain cube with its slice of the museum piece set into the top face, and into the
@@ -500,7 +513,7 @@ var DTWRender = (function () {
     if (c === 'M') return (x + z) & 1 ? 'floor1' : 'floor0';
     if (c === '=' || PADS[c]) return 'path';
     if (c && FLOOR_CH.indexOf(c) >= 0) return (x + z) & 1 ? 'floor1' : 'floor0';
-    return 'grass';
+    return 'grass' + Math.min(3, Math.floor(hash2(x * 3 + 1, z * 5 - 2) * 4));
   }
   function hash2(x, z) { return (((x + 40) * 7349 ^ (z + 40) * 9157) * 2654435761 >>> 0) / 4294967296; }
   var HUB_BLOCKS = null;
@@ -586,11 +599,66 @@ var DTWRender = (function () {
     }
   }
   function blob(x, z, rx, a) { var q = P(x, 1, z); ctx.fillStyle = 'rgba(0,0,0,' + a + ')'; ctx.beginPath(); ctx.ellipse(q[0] + hw * 0.25, q[1] + hh * 0.15, hw * rx, hh * rx, 0, 0, 7); ctx.fill(); }
+  // Pixel-art trees: a round canopy of clustered leaf blobs lit from the upper left, with a dark outline,
+  // drawn once per kind and variant on a 26×34 grid and scaled up without smoothing.
+  var TREE_PAL = {
+    forest: { out: '#142a17', c: ['#1f4a26', '#336f30', '#4f9438', '#86bf4c', '#c2df74'], bark: ['#3a2414', '#5e3d23', '#7d5634'], trunk: 6 },
+    jungle: { out: '#0b2216', c: ['#164a2c', '#22703a', '#36984a', '#62c058', '#a8e47e'], bark: ['#33230f', '#5a4020', '#7a5a2e'], trunk: 10 }
+  };
+  var treeArt = {};
+  function treeSprite(kind, v) {
+    var key = kind + v;
+    if (treeArt[key]) return treeArt[key];
+    var Pt = TREE_PAL[kind], W = 26, H = 34, r = prng(v * 131 + kind.length * 7), c = document.createElement('canvas');
+    c.width = W; c.height = H; var g = c.getContext('2d');
+    var cy = 30 - Pt.trunk - 7, blobs = [[13, cy, 7.5]];
+    for (var b = 0; b < 6; b++) { var a = r() * 6.28, d = 2.5 + r() * 3.5; blobs.push([13 + Math.cos(a) * d * 1.15, cy + Math.sin(a) * d * 0.8 - 1, 3.6 + r() * 2.6]); }
+    // trunk: dark right side, lit left edge, a flared foot
+    g.fillStyle = Pt.bark[1]; g.fillRect(11, cy + 3, 4, 31 - cy - 3);
+    g.fillStyle = Pt.bark[0]; g.fillRect(14, cy + 3, 1, 31 - cy - 3); g.fillRect(9, 30, 8, 1);
+    g.fillStyle = Pt.bark[2]; g.fillRect(11, cy + 5, 1, 31 - cy - 7); g.fillRect(10, 29, 2, 1); g.fillRect(14, 29, 2, 1);
+    var inside = [], shadeOf = [];
+    for (var y = 0; y < H; y++) for (var x = 0; x < W; x++) {
+      var best = -1, lit = 0;
+      blobs.forEach(function (bl) { var dx = x + 0.5 - bl[0], dy = y + 0.5 - bl[1], m = bl[2] - Math.hypot(dx, dy); if (m > 0 && m > best - 1.2) { if (m > best) best = m; lit = Math.max(lit, (-dx * 0.6 - dy * 0.8) / bl[2] + 0.25 * (bl[1] < cy ? 1 : 0)); } });
+      inside[y * W + x] = best > 0; shadeOf[y * W + x] = lit;
+    }
+    for (var y2 = 0; y2 < H; y2++) for (var x2 = 0; x2 < W; x2++) {
+      var i = y2 * W + x2;
+      if (inside[i]) {
+        var l = shadeOf[i] + (r() - 0.5) * 0.35, k = l > 0.75 ? 4 : l > 0.4 ? 3 : l > 0.02 ? 2 : l > -0.4 ? 1 : 0;
+        if (r() < 0.14 && k > 0) k--; // leaf texture
+        g.fillStyle = Pt.c[k]; g.fillRect(x2, y2, 1, 1);
+      } else if ((x2 > 0 && inside[i - 1]) || (x2 < W - 1 && inside[i + 1]) || (y2 > 0 && inside[i - W]) || (y2 < H - 1 && inside[i + W])) {
+        if (!(y2 > cy + 2 && x2 >= 11 && x2 <= 14)) { g.fillStyle = Pt.out; g.fillRect(x2, y2, 1, 1); }
+      }
+    }
+    return (treeArt[key] = c);
+  }
+  // near leaves framing the bottom corners of the plaza view, dark and out of focus, as in a diorama shot
+  var shadeArt = {};
+  function nearLeaves(id) {
+    var kind = id === 'jungle' ? 'jungle' : id === 'forest' ? 'forest' : null; if (!kind) return;
+    var key = kind, spr = shadeArt[key];
+    if (!spr) {
+      var src = treeSprite(kind, 2); spr = shadeArt[key] = document.createElement('canvas'); spr.width = src.width; spr.height = src.height;
+      var g = spr.getContext('2d'); g.drawImage(src, 0, 0); g.globalCompositeOperation = 'source-atop'; g.fillStyle = 'rgba(10,16,6,0.74)'; g.fillRect(0, 0, src.width, src.height);
+    }
+    var wd = Math.max(TW * 3.6, vw * 0.24), ht = wd * 34 / 26;
+    ctx.imageSmoothingEnabled = false;
+    [[-0.42, 0.2, 1], [0.42, 0.28, -1]].forEach(function (f) {
+      var x = f[0] < 0 ? -wd * 0.45 : vw - wd * 0.55, y = vh - ht * f[1] - ht * 0.32 + Math.sin(time * 0.7 + f[2]) * TW * 0.03;
+      ctx.save(); ctx.translate(x + wd / 2, 0); ctx.scale(f[2], 1); ctx.drawImage(spr, -wd / 2, y, wd, ht); ctx.restore();
+    });
+  }
+  function pixTree(kind, x, z, s, k) {
+    var q = P(x + 0.5, 1, z + 0.5), spr = treeSprite(kind, k % 4), wd = TW * 1.25 * s, ht = wd * 34 / 26;
+    var sway = Math.sin(time * 0.9 + k) * TW * 0.012 * s;
+    ctx.drawImage(spr, Math.round(q[0] - wd / 2 + sway), Math.round(q[1] - ht * 31 / 34), Math.round(wd), Math.round(ht));
+  }
   function tree(x, z, s, k) {
-    blob(x + 0.5, z + 0.5, 0.95 * s, 0.22);
-    box(x + 0.35, z + 0.35, 0.3, 0.3, 1, 0.9 * s, '#6b4226');
-    box(x + 0.05, z + 0.05, 0.9, 0.9, 1 - 0.8 * s, 0.7 * s, k % 2 ? '#2e7d32' : '#388e3c');
-    box(x + 0.2, z + 0.2, 0.6, 0.6, 1 - 1.5 * s, 0.45 * s, '#43a047');
+    blob(x + 0.5, z + 0.5, 0.95 * s, 0.26);
+    pixTree('forest', x, z, s, k);
   }
   // one tree, kelp, palm, rock or spire per 't' cell, varied by position
   function worldProp(id, x, z) {
@@ -601,10 +669,8 @@ var DTWRender = (function () {
       if (i % 3) for (var sg = 0; sg < 5; sg++) { var sw = Math.sin(time * 2 + sg * 0.6 + i) * 0.06 * sg; box(x + 0.4 + sw, z + 0.4, 0.18, 0.18, 1 - sg * 0.35 * s, 0.36 * s, i % 2 ? '#2e8b57' : '#3cb371'); }
       else { box(x + 0.2, z + 0.2, 0.6, 0.6, 1, 0.35, '#ff6f8a'); box(x + 0.35, z + 0.35, 0.3, 0.3, 0.65, 0.3, '#ff9fb0'); }
     } else if (id === 'jungle') {
-      blob(x + 0.5, z + 0.5, 0.8, 0.2);
-      box(x + 0.4, z + 0.4, 0.2, 0.2, 1, 1.4 * s, '#6b4a2b');
-      box(x - 0.15, z - 0.15, 1.3, 1.3, 1 - 1.4 * s, 0.3, i % 2 ? '#1f6e33' : '#2e8f3e');
-      box(x + 0.15, z + 0.15, 0.7, 0.7, 1 - 1.7 * s, 0.25, '#3aa34a');
+      blob(x + 0.5, z + 0.5, 0.9, 0.24);
+      pixTree('jungle', x, z, s * 1.1, i);
     } else if (id === 'moon') {
       box(x + 0.15, z + 0.25, 0.5 + 0.2 * h, 0.45, 1, 0.25 + 0.2 * h, '#a8a8b4');
     } else {
@@ -1249,7 +1315,7 @@ var DTWRender = (function () {
           if (!pit && y > 1) side = 'dirt' + layerOf(y);
           var hc = y === 1 && !pit ? D.hubCell(x, z) : '';
           var top = y === 1 && (tt === T.DIRT || !pit) ? groundTex(hc, x, z) : tt === T.CHEST ? (g.v[i] === 1 ? 'chestTopR' : 'chestTop') : side;
-          spr = cube(w, top, side === 'grass' ? 'dirt0' : side);
+          spr = cube(w, top, side.indexOf('grass') === 0 ? 'dirt0' : side);
           if (pit && tt === T.FOSSIL) { var fo = D.fossilAt(g, i); if (fo.w * fo.d > 1) spr = bigFossil(w, y, fo); }
           var gh = pit && y === viewTop && S.mode !== 'surface' && ghost[x + ',' + z];
           if (gh) ctx.globalAlpha = 0.32;
@@ -1274,7 +1340,7 @@ var DTWRender = (function () {
         if (surfaceView) hubPeople(S, items);
         if (viewTop === 0 && !minerDrawn) items.push(feet(disp.x + 0.5, disp.z + 0.5, drawMinerNow));
         depthSort(items).forEach(function (it) { it.fn(); });
-        if (surfaceView) shafts(id);
+        if (surfaceView) { shafts(id); nearLeaves(id); }
       }
     }
     var split = minerLayer >= 1 && minerLayer <= yBot;
@@ -1372,12 +1438,12 @@ var DTWRender = (function () {
     tagText(pq[0], pq[1] + sz * 0.6, t2, sz * 0.85, '#b9a9d6', null);
   }
   // ---------- HD-2D extras ----------
-  var GRADE = { // ambient tint, shadow tint, highlight tint per world
-    forest: { amb: [1.0, 0.97, 0.9], sh: [0.9, 0.95, 1.1], hi: [1.06, 1.01, 0.9] },
-    ocean: { lamp: 0.6, amb: [0.72, 0.86, 1.0], sh: [0.85, 0.97, 1.12], hi: [0.98, 1.04, 1.04] },
-    jungle: { amb: [1.06, 0.98, 0.84], sh: [0.92, 0.96, 1.0], hi: [1.1, 1.0, 0.84] },
-    moon: { lamp: 0.75, amb: [0.72, 0.76, 0.92], sh: [0.88, 0.92, 1.15], hi: [1.02, 1.01, 1.0] },
-    alien: { amb: [0.92, 1.0, 0.94], sh: [1.0, 0.88, 1.12], hi: [0.98, 1.06, 0.96] }
+  var GRADE = { // ambient tint, shadow tint, highlight tint per world; sun: how golden the plaza is, dapple: leaf shade on it
+    forest: { amb: [1.0, 0.97, 0.9], sh: [0.9, 0.95, 1.1], hi: [1.06, 1.01, 0.9], sun: 1, dapple: 1 },
+    ocean: { lamp: 0.6, amb: [0.72, 0.86, 1.0], sh: [0.85, 0.97, 1.12], hi: [0.98, 1.04, 1.04], sun: 0.45, dapple: 0.5 },
+    jungle: { amb: [1.06, 0.98, 0.84], sh: [0.92, 0.96, 1.0], hi: [1.1, 1.0, 0.84], sun: 1, dapple: 1.1 },
+    moon: { lamp: 0.75, amb: [0.72, 0.76, 0.92], sh: [0.88, 0.92, 1.15], hi: [1.02, 1.01, 1.0], sun: 0, dapple: 0 },
+    alien: { amb: [0.92, 1.0, 0.94], sh: [1.0, 0.88, 1.12], hi: [0.98, 1.06, 0.96], sun: 0.4, dapple: 0.6 }
   };
   function lamp(S, viewTop) {
     var lx = lastMiner[0], ly = lastMiner[1] - TW * 0.45, G = GRADE[D.WORLDS[S.world].id] || {};
@@ -1401,12 +1467,20 @@ var DTWRender = (function () {
     var id = D.WORLDS[w].id, G = GRADE[id] || GRADE.forest, r = S.run;
     var depthF = S.mode === 'surface' ? 0 : Math.min(1, Math.max(0, disp.y) / 30);
     var a = 1 - 0.74 * depthF, amb = [G.amb[0] * a, G.amb[1] * a, G.amb[2] * a];
+    var sun = surfaceView ? G.sun || 0 : 0, sh = G.sh, hi = G.hi;
+    if (sun > 0) { // the plaza at golden hour: a dimmer, warmer ambient and a pool of sun around the miner
+      var ka = 1 - 0.3 * sun;
+      amb = [amb[0] * ka, amb[1] * ka * 0.97, amb[2] * ka * 0.9];
+      sh = [sh[0] * (1 - 0.06 * sun), sh[1] * (1 - 0.09 * sun), sh[2] * (1 - 0.14 * sun)];
+      hi = [hi[0] * (1 + 0.04 * sun), hi[1], hi[2] * (1 - 0.06 * sun)];
+      if (lastMiner) light(lastMiner[0], lastMiner[1] - TW * 0.6, TW * 8, 0.42 * sun, [1.0, 0.84, 0.58]);
+    }
     var focus;
     if (S.mode === 'dig') { // keep the whole working layer and the miner sharp
       var top = P(0, viewTop, 0)[1] - TW * 1.1, bot = P(N, viewTop + 1, N)[1] + TW * 0.2;
       focus = [top, bot, TW * 2.8, 1];
     } else if (surfaceView && lastMiner) {
-      focus = [lastMiner[1] - TW * 4, lastMiner[1] + TW * 2.2, TW * 4, 1];
+      focus = [lastMiner[1] - TW * 3, lastMiner[1] + TW * 1.6, TW * 3.2, 1];
     } else if (lastMiner) focus = [lastMiner[1] - TW * 2, lastMiner[1] + TW, TW * 3, 1];
     else focus = [0, vh, 1, 0];
     // brightest lights first, nearest the miner
@@ -1418,8 +1492,8 @@ var DTWRender = (function () {
       lights: lights, amb: amb, focus: focus, time: time,
       scale: Math.max(0.6, Math.min(3, TW / 80)),
       // underground only the emissive layer blooms
-      bloom: 0.9, thr: surfaceView ? 0.93 : 9, sat: 1.14, vig: surfaceView ? 0.3 : 0.42,
-      caustic: id === 'ocean' ? 0.22 : 0, shadowTint: G.sh, hiTint: G.hi
+      bloom: 0.9, thr: surfaceView ? 0.86 : 9, sat: surfaceView ? 1.1 - 0.16 * sun : 1.14, vig: surfaceView ? 0.3 + 0.4 * sun : 0.42,
+      caustic: id === 'ocean' ? 0.22 : 0, dapple: surfaceView ? G.dapple || 0 : 0, shadowTint: sh, hiTint: hi
     });
   }
   // small pixel details on surface tiles: flowers, blades, shells, craters, glowing spots
@@ -1484,7 +1558,7 @@ var DTWRender = (function () {
       var m = MOTES[i], x = ((m[0] * vw + Math.sin(time * 0.4 * m[2] + m[3]) * TW * 0.8) % vw + vw) % vw;
       var y = ((m[1] * vh - time * TW * 0.12 * m[2]) % vh + vh) % vh, a = 0.35 + 0.35 * Math.sin(time * 1.5 + m[3]);
       ctx.fillStyle = rgba(col, a); ctx.fillRect(x, y, u, u);
-      if (i % 3 === 0) glow(x, y, TW * 0.12, col, a * 0.6);
+      if (i % 3 === 0) glow(x, y, TW * (viewTop <= 1 && i % 2 ? 0.22 : 0.12), col, a * (viewTop <= 1 ? 0.8 : 0.6));
     }
   }
   var lastMiner = null, lampAt = null;

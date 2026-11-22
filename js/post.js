@@ -25,7 +25,11 @@ var DTWPost = (function () {
     final: HEAD +
       'uniform sampler2D s, hb, qb, bl; uniform vec2 res; uniform float time;\n' +
       'uniform vec4 L[' + MAXL + ']; uniform vec3 LC[' + MAXL + ']; uniform int nL;\n' +
-      'uniform vec3 amb; uniform vec4 focus; uniform float bloomK, sat, vig, caustic;\n' +
+      'uniform vec3 amb; uniform vec4 focus; uniform float bloomK, sat, vig, caustic, dapple;\n' +
+      // smooth value noise for the dappled light under unseen leaves
+      'float h21(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }\n' +
+      'float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);\n' +
+      '  return mix(mix(h21(i), h21(i + vec2(1, 0)), f.x), mix(h21(i + vec2(0, 1)), h21(i + vec2(1, 1)), f.x), f.y); }\n' +
       'uniform vec3 shadowTint, hiTint;\n' +
       'vec3 knee(vec3 c) { vec3 e = max(c - 0.82, 0.0); return min(c, 0.82) + e / (1.0 + e / 0.18); }\n' +
       'void main() {\n' +
@@ -40,6 +44,9 @@ var DTWPost = (function () {
       '  for (int i = 0; i < ' + MAXL + '; i++) { if (i >= nL) break;\n' +
       '    float r = length((px - L[i].xy) * vec2(1.0, 1.35)) / L[i].z; float f = max(0.0, 1.0 - r * r); lit += LC[i] * (f * f * L[i].w); }\n' +
       '  c *= lit;\n' +
+      // dapple: slow drifting pools of sun and leaf shade, large patches with a finer edge
+      '  if (dapple > 0.0) { vec2 q = px / res.y * 3.2; float n = vn(q + vec2(time * 0.05, time * 0.02)) * 0.65 + vn(q * 2.7 - vec2(time * 0.04, 0.0)) * 0.35;\n' +
+      '    c *= 1.0 + dapple * (0.5 * smoothstep(0.52, 0.72, n) - 0.45 * (1.0 - smoothstep(0.3, 0.5, n))); }\n' +
       '  if (caustic > 0.0) { vec2 q = px / res.y * 9.0; float k = sin(q.x * 1.7 + time * 1.3 + sin(q.y * 1.3 + time)) * sin(q.y * 1.9 - time * 1.1 + sin(q.x * 0.9 - time * 0.7));\n' +
       '    c += c * caustic * smoothstep(0.55, 1.0, k); }\n' +
       '  c += texture(bl, uv).rgb * bloomK;\n' +
@@ -124,7 +131,7 @@ var DTWPost = (function () {
     } catch (e) { console.warn('HD-2D post-process off:', e.message); gl = null; return false; }
   }
   // p: { lights: [{x, y, r, i, c: [r, g, b]}], amb: [r, g, b], focus: [top, bottom, ramp, strength],
-  //      bloom, thr, sat, vig, caustic, shadowTint, hiTint, time }, all positions in canvas pixels
+  //      bloom, thr, sat, vig, caustic, dapple, shadowTint, hiTint, time }, all positions in canvas pixels
   function render(scene, emit, p) {
     sizeTo(scene.width, scene.height);
     var k = p.scale || 1; // blur radii follow the tile size, so the look holds at any pixel ratio
@@ -145,7 +152,7 @@ var DTWPost = (function () {
       gl.uniform2f(u.res, W, H); gl.uniform1f(u.time, p.time);
       gl.uniform4fv(u.L, Ls); gl.uniform3fv(u.LC, LC); gl.uniform1i(u.nL, n);
       gl.uniform3fv(u.amb, p.amb); gl.uniform4fv(u.focus, p.focus);
-      gl.uniform1f(u.bloomK, p.bloom); gl.uniform1f(u.sat, p.sat); gl.uniform1f(u.vig, p.vig); gl.uniform1f(u.caustic, p.caustic);
+      gl.uniform1f(u.bloomK, p.bloom); gl.uniform1f(u.sat, p.sat); gl.uniform1f(u.vig, p.vig); gl.uniform1f(u.caustic, p.caustic); gl.uniform1f(u.dapple, p.dapple || 0);
       gl.uniform3fv(u.shadowTint, p.shadowTint); gl.uniform3fv(u.hiTint, p.hiTint);
     });
   }
