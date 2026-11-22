@@ -185,7 +185,7 @@ var DTW = (function () {
     drill:  { name: 'Drill Power', base: 15, mult: 1.6,  max: 30, text: 'Hits harder' },
     speed:  { name: 'Dig Speed',   base: 8,  mult: 1.7,  max: 20, text: 'Digs faster on its own' },
     bag:    { name: 'Bag Size',    base: 12, mult: 1.6,  max: 20, text: 'Carry more before it gets heavy, and an extra bone every 6 levels' },
-    magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 3,  text: 'Pulls in finds from further away' }
+    magnet: { name: 'Magnet',      base: 60, mult: 4,    max: 4,  text: 'Pulls in finds from further away' }
   };
   var WORKERS = {
     diggers: { name: 'Helper Digger', base: 80, mult: 2.5, max: 6, text: 'Digs blocks next to you' },

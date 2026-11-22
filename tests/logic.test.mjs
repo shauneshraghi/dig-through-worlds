@@ -412,6 +412,8 @@ test('a better magnet pulls loot in from further away', () => {
   assert.equal(D.pickupReach(0), 0.75); assert.equal(D.pickupReach(3), 3.75);
   assert.equal(left(0), 1); assert.equal(left(1), 1); assert.equal(left(2), 1);
   assert.equal(left(3), 0, 'magnet 3 reaches the loot three cells away (3.75)');
+  assert.equal(D.UPGRADES.magnet.max, 4, 'four magnet levels');
+  assert.equal(left(4), 0); assert.equal(D.pickupReach(4), 4.75, 'magnet 4 reaches across most of the layer');
   const s = oreSetup({ magnet: 1 }); digEast(s);
   run(s, 1);
   assert.equal(s.run.loot.length, 0, 'magnet 1 pulls in the find from the next cell');
