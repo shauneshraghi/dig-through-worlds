@@ -803,6 +803,100 @@ var DTWSprites = (function () {
     c.restore();
   }
 
+  // ---------- plaza creatures: reward guests and ambient animals ----------
+  // Small letter-grid sprites facing right, outlined like the characters. A is the first idle frame; B replaces
+  // some rows of it (an object keyed by row) or gives the whole second frame (an array). render.js flips them,
+  // bobs them and sets the pace; nothing here is random.
+  var CRT = {
+    // ---- reward guests ----
+    fox: { P: { a: '#e8742a', d: '#b24d14', w: '#fff0dc', k: '#2a1a14', e: '#1e1426' },
+      A: ['         k  k  ', '        aaaaaa ', '        aadeaaa', '    a  aaawwwwk', '   aaaaaaaawww ', '  aaaaaaaaaaa  ', ' waaaaaaaaaaad ', 'wwaadaaaaaadd  ', ' w  aa    aa   ', '    kk    kk   '],
+      B: { 0: '        k  k   ', 3: '  a   aaawwwwk', 4: ' aaaaaaaaaawww ', 5: 'waaaaaaaaaaa   ', 6: 'wwaaaaaaaaaad  ', 7: ' waadaaaaaadd  ' } },
+    hedgehog: { P: { b: '#7a5a3c', s: '#4a3626', l: '#a08060', f: '#f0d8b8', e: '#1e1426', n: '#2a1a14' },
+      A: ['    s s s s     ', '  s s s s s s   ', ' s s s s s s s  ', ' sbsbsbsbsbs    ', 'sbsbsbsbsbsbs   ', 'sbsbsbsbsbsbfff ', 'sbsbsbsbsbffefn ', ' sbsbsbsbsfffff ', '  bbbbbbbbfff   ', '    ll   ll     '],
+      B: { 1: '  s s s s s s s ', 3: ' bsbsbsbsbsb    ', 6: 'sbsbsbsbsbffefn ' } },
+    frog: { P: { g: '#4fbf3a', d: '#2f8f2a', l: '#a8f08a', e: '#1e1426', w: '#ffffff', r: '#ff7a8a' },
+      A: ['  wew   wew     ', ' gggg   gggg    ', ' gggggggggggg   ', 'gggggggggggggg  ', 'gggeggggggeggg  ', 'gglllllllllllg  ', ' gglllllllllg   ', '  dgggggggggd   ', ' ddd         ddd'],
+      B: ['  wew   wew     ', ' gggg   gggg    ', ' gggggggggggg   ', 'gggggggggggggg  ', 'gggeggggggeggg  ', 'grrrrrrrrrrrg   ', ' gglllllllllg   ', '  dgggggggggd   ', ' dd           dd'] },
+    crab: { P: { r: '#e8503a', d: '#b02a1e', l: '#ff8a70', w: '#ffffff', e: '#1e1426' },
+      A: ['  rr        rr  ', ' rllr  ww  rllr ', ' rrrr  ee  rrrr ', '  rr  rrrr  rr  ', '   d rrllrr d   ', ' d  drrrrrrd  d ', '  d  rrrrrr  d  ', '   d d    d d   '],
+      B: ['                ', '  rr        rr  ', ' rllr  ww  rllr ', ' rrrr  ee  rrrr ', '  rr  rrrr  rr  ', '   d rrllrr d   ', ' d  drrrrrrd  d ', '  d   d  d  d   '] },
+    turtle: { P: { g: '#5fb86a', d: '#3a8a4a', s: '#8a6a3a', t: '#b08a50', h: '#d8b878', e: '#1e1426' },
+      A: ['     tttt       ', '   tthhhhtt     ', '  thhssssht  gg ', ' thsssttsssht ggg', ' tsstttttttst gge', ' tsssttttsssd ggg', '  dsssssssdd  dd ', '   dd gg  gg dd  ', '      dd  dd     '],
+      B: ['     tttt       ', '   tthhhhtt     ', '  thhssssht   gg', ' thsssttsssht ggg', ' tsstttttttst gge', ' tsssttttsssd ggg', '  dsssssssdd  dd ', '   dd gg  gg dd  ', '      dd  dd     '] },
+    monkey: { P: { b: '#8a5a32', d: '#5e3a1c', f: '#e8c090', e: '#1e1426', y: '#ffd23f', t: '#6e4624' },
+      A: ['   bb bb       ', '  bffbffb      ', '  bbbbbbb      ', '  bfeffefb     ', '   bfffffb     ', '    dbbbd      ', '   bbbbbbb  t  ', '  bbbbbbbbb t  ', '  bbbbbbbbb t  ', '  fb     bf tt ', '  dd     dd    '],
+      B: ['   bb bb       ', '  bffbffb      ', '  bbbbbbb      ', '  bfeffefb     ', '   bffyfb      ', '    dbbbd      ', ' b bbbbbbb  t  ', ' bbbbbbbbb  t  ', '  bbbbbbbbb t  ', '  fb     bf tt ', '  dd     dd    '] },
+    parrot: { P: { r: '#e8402a', b: '#2a7de8', y: '#ffd23f', k: '#2a1a14', w: '#ffffff', e: '#1e1426', o: '#ff9a2a' },
+      A: ['     rrrr      ', '    rrrrrr     ', '    rrwerr     ', '    rrrroo     ', '    rrrroo     ', '   rrrrrro     ', '  rrrbrrr      ', '  rrbbbrr      ', '  rbbyyrr      ', '   bbyybb      ', '    bbyb       ', '    bybb       ', '    kk kk      '],
+      B: { 2: '    rrwerr     ', 3: '    rrrrooo    ', 4: '    rrrrroo    ', 7: ' rrrbbbrr      ', 8: ' rrbbyyrr      ' } },
+    moonbot: { P: { s: '#d4dae8', d: '#8a94ac', k: '#4a5470', c: '#7df9ff', r: '#ff6a6a', e: '#1e1426', y: '#ffd23f' },
+      A: ['       r        ', '       k        ', '   ssssssss     ', '  sdccccccds    ', '  sdcecceds     ', '  sdccccccds    ', '   ssssssss     ', '  dssyyyyssd    ', ' kdsssyysssdk   ', '  dssssssssd    ', '   kk    kk     ', '  kkkk  kkkk    '],
+      B: { 0: '       y        ', 5: '  sdccccccds    ', 4: '  sdceecceds    ', 8: 'kkdsssyysssdkk  ' } },
+    glorpling: { P: { g: '#8aff7a', d: '#4ad04a', l: '#d8ffc8', e: '#1e1426', w: '#ffffff', p: '#ff7ef0' },
+      A: ['    p      p    ', '    gg    gg    ', '   gggggggggg   ', '  gggggggggggg  ', ' ggwwgggggwwggg ', ' ggweggggggwegg ', ' ggggggggggggg  ', ' gglllllllllggg  ', '  ggddddddddgg   ', '   dd  dd  dd    '],
+      B: ['   p        p   ', '    gg    gg    ', '   gggggggggg   ', '  gggggggggggg  ', ' ggwwgggggwwggg ', ' ggweggggggwegg ', ' ggggggggggggg  ', ' gglllddlllggg   ', '  ggddddddddgg   ', '    dd    dd     '] },
+    saucer: { P: { s: '#c8d0e0', d: '#8a94b0', g: '#7dffa0', c: '#bff7ff', l: '#ffd23f', y: '#ff7ef0' },
+      A: ['      cccc      ', '     cccccc     ', '    ccgccgcc    ', '   ssssssssss   ', ' ssdsdsdsdsdss  ', 'sssllyyllyysssd ', ' dddddddddddddd ', '   d  g  g  d   '],
+      B: { 5: 'sssyyllyyllsssd ' } },
+    traveller: { P: { h: '#e8a23a', H: '#a8681a', s: '#ffd9b3', e: '#1e1426', t: '#2e8f7a', T: '#1f6a58', p: '#7a5a3a', b: '#c0392b', B: '#8a2a1c', r: '#e8e0d0', l: '#3a4a6a', k: '#1c1c28' },
+      A: ['       hhhh     ', '      hhhhhh    ', '     HHHHHHHH   ', '       ssss     ', '       sess     ', '       ssss     ', '  rbbbbttttt    ', ' bbbbbbtttTt    ', ' bBbbbbtttTt    ', ' bBbbbbtttpt    ', ' bBbbbbllll     ', '  bBbb ll ll    ', '       kk  kk   '],
+      B: { 11: '  bBbb  ll ll   ', 12: '       kk   kk  ', 10: ' bBbbbllll      ' } },
+    star: { P: { y: '#ffe27a', Y: '#fff6c0', o: '#ffb02a', w: '#ffffff' },
+      A: ['       Y        ', '       Y        ', '      yyy       ', '      yYy       ', 'yyyyyyYYYyyyyyy ', ' yyyyyYwYyyyyy  ', '   yyyYwYyyy    ', '    yyyYyyy     ', '   yyyyyyyyy    ', '   yyy   yyy    ', '  oyy     yyo   '],
+      B: ['       Y        ', '      yYy       ', '      yyy       ', '  y   yYy   y   ', ' yyyyyyYYYyyyyy ', '  yyyyYwYyyyy   ', '   yyyYwYyyy    ', '    yyyYyyy     ', '   yyyyyyyyy    ', '   yyy   yyy    ', '  oyy     yyo   '] },
+    pot: { P: { k: '#2a2a32', d: '#14141a', g: '#ffd23f', G: '#fff3a0', o: '#c8921a', h: '#5a5a66', w: '#ffffff' },
+      A: ['   g G g g G    ', '  gGgggGgggGg   ', ' gggGgggggGggg  ', ' hkkkkkkkkkkkh  ', '  kkkkkkkkkkk   ', ' kkhkkkkkkkkkk  ', ' kkhhkkkkkkkkk  ', ' kkkkkkkkkkkkk  ', '  kkkkkkkkkkk   ', '   dd     dd    '],
+      B: { 0: '   g   g g G    ', 1: '  gggGgggGggg   ', 2: ' gGggGgggggGgg  ' } },
+    // ---- ambient animals ----
+    butterfly: { P: { a: '#ffb0d8', A: '#ff7ab8', b: '#4a2a3a' },
+      A: ['aa  b  aa', 'aAaabaaAa', ' aaabaaa ', '  aabaa  ', '   a a   '], B: ['   a a   ', '  aAbAa  ', '  aabaa  ', '   aba   '] },
+    morpho: { P: { a: '#4ab0ff', A: '#1a5aff', b: '#1e1426' }, like: 'butterfly' },
+    glowmoth: { P: { a: '#a8fff0', A: '#3affc8', b: '#2a4a5a' }, like: 'butterfly' },
+    rabbit: { P: { w: '#d8c4a0', d: '#b89c74', p: '#ffb0b8', e: '#1e1426', n: '#ff8aa0', t: '#ffffff' },
+      A: ['       ww   ', '       wp   ', '      wwp   ', '      www   ', '     wwwwe  ', '     wwwwwn ', '  wwwwwww   ', ' wwwwwwwww  ', ' wwwwwwdww  ', 'ttwwwwwwww  ', '  ww   ww   '],
+      B: { 0: '      ww    ', 1: '      wpw   ', 2: '      wwp   ' } },
+    owl: { P: { w: '#8a6a4a', b: '#6a4a32', y: '#ffd23f', e: '#1e1426', k: '#ff9a2a', f: '#d8c4a0' },
+      A: ['w  b    b  w', 'ww bbbbbb ww', 'wwbeykkyebww', 'wwwbbbbbbwww', ' wwbbffbbww ', '  bbffffbb  ', '   bbffbb   ', '    bbbb    ', '    k  k    '],
+      B: { 0: '   b    b   ', 1: '   bbbbbb   ', 3: 'wwwbbbbbbwww', 4: 'wwwbbffbbwww' } },
+    gull: { P: { w: '#f4f4f8', b: '#9aa6bc', k: '#ffb030' },
+      A: ['ww         ww', ' www  b  www ', '  wwwwbwwww  ', '     wbwk    ', '             '],
+      B: ['             ', '     wbw     ', ' wwwwwbwwwww ', 'ww  wwbwwk ww', 'w           w'] },
+    peep: { P: { b: '#b09a7a', w: '#f4efe4', e: '#1e1426', k: '#ff9a2a', l: '#e0944a' },
+      A: ['     bb  ', '    bbbe ', '  bbbbbbk', ' bbbbbbb ', ' wwwwww  ', '  wwww   ', '  l  l   '], B: { 6: '  l   l  ' } },
+    bird: { P: { y: '#3aa0ff', r: '#ff5a4a', k: '#ffb030', e: '#1e1426', t: '#ffd23f' },
+      A: ['  yy       ', ' yyyy      ', '  yyrrrrr  ', '   rrrrrrek', '    rrrr   ', ' ttt       '],
+      B: ['           ', '           ', '  rrrrrrr  ', 'tttrrrrrrek', '  yyyrrrr  ', '  yyy      '] },
+    bat: { P: { b: '#3a2f4a', r: '#ff5a5a' },
+      A: ['b         b', 'bb  b b  bb', 'bbbbbbbbbbb', ' b bbrbb b ', '    bbb    ', '     b     '],
+      B: ['    b b    ', '   bbbbb   ', ' bbbbrbbbb ', 'bb bbbbb bb', 'b  bbbbb  b', '    bbb    '] },
+    hopper: { P: { b: '#cfd8e8', a: '#8896b0', g: '#ff6a6a', e: '#1e1426', l: '#8896b0' },
+      A: ['g       g', ' a     a ', '  bbbbb  ', ' bbbbbbb ', ' bebbbeb ', ' bbbbbbb ', '  bbbbb  ', '  l   l  '],
+      B: { 7: ' l     l ' } },
+    jelly: { P: { p: '#ff9ae6', P: '#ffd0f4', q: '#c86ad8' },
+      A: ['   ppppp   ', '  pPPPPPp  ', ' ppPPPPPpp ', ' ppppppppp ', ' ppppppppp ', '  pqpqpqp  ', '  q q q q  ', '   q q q   ', '  q q q q  ', '   q q q   '],
+      B: { 6: '   q q q   ', 7: '  q q q q  ', 8: '   q q q   ', 9: '  q q q q  ' } },
+    // ---- cues ----
+    gift: { P: { r: '#ff4a6a', R: '#c02a48', y: '#ffd23f', Y: '#fff3a0' },
+      A: ['  yy yy  ', ' y  y  y ', '  yyyyy  ', 'rrrryrrrr', 'rrrryrrrr', 'yyyyyyyyy', 'RRRRyRRRR', 'RRRRyRRRR'] },
+    heart: { P: { r: '#ff5a8a', h: '#ffc0d8' },
+      A: [' rr rr ', 'rhrrrrr', 'rrrrrrr', ' rrrrr ', '  rrr  ', '   r   '] }
+  };
+  var ccache = {};
+  // frame 0 or 1 of a creature: { cv, fx, fy } with the feet point at (fx, fy)
+  function creature(kind, frame) {
+    frame = frame ? 1 : 0;
+    var key = kind + frame; if (ccache[key]) return ccache[key];
+    var d = CRT[kind]; if (!d) return null;
+    if (d.like) d = { P: d.P, A: CRT[d.like].A, B: CRT[d.like].B };
+    var rows = d.A.slice();
+    if (frame && d.B) { if (Array.isArray(d.B)) rows = d.B.slice(); else for (var r in d.B) rows[+r] = d.B[r]; }
+    var w = 0; rows.forEach(function (row) { w = Math.max(w, row.length); });
+    var c = canvas(w + 2, rows.length + 2), g = c.getContext('2d');
+    stamp(g, rows, d.P, 1, 1); outline(g, w + 2, rows.length + 2, OUT);
+    return (ccache[key] = { cv: c, fx: (w + 2) / 2, fy: rows.length + 1 });
+  }
+
   // ---------- item icons for finds popping up: 12×12 pixel art, outlined, cached ----------
   var ICONS = {
     lump: ['    oooo    ', '  ooHHhhoo  ', ' oHHhhhhhdo ', ' oHhwhhhhdo ', 'oHhhhhhhhddo', 'ohhhhhhhhddo',
@@ -839,7 +933,7 @@ var DTWSprites = (function () {
     PICK: PICK, hexShade: hexShade, item: item, pieceCanvas: pieceCanvas,
     miner: function (o) { o.P = BASE; return person(o); },
     helper: function (k, o) { o.P = HELPERS[k % HELPERS.length]; o.look = HELPER_LOOK[k % HELPERS.length]; return person(o); },
-    npc: npc, exhibit: exhibit, swing: swing, walkPose: walkPose, STEP_X: STEP_X,
+    creature: creature, npc: npc, exhibit: exhibit, swing: swing, walkPose: walkPose, STEP_X: STEP_X,
     BODY_H: 38 // pixel height of a character, feet to hat
   };
 })();

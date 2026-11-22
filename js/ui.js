@@ -31,7 +31,7 @@
     return (n < 10 ? n.toFixed(1) : Math.floor(n)) + u[i];
   }
   // a browser that cannot start audio must not stop the touch handler that called this
-  function audio() { try { A.init(function () { return { world: S.world, mode: S.mode, depth: S.run ? S.run.y : 0 }; }); } catch (e) {} }
+  function audio() { try { A.init(function () { return { world: S.world, mode: S.mode, depth: S.run ? S.run.y : 0, phase: D.dayPhase(S).phase, wx: D.weather(S).kind }; }); } catch (e) {} }
   function setMute(m) { A.setMute(m); lastPanelKey = ''; }
 
   // ---------- UI: toasts, HUD, surface panel ----------
@@ -314,6 +314,8 @@
       else if (e.type === 'unlocked') { lockWon(); A.sfx('unlock'); }
       else if (e.type === 'smashed') { R.shake(0.25); A.sfx('brk'); R.coinBurst(); }
       else if (e.type === 'quizVisitor') A.sfx('doorbell');
+      else if (e.type === 'guest') guestArrived(e);
+      else if (e.type === 'guestGift') guestGift(e);
       else if (e.type === 'trapWarn') { A.sfx('alert'); R.shake(0.15); }
       else if (e.type === 'dodged') { A.sfx('dodge'); minerFloat('💨', '#dff6ff'); }
       else if (e.type === 'roomChest') {
@@ -355,6 +357,34 @@
         lastPanelKey = ''; save();
       }
     });
+  }
+
+  // ---------- plaza life: guests and storms ----------
+  var GUEST_EMOJI = { fox: '🦊', hedgehog: '🦔', frog: '🐸', crab: '🦀', turtle: '🐢', monkey: '🐒', parrot: '🦜', moonbot: '🤖', glorpling: '👾', saucer: '🛸', traveller: '🧳', star: '⭐', pot: '🌈' };
+  var GUEST_CALL = { fox: 'callcute', hedgehog: 'callcute', frog: 'callblorp', crab: 'callboop', turtle: 'callcute', monkey: 'callbird', parrot: 'callbird', moonbot: 'callboop', glorpling: 'callblorp', saucer: 'callboop', traveller: 'callcute', star: 'callbird', pot: 'callcute' };
+  function guestArrived(e) {
+    A.sfx('guest');
+    if (S.mode !== 'surface') toast((GUEST_EMOJI[e.kind] || '🎁') + ' A visitor is waiting up top!', 2600); // the event fires once per guest
+  }
+  function guestGift(e) {
+    A.sfx('gift'); setTimeout(function () { A.sfx(GUEST_CALL[e.kind] || 'callcute'); }, 350);
+    var parts = [];
+    if (e.coins > 0) parts.push('+' + fmt(e.coins) + ' 🪙');
+    (e.mats || []).forEach(function (n, t) { if (n > 0) parts.push('+' + fmt(n) + ' ' + D.MATS[t].name); });
+    R.floatText(e.x, -0.6, e.z, (GUEST_EMOJI[e.kind] || '🎁') + ' ' + (parts.join(' ') || '🎁'), '#ffe9a8');
+    if (e.coins > 0) R.coinBurst();
+    pulse('hCoins'); lastPanelKey = '';
+  }
+  // storms: a flash and, a moment later, thunder every 8 to 20 s while sky shows (the plaza, or the top pit layers)
+  var stormT = 10;
+  function stormTick(dt) {
+    var sky = S.mode === 'surface' || (S.mode === 'dig' && S.run && S.run.y <= 3);
+    if (!sky || D.weather(S).kind !== 'storm') { stormT = Math.max(stormT, 4); return; }
+    stormT -= dt;
+    if (stormT > 0) return;
+    stormT = 8 + Math.random() * 12;
+    if (R.flash) R.flash();
+    setTimeout(function () { A.sfx('thunder'); }, 300 + Math.random() * 700);
   }
 
   // ---------- the museum quiz ----------
@@ -802,7 +832,7 @@
       D.step(S, h); left -= h;
     }
     if (swung) { A.sfx('tap'); R.swingKick(); }
-    drain(); R.update(dt, S);
+    drain(); stormTick(dt); R.update(dt, S);
     if (!noDraw) { R.draw(S); updateHud(); renderPanel(); renderLock(); renderQuiz(); }
   }
   var last = performance.now();

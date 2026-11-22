@@ -60,6 +60,21 @@ var DTWAudio = (function () {
     quizno: function () { var t = AC.currentTime; tone(392, 0.25, 'sine', 0.1, t); tone(330, 0.4, 'sine', 0.1, t + 0.2); },
     alert: function () { var t = AC.currentTime; tone(1568, 0.1, 'square', 0.12, t); tone(1568, 0.1, 'square', 0.12, t + 0.14); tone(1175, 0.2, 'square', 0.1, t + 0.28); },
     dodge: function () { noise(0.2, 0.15, 3000); tone(300, 0.25, 'sine', 0.18, 0, 4); tone(523, 0.1, 'triangle', 0.14, AC.currentTime + 0.18); tone(784, 0.18, 'triangle', 0.14, AC.currentTime + 0.26); },
+    // plaza life: thunder is a crack then a low rumble; a guest arrives with a bright little chime (a major arpeggio up a
+    // fifth, unlike the doorbell); a gift opens with a warm sparkle; each guest kind adds a call
+    thunder: function () {
+      var t = AC.currentTime; noise(0.12, 0.16, 3000); tone(70, 0.25, 'sine', 0.2, t, 0.6);
+      var src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
+      src.buffer = shared; src.loop = true; f.type = 'lowpass'; f.frequency.value = 260;
+      g.gain.setValueAtTime(0, t + 0.05); g.gain.linearRampToValueAtTime(0.28, t + 0.2); g.gain.linearRampToValueAtTime(0.1, t + 0.9); g.gain.linearRampToValueAtTime(0, t + 2.2);
+      src.connect(f); f.connect(g); g.connect(master); src.start(t, Math.random() * 0.5); src.stop(t + 2.3);
+    },
+    guest: function () { var t = AC.currentTime; [659, 784, 1047, 1319].forEach(function (f, i) { tone(f, 0.18, 'triangle', 0.1, t + i * 0.07); }); tone(1568, 0.4, 'sine', 0.07, t + 0.3); },
+    gift: function () { var t = AC.currentTime; [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.3, 'triangle', 0.1, t + i * 0.06); }); for (var i = 0; i < 6; i++) tone(rnd(1800, 3400), 0.14, 'sine', 0.04, t + 0.2 + i * 0.06, 0.7); },
+    callbird: function () { var t = AC.currentTime; tone(2200, 0.07, 'sine', 0.07, t, 1.4); tone(2600, 0.07, 'sine', 0.07, t + 0.1, 0.8); tone(2400, 0.09, 'sine', 0.07, t + 0.2, 1.3); },
+    callboop: function () { var t = AC.currentTime; tone(440, 0.12, 'square', 0.06, t, 1.5); tone(660, 0.16, 'square', 0.06, t + 0.13); },
+    callblorp: function () { var t = AC.currentTime; tone(300, 0.2, 'sine', 0.12, t, 2.2); tone(500, 0.2, 'sine', 0.09, t + 0.18, 0.5); },
+    callcute: function () { var t = AC.currentTime; tone(700, 0.08, 'triangle', 0.08, t, 1.3); tone(900, 0.1, 'triangle', 0.08, t + 0.1, 1.2); },
     treasure: function () { var t = AC.currentTime; [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { tone(f, 0.22, 'triangle', 0.14, t + i * 0.07); tone(f * 2, 0.15, 'sine', 0.05, t + i * 0.07); }); tone(1568, 0.5, 'triangle', 0.12, t + 0.45); },
     // fireworks pops and a cheer over about 6 seconds
     finale: function () {
@@ -95,7 +110,7 @@ var DTWAudio = (function () {
   // Mine: the world's own darker tune, lower, with echo that grows with depth. Each mood has its own bus; a mood
   // switch crossfades the buses (about 1 s) and only the active mood schedules notes.
   var tunes = {}, buses = null, mineDelay = null, mineWet = null, mineLp = null, noiseBuf = null;
-  var amb = null, ambDrip = null, ambWind = null, ambWindLp = null, ambHum = null, ambDrone = null, nextAmb = 0, ambKey = '';
+  var ambRain = null, ambRainF = null, amb = null, ambDrip = null, ambWind = null, ambWindLp = null, ambHum = null, ambDrone = null, nextAmb = 0, ambKey = '';
   var curMood = '', curDepth = 0, MAJOR = [0, 2, 4, 5, 7, 9, 11];
   var OVER_MEL = [4, -1, 2, 4, 7, -1, 4, 2,   6, -1, 4, 1, 4, -1, 6, 8,   7, -1, 5, 7, 9, -1, 7, 5,   5, -1, 3, 5, 4, 2, 1, 0];
   var OVER_CHORD = [0, 7, 9, 5];
@@ -108,9 +123,9 @@ var DTWAudio = (function () {
   function midi(n) { return 440 * Math.pow(2, (n - 69) / 12); }
   function readState() {
     var v = getWorld();
-    if (typeof v === 'number') return { world: v, mood: 'mine', depth: 0 };
+    if (typeof v === 'number') return { world: v, mood: 'mine', depth: 0, phase: 'day', wx: 'clear' };
     var w = v && v.world | 0, depth = Math.max(0, Math.min(1, ((v && v.depth) || 0) / (D.DEPTH || 100)));
-    return { world: w, mood: v && v.mode === 'surface' ? 'over' : 'mine', depth: depth };
+    return { world: w, mood: v && v.mode === 'surface' ? 'over' : 'mine', depth: depth, phase: (v && v.phase) || 'day', wx: (v && v.wx) || 'clear' };
   }
   function makeBuses() {
     var over = AC.createGain(), mine = AC.createGain();
@@ -139,6 +154,9 @@ var DTWAudio = (function () {
     ambWindLp = AC.createBiquadFilter(); ambWindLp.type = 'lowpass'; ambWindLp.frequency.value = 450;
     ambWind = AC.createGain(); ambWind.gain.value = 0; src.connect(ambWindLp); ambWindLp.connect(ambWind); ambWind.connect(amb); src.start();
     var lfo = AC.createOscillator(), lg = AC.createGain(); lfo.frequency.value = 0.11; lg.gain.value = 180; lfo.connect(lg); lg.connect(ambWindLp.frequency); lfo.start();
+    var rs = AC.createBufferSource(); rs.buffer = wb; rs.loop = true; rs.loopStart = 0.7; rs.loopEnd = 3.3;
+    ambRainF = AC.createBiquadFilter(); ambRainF.type = 'bandpass'; ambRainF.frequency.value = 2600; ambRainF.Q.value = 0.5;
+    ambRain = AC.createGain(); ambRain.gain.value = 0; rs.connect(ambRainF); ambRainF.connect(ambRain); ambRain.connect(amb); rs.start(0, 0.7);
     ambHum = pair(62, 62.7, amb); ambDrone = pair(55, 55.5, amb);
     ambDrip = AC.createGain(); ambDrip.gain.value = 1; ambDrip.connect(amb); ambDrip.connect(mineDelay);
   }
@@ -152,21 +170,40 @@ var DTWAudio = (function () {
   function scheduleAmbience(st, now) {
     if (!amb) makeAmbience();
     var id = D.WORLDS[st.world].id, over = st.mood === 'over', moon = id === 'moon', key = st.mood + st.world;
-    if (ambKey !== key) {
-      ambKey = key; nextAmb = now + rnd(1, 3);
-      ambWind.gain.setTargetAtTime(over && !moon ? 0.05 : 0, now, 0.3);
+    var night = over && st.phase === 'night', wx = st.wx, wet = wx === 'rain' || wx === 'storm' || wx === 'glowrain';
+    if (ambKey !== key + st.phase + wx) {
+      ambKey = key + st.phase + wx; nextAmb = now + rnd(1, 3);
+      // rain: a filtered-noise bed (louder in a storm), muffled and quieter when heard down the pit
+      var rg = !wet || moon ? 0 : wx === 'storm' ? 0.1 : wx === 'glowrain' ? 0.04 : 0.065;
+      ambRain.gain.setTargetAtTime(over ? rg : rg * 0.3, now, 0.6);
+      ambRainF.frequency.setTargetAtTime(over ? (wx === 'storm' ? 2200 : 2900) : 600, now, 0.4);
+      ambWind.gain.setTargetAtTime(over && !moon ? (wx === 'wind' ? 0.13 : wx === 'storm' ? 0.09 : 0.05) : 0, now, 0.8);
       ambHum.gain.setTargetAtTime(over && moon ? 0.02 : 0, now, 0.3);
       ambDrone.gain.setTargetAtTime(over ? 0 : 0.03, now, 0.3);
     }
     if (now < nextAmb) return;
     var t = now + 0.05, i, n;
     if (over) {
-      if (moon) { nextAmb = now + 20; return; }
-      if (id === 'ocean') { swell(t, rnd(3, 5), 0.04); nextAmb = now + rnd(5, 8); return; }
+      if (moon) {
+        if (wx === 'meteors') { swell(t, rnd(0.8, 1.4), 0.03); tone(rnd(2500, 4000), 0.5, 'sine', 0.012, t, 0.3, amb); nextAmb = now + rnd(6, 14); } else nextAmb = now + 20;
+        return;
+      }
+      if (wx === 'spores' || wx === 'glowrain') { // soft twinkles
+        n = 2 + Math.floor(Math.random() * 3); for (i = 0; i < n; i++) tone(rnd(1400, 3200), 0.25, 'sine', 0.025, t + i * rnd(0.1, 0.3), 1.1, amb);
+        if (wx === 'spores') { nextAmb = now + rnd(1.5, 4); return; }
+      }
+      if (id === 'ocean') { swell(t, rnd(3, 5), night ? 0.02 : 0.04); nextAmb = now + rnd(5, 8); return; }
       if (id === 'alien') {
         n = 2 + Math.floor(Math.random() * 3);
         for (i = 0; i < n; i++) tone(rnd(500, 1100), 0.12, 'sine', 0.04, t + i * 0.13, i % 2 ? 0.6 : 1.6, amb);
         nextAmb = now + rnd(3, 9); return;
+      }
+      if (wet) { nextAmb = now + rnd(4, 9); return; } // rain drowns the birds
+      if (night) { // crickets, and now and then an owl in the forest
+        if (id === 'forest' && Math.random() < 0.25) { tone(380, 0.3, 'sine', 0.05, t, 0.85, amb); tone(320, 0.5, 'sine', 0.05, t + 0.45, 0.8, amb); nextAmb = now + rnd(6, 12); return; }
+        n = 4 + Math.floor(Math.random() * 5); var cf = rnd(4200, 4800);
+        for (i = 0; i < n; i++) tone(cf, 0.04, 'square', 0.006, t + i * 0.07, 1, amb);
+        nextAmb = now + rnd(0.8, 2.5); return;
       }
       var base = rnd(2000, 3400); n = 2 + Math.floor(Math.random() * 3);
       for (i = 0; i < n; i++) tone(base * rnd(0.9, 1.15), 0.08, i % 2 ? 'triangle' : 'sine', 0.04, t + i * 0.11, i % 2 ? 0.75 : 1.3, amb);
