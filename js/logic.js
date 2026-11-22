@@ -99,14 +99,15 @@ var DTW = (function () {
   var LOCK_KINDS = ['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path'], PAIRS = [4, 6, 6, 8, 8], PAIR_MISS = 0.9;
   var SIMON_PADS = 4, SIMON_LEN = [4, 5, 5, 6, 7], SIMON_STEP = 0.7, SIMON_LEAD = 0.6;
   // More puzzles, each harder in later worlds (one entry per world). 'slide': sliding tiles on a SLIDE_N x SLIDE_N board
-  // (3 in worlds 1-3, 4 after), scrambled by SLIDE_K random legal moves from solved. 'pipes': turn tiles (a tap is a quarter
-  // turn clockwise) so water runs from the left edge to the right edge of a PIPE_N x PIPE_N board. 'odd': ODD_ROUNDS rounds
+  // (always 3, since 4x4 is too hard for a kid), scrambled by SLIDE_K random legal moves from solved. 'pipes': turn tiles (a
+  // tap is a quarter turn clockwise) so water runs from the inlet on the left edge to every one of PIPE_OUTS outlets on the
+  // right edge of a PIPE_N x PIPE_N board. 'odd': ODD_ROUNDS rounds
   // of ODD_CARDS cards that are all one symbol but one (ODD_SETS[w] are the look-alike pairs to draw from, closer-looking in
   // later worlds); a wrong tap waits ODD_WAIT s. 'path': PATH_N numbered gems on a PATH_GRID x PATH_GRID board, tapped
   // 1, 2, 3...; from world 3 on the numbers show for PATH_PREVIEW s and then hide, and a miss shows them for PATH_RECALL s
   // and starts over.
-  var SLIDE_N = [3, 3, 3, 4, 4], SLIDE_K = [8, 14, 20, 24, 32];
-  var PIPE_N = [3, 4, 4, 5, 5];
+  var SLIDE_N = [3, 3, 3, 3, 3], SLIDE_K = [8, 12, 14, 16, 18];
+  var PIPE_N = [3, 4, 4, 5, 5], PIPE_OUTS = [1, 1, 2, 2, 3];
   var ODD_ROUNDS = [3, 3, 4, 4, 5], ODD_CARDS = [4, 6, 9, 12, 16], ODD_WAIT = 0.8;
   var ODD_SETS = [
     [['🍎', '🐟'], ['🐸', '🚗'], ['⭐', '🌳']],
@@ -765,34 +766,64 @@ var DTW = (function () {
     }
     return out;
   }
-  function pipeDone(L) {
-    var k = L.outlet * L.n + L.n - 1;
-    return pipeWet(L).indexOf(k) >= 0 && pipeSides(L.tiles[k].t, L.tiles[k].r)[1];
+  function pipeDone(L) { // water runs out of every outlet
+    var wet = pipeWet(L);
+    return L.outlets.every(function (o) {
+      var k = o * L.n + L.n - 1;
+      return wet.indexOf(k) >= 0 && pipeSides(L.tiles[k].t, L.tiles[k].r)[1];
+    });
   }
   function openPipes(s, i) {
-    var w = s.world, n = PIPE_N[w], inlet = Math.floor(rand(s) * n), outlet = Math.floor(rand(s) * n), tiles = [];
-    for (var k = 0; k < n * n; k++) tiles.push({ t: Math.floor(rand(s) * 4), r: 0 });
-    // a random self-avoiding path from the inlet tile to the outlet tile, found by a randomly ordered depth-first walk
-    var seen = {}, path = [];
-    function go(row, col) {
-      seen[row * n + col] = true; path.push([row, col]);
-      if (row === outlet && col === n - 1) return true;
+    var w = s.world, n = PIPE_N[w], inlet = Math.floor(rand(s) * n), rows = [], tiles = [], open = [];
+    for (var r0 = 0; r0 < n; r0++) rows.push(r0);
+    for (var a = n - 1; a > 0; a--) { var b0 = Math.floor(rand(s) * (a + 1)), x0 = rows[a]; rows[a] = rows[b0]; rows[b0] = x0; }
+    var outlets = rows.slice(0, PIPE_OUTS[w]);
+    for (var k = 0; k < n * n; k++) { tiles.push({ t: Math.floor(rand(s) * 4), r: 0 }); open.push(null); }
+    function link(k, d) { if (!open[k]) open[k] = [0, 0, 0, 0]; open[k][d] = 1; }
+    function shuffled() {
       var order = [0, 1, 2, 3];
       for (var a = 3; a > 0; a--) { var b = Math.floor(rand(s) * (a + 1)), x = order[a]; order[a] = order[b]; order[b] = x; }
-      for (var o = 0; o < 4; o++) {
-        var d = order[o], nr = row + PIPE_DZ[d], nc = col + PIPE_DX[d];
-        if (nr < 0 || nr >= n || nc < 0 || nc >= n || seen[nr * n + nc]) continue;
-        if (go(nr, nc)) return true;
+      return order;
+    }
+    // a random self-avoiding walk (randomly ordered depth-first) from (row, col) over cells not yet piped, until done(cell)
+    // says it has arrived; each step opens the sides between the cells it joins
+    function walk(row, col, done) {
+      var seen = {}, path = [];
+      function go(row, col) {
+        seen[row * n + col] = true; path.push(row * n + col);
+        var order = shuffled();
+        for (var o = 0; o < 4; o++) {
+          var d = order[o], nr = row + PIPE_DZ[d], nc = col + PIPE_DX[d], j = nr * n + nc;
+          if (nr < 0 || nr >= n || nc < 0 || nc >= n || seen[j]) continue;
+          if (done(j)) { path.push(j); return true; }
+          if (open[j]) continue;
+          if (go(nr, nc)) return true;
+        }
+        path.pop(); return false;
       }
-      path.pop(); return false;
+      if (!go(row, col)) return;
+      for (var p = 0; p + 1 < path.length; p++) {
+        var d = pipeFace([Math.floor(path[p] / n), path[p] % n], [Math.floor(path[p + 1] / n), path[p + 1] % n]);
+        link(path[p], d); link(path[p + 1], (d + 2) % 4);
+      }
     }
-    go(inlet, 0);
-    for (var p = 0; p < path.length; p++) { // straight or corner pieces along the path, turned so the water gets through
-      var prev = p ? path[p - 1] : [inlet, -1], next = p < path.length - 1 ? path[p + 1] : [outlet, n];
-      var din = pipeFace(path[p], prev), dout = pipeFace(path[p], next), tt = (din + 2) % 4 === dout ? 0 : 1;
-      tiles[path[p][0] * n + path[p][1]] = { t: tt, r: 0 };
+    // the main pipe from the inlet to the first outlet, then a branch from each other outlet back into the pipes laid so far
+    link(inlet * n, 3);
+    var first = outlets[0] * n + n - 1;
+    walk(inlet, 0, function (j) { return j === first; });
+    link(first, 1);
+    for (var o = 1; o < outlets.length; o++) {
+      var k0 = outlets[o] * n + n - 1;
+      if (!open[k0]) walk(outlets[o], n - 1, function (j) { return !!open[j]; });
+      link(k0, 1);
     }
-    var L = { i: i, kind: 'pipes', n: n, inlet: inlet, outlet: outlet, tiles: tiles, taps: 0 };
+    // the piece that fits each piped cell: two sides across is a straight, two beside is a corner, three a tee, four a cross
+    for (var c = 0; c < n * n; c++) {
+      if (!open[c]) continue;
+      var m = open[c], cnt = m[0] + m[1] + m[2] + m[3];
+      tiles[c] = { t: cnt === 4 ? 3 : cnt === 3 ? 2 : m[0] === m[2] ? 0 : 1, r: 0 };
+    }
+    var L = { i: i, kind: 'pipes', n: n, inlet: inlet, outlets: outlets, tiles: tiles, taps: 0 };
     // turn every tile at random, and again until the water does not already flow
     do { for (var q = 0; q < n * n; q++) tiles[q].r = Math.floor(rand(s) * 4); } while (pipeDone(L));
     s.run.lock = L;
@@ -1315,7 +1346,7 @@ var DTW = (function () {
     MATS: MATS, MAT_PRICE: MAT_PRICE, GEM: GEM, canAfford: canAfford, sellMat: sellMat, buyMat: buyMat, matBuyPrice: matBuyPrice, bank: bank,
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
-    SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
+    SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, COAL_BATCH: COAL_BATCH, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,

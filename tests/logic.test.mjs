@@ -69,28 +69,65 @@ const slidePlan = L => {
   for (let bound = h(start); bound < 80;) { const r = dfs(start, start.indexOf(0), 0, bound, -1); if (r === -1) return plan.slice(); bound = r; }
   return null;
 };
-// pipes: walk from the inlet, turning each tile so it takes the water in from the side it came from and out of another;
-// returns the taps (one per quarter turn) that do it, or null
+// pipes: grow the water from the inlet, choosing a turn for each tile it reaches (or leaving that tile dry), until every
+// outlet runs; a branch stops once some outlet can no longer be reached. Returns the taps (one per quarter turn), or null
 const pipePlan = L => {
-  const DX = [0, 1, 0, -1], DZ = [-1, 0, 1, 0]; // N E S W
-  const used = new Set(), turns = [];
-  const go = (row, col, from) => {
-    const k = row * L.n + col, tile = L.tiles[k]; used.add(k);
-    for (let r = 0; r < 4; r++) {
-      const sides = D.pipeSides(tile.t, r); if (!sides[from]) continue;
+  const n = L.n, DX = [0, 1, 0, -1], DZ = [-1, 0, 1, 0]; // N E S W
+  const outs = L.outlets.map(o => o * n + n - 1), set = new Map(), dry = new Set();
+  const inside = (r, c) => r >= 0 && r < n && c >= 0 && c < n;
+  const sides = k => D.pipeSides(L.tiles[k].t, set.get(k));
+  const wet = () => { // cells the water reaches through tiles turned so far
+    const w = new Set(), q = [];
+    const k0 = L.inlet * n; if (set.has(k0) && sides(k0)[3]) { w.add(k0); q.push(k0); }
+    while (q.length) {
+      const k = q.shift(), sd = sides(k), row = Math.floor(k / n), col = k % n;
       for (let d = 0; d < 4; d++) {
-        if (d === from || !sides[d]) continue;
-        turns.push([k, (r - tile.r + 4) % 4]);
-        if (col === L.n - 1 && row === L.outlet && d === 1) return true;
-        const nr = row + DZ[d], nc = col + DX[d];
-        if (nr >= 0 && nr < L.n && nc >= 0 && nc < L.n && !used.has(nr * L.n + nc) && go(nr, nc, (d + 2) % 4)) return true;
-        turns.pop();
+        const nr = row + DZ[d], nc = col + DX[d], j = nr * n + nc;
+        if (!sd[d] || !inside(nr, nc) || w.has(j) || !set.has(j) || !sides(j)[(d + 2) % 4]) continue;
+        w.add(j); q.push(j);
       }
     }
-    used.delete(k); return false;
+    return w;
   };
-  if (!go(L.inlet, 0, 3)) return null;
-  return turns.flatMap(([k, n]) => Array(n).fill(k));
+  const go = () => {
+    const w = wet();
+    if (outs.every(k => w.has(k) && sides(k)[1])) return true;
+    // the next tile the water would flow into, and the side it would enter by
+    let next = -1, from = -1;
+    if (!w.size) { if (set.has(L.inlet * n) || dry.has(L.inlet * n)) return false; next = L.inlet * n; from = 3; }
+    for (const k of w) {
+      if (next >= 0) break;
+      const sd = sides(k), row = Math.floor(k / n), col = k % n;
+      for (let d = 0; d < 4 && next < 0; d++) {
+        const nr = row + DZ[d], nc = col + DX[d], j = nr * n + nc;
+        if (sd[d] && inside(nr, nc) && !set.has(j) && !dry.has(j)) { next = j; from = (d + 2) % 4; }
+      }
+    }
+    if (next < 0) return false;
+    // every outlet that is not running yet must still be reachable through tiles not yet decided
+    const reach = new Set(w.size ? w : [L.inlet * n]), q = [...reach];
+    while (q.length) {
+      const k = q.shift(), row = Math.floor(k / n), col = k % n;
+      for (let d = 0; d < 4; d++) {
+        const nr = row + DZ[d], nc = col + DX[d], j = nr * n + nc;
+        if (!inside(nr, nc) || reach.has(j) || set.has(j) || dry.has(j)) continue;
+        reach.add(j); q.push(j);
+      }
+    }
+    if (!outs.every(k => (w.has(k) && sides(k)[1]) || (reach.has(k) && !set.has(k)))) return false;
+    const tried = new Set();
+    for (let r = 0; r < 4; r++) {
+      const sd = D.pipeSides(L.tiles[next].t, r), key = sd.join();
+      if (!sd[from] || tried.has(key)) continue;
+      tried.add(key); set.set(next, r);
+      if (go()) return true;
+      set.delete(next);
+    }
+    dry.add(next); if (go()) return true; dry.delete(next);
+    return false;
+  };
+  if (!go()) return null;
+  return [...set].flatMap(([k, r]) => Array((r - L.tiles[k].r + 4) % 4).fill(k));
 };
 // solve whatever puzzle the chest holds, as a careful player would
 const solveLock = s => {
@@ -1046,11 +1083,12 @@ test('chests hold seven kinds of puzzle and never the same kind twice in a row',
   for (let k = 1; k < kinds.length; k++) assert.notEqual(kinds[k], kinds[k - 1]);
 });
 
-test('slide: a 3×3 board in the first worlds and 4×4 later, scrambled by legal moves so it can always be solved, short in early worlds', () => {
-  assert.deepEqual([...D.SLIDE_K], [8, 14, 20, 24, 32]);
+test('slide: always a 3×3 board, scrambled by legal moves so it can always be solved, short in early worlds', () => {
+  assert.deepEqual([...D.SLIDE_N], [3, 3, 3, 3, 3]);
+  assert.deepEqual([...D.SLIDE_K], [8, 12, 14, 16, 18]);
   const need = [0, 0, 0, 0, 0];
   for (let w = 0; w < 5; w++) for (let k = 0; k < 6; k++) {
-    const s = openChest(w, 'slide', 20 * w + k), L = s.run.lock, n = w < 3 ? 3 : 4;
+    const s = openChest(w, 'slide', 20 * w + k), L = s.run.lock, n = 3;
     assert.equal(L.n, n); assert.equal(L.tiles.length, n * n);
     assert.deepEqual([...L.tiles].sort((a, b) => a - b), slideGoal(n).sort((a, b) => a - b), 'one of each tile and a blank');
     assert.notDeepEqual([...L.tiles], slideGoal(n), 'it starts scrambled');
@@ -1068,20 +1106,34 @@ test('slide: a 3×3 board in the first worlds and 4×4 later, scrambled by legal
   assert.ok(need[0] < need[4], `moves needed grow: ${need}`);
 });
 
-test('pipes: turn tiles so water runs from the left edge to the right edge; every board can be solved and it starts unsolved', () => {
+test('pipes: turn tiles so water runs from the left edge to every outlet on the right; later worlds have more outlets; every board can be solved and it starts unsolved', () => {
   assert.deepEqual([...D.PIPE_N], [3, 4, 4, 5, 5]);
+  assert.deepEqual([...D.PIPE_OUTS], [1, 1, 2, 2, 3]);
   for (let w = 0; w < 5; w++) for (let k = 0; k < 20; k++) {
     const s = openChest(w, 'pipes', 31 * w + k), L = s.run.lock;
     assert.equal(L.n, D.PIPE_N[w]); assert.equal(L.tiles.length, L.n * L.n);
-    assert.ok(L.inlet >= 0 && L.inlet < L.n && L.outlet >= 0 && L.outlet < L.n);
+    assert.ok(L.inlet >= 0 && L.inlet < L.n);
+    assert.equal(L.outlets.length, D.PIPE_OUTS[w]);
+    assert.equal(new Set(L.outlets).size, L.outlets.length, 'outlets are on different rows');
+    assert.ok(L.outlets.every(o => o >= 0 && o < L.n));
     assert.equal(D.pipeDone(L), false, 'it starts dry');
-    const plan = pipePlan(L); assert.ok(plan, 'a path exists');
+    const plan = pipePlan(L); assert.ok(plan, `world ${w} pipes ${k} can be solved`);
     const far = L.tiles.length - 1, t0 = L.tiles[far].r;
     D.lockTap(s, far); assert.equal(L.tiles[far].r, (t0 + 1) % 4, 'a tap turns the tile a quarter turn clockwise');
     D.lockTap(s, L.n * L.n); assert.equal(L.tiles[far].r, (t0 + 1) % 4, 'there is no tile past the last');
     solveLock(s);
     assert.equal(s.run.lock, null, `world ${w} pipes ${k} solved`); assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
   }
+});
+
+test('pipes: with two outlets, water reaching only one of them does not open the chest', () => {
+  const s = openChest(2, 'pipes', 5), L = s.run.lock, n = L.n;
+  // a plain board: straight pipes along row 0 to its outlet, every other tile a corner open only south and west
+  for (let k = 0; k < n * n; k++) L.tiles[k] = { t: 1, r: 2 };
+  L.inlet = 0; L.outlets = [0, 2];
+  for (let c = 0; c < n; c++) L.tiles[c] = { t: 0, r: 1 }; // east-west straights
+  assert.equal(D.pipeDone(L), false, 'row 2 is still dry');
+  L.outlets = [0]; assert.equal(D.pipeDone(L), true);
 });
 
 test('odd: all cards the same but one; a wrong tap waits a moment, a right tap starts the next round; bigger and closer-looking later', () => {

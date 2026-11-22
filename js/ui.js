@@ -345,7 +345,7 @@
     pairs: ['🃏 A memory chest!', 'Flip two cards at a time and find every matching pair.'],
     simon: ['🎵 A singing chest!', 'Watch the gems light up…', 'Your turn: tap the gems in the same order.'],
     slide: ['🧩 A puzzle chest!', 'Tap a tile next to the gap to slide it. Put the numbers in order, 1 first.'],
-    pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!'],
+    pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!', 'Tap a pipe to turn it. Make the water reach every green outlet!'],
     odd: ['🔎 An odd-one-out chest!', 'Find the one that is different.'],
     path: ['💎 A gem-trail chest!', 'Tap the gems in order, 1, 2, 3…', 'Remember the numbers! Look…', 'The numbers are hidden. Tap the gems in order!']
   };
@@ -357,7 +357,7 @@
     for (var d = 0; d < 4; d++) if (sd[d]) s += '<line x1="20" y1="20" x2="' + ends[d][0] + '" y2="' + ends[d][1] + '" stroke="' + col + '" stroke-width="10"/>';
     s += '<circle cx="20" cy="20" r="7" fill="' + col + '"/>';
     if (k === L.inlet * L.n) s += '<circle cx="2" cy="20" r="6" fill="#46c2ff"/>';
-    if (k === L.outlet * L.n + L.n - 1) s += '<circle cx="38" cy="20" r="6" fill="#4fd36b"/>';
+    if (k % L.n === L.n - 1 && L.outlets.indexOf(Math.floor(k / L.n)) >= 0) s += '<circle cx="38" cy="20" r="6" fill="#4fd36b"/>';
     return s + '</svg>';
   }
   function renderLock() {
@@ -378,7 +378,7 @@
       var wet = D.pipeWet(L);
       key = 'pi|' + L.i + '|' + L.tiles.map(function (x) { return x.r; }).join('') + '|' + wet.join();
       if (key === lockKey) return;
-      hint = T0[1];
+      hint = L.outlets.length > 1 ? T0[2] : T0[1];
       html = '<div class="pipes" style="max-width:' + L.n * 64 + 'px;grid-template-columns:repeat(' + L.n + ',minmax(0,1fr))">';
       L.tiles.forEach(function (_, j) { html += '<button class="pipe" data-k="' + j + '" aria-label="Pipe ' + (j + 1) + '">' + pipeSvg(L, j, wet.indexOf(j) >= 0) + '</button>'; });
       html += '</div>';
