@@ -507,13 +507,34 @@
     }
     else doTap();
     if (stickId !== null || splash) return; // a second finger only taps
-    down = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    down = { x: e.clientX, y: e.clientY, id: e.pointerId, mouse: e.pointerType === 'mouse', cell: null };
     try { cv.setPointerCapture(e.pointerId); } catch (er) {}
+    if (down.mouse) { down.cell = mouseCell(e); return; } // a mouse drags the miner along instead of a joystick
     var d0 = down;
     setTimeout(function () { if (down === d0 && stickId === null) stickStart({ pointerId: d0.id, clientX: d0.x, clientY: d0.y }); }, HOLD * 1000);
   });
+  // A mouse held down and dragged walks the miner to the cell under the pointer (in the pit, digs the block
+  // there), retargeting each time the pointer crosses into another cell. Touch keeps the joystick, since a
+  // finger would hide the miner. A drag never climbs the ladder; only a click does.
+  function mouseCell(e) {
+    var c = S.mode === 'surface' ? R.groundAt(e.clientX, e.clientY) : S.mode === 'dig' ? R.cellAt(e.clientX, e.clientY, S.run.y) : null;
+    return c ? Math.floor(c[0]) + ',' + Math.floor(c[1]) : null;
+  }
+  function mouseDrag(e) {
+    var key = mouseCell(e);
+    if (!key || key === down.cell) return;
+    down.cell = key;
+    if (S.mode === 'surface') {
+      var gp = R.groundAt(e.clientX, e.clientY);
+      if (D.hubWalkTo(S, gp[0], gp[1])) S.hub.dig = false;
+    } else if (S.mode === 'dig' && !S.run.lock) {
+      var c = R.cellAt(e.clientX, e.clientY, S.run.y);
+      D.digAt(S, c[0], c[1]);
+    }
+  }
   cv.addEventListener('pointermove', function (e) {
     if (!down || down.id !== e.pointerId) return;
+    if (down.mouse) { mouseDrag(e); return; }
     if (stickId === null) { var dx = e.clientX - down.x, dy = e.clientY - down.y; if (dx * dx + dy * dy > DRAG * DRAG) stickStart(e); }
     else stickMove(e);
   });
