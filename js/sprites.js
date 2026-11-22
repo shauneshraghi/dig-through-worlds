@@ -158,10 +158,21 @@ var DTWSprites = (function () {
   var HELPERS = [
     pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#9dff8a', r: '#5ad04a', q: '#3a9a2a', B: '#c8a070', b: '#9a7448', n: '#6a4c2a', G: '#ff8c2a' }),
     pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#c8a0ff', r: '#9a70e0', q: '#6a48b0', B: '#5a6a8a', b: '#3a4a6a', n: '#2a3450', G: '#ff8c2a', S: '#b07850', s: '#94603c', k: '#704428' }),
-    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#ffd23f', r: '#e0a820', q: '#a87a10', B: '#7a5a3a', b: '#5a4028', n: '#3a2818', G: '#ff8c2a', H: '#e8c35a', h: '#b8902a' }),
-    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#8fd3ff', r: '#5aa8e0', q: '#3a78b0', B: '#2e8f3e', b: '#1f6e33', n: '#14501f', G: '#ff8c2a', S: '#7a4e32', s: '#643c24', k: '#4a2a18' }),
-    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#ff9fb0', r: '#e0708a', q: '#b04a64', B: '#6a6a7a', b: '#4a4a5a', n: '#2a2a3a', G: '#ff8c2a', H: '#d0602a', h: '#963a14' })
+    // from the third on, each helper comes with a world unlocked and looks like it (HELPER_LOOK)
+    // ocean: a merfolk with sea-green skin, teal hair and a fin crest, scale-green clothes and flipper feet
+    pal({ S: '#9be8cf', s: '#6ccdb2', k: '#3f9c86', H: '#2fb8c8', h: '#1a7f96', R: '#58c8e8', r: '#2f98c0', q: '#1f6890', B: '#2fa88a', b: '#1f7f68', n: '#145a4a', G: '#bff7ff',
+      T: '#ff9f5a', t: '#e0703a', v: '#a04a20', e: '#103040' }),
+    // jungle: an explorer in a pith helmet with a brown band, khaki shirt and green shorts
+    pal({ Y: '#f2e6b8', y: '#d8c88a', u: '#a8945a', l: '#6a4228', L: '#8a5a30', R: '#d8c890', r: '#b8a468', q: '#8a7844', B: '#4a8a3a', b: '#336a28', n: '#22501a', G: '#6a4228',
+      S: '#b07850', s: '#94603c', k: '#704428' }),
+    // moon: an astronaut in a white suit and helmet with a dark visor
+    pal({ Y: '#ffffff', y: '#e4e8f0', u: '#a8b0c4', l: '#5a5a66', H: '#f4f6fa', h: '#c8cedc', R: '#f4f6fa', r: '#d0d6e2', q: '#9aa2b4', B: '#e8ecf4', b: '#c0c8d8', n: '#8a94aa', G: '#ff6b3a',
+      T: '#8a94aa', t: '#5a6478', v: '#3a4256', x: '#5a6478' }),
+    // Planet Glorp: a green alien with big dark eyes and antennae, in a purple suit
+    pal({ S: '#9dff6a', s: '#6ad84a', k: '#3a9a2a', H: '#9dff6a', h: '#6ad84a', e: '#1a0a2a', w: '#d0b8ff', c: '#6ad84a', m: '#2a6a1a', R: '#b07aff', r: '#8a50e0', q: '#5a2ab0', B: '#7a4ad0', b: '#5a30a8', n: '#3a1a78', G: '#ff5ad0',
+      T: '#5a30a8', t: '#3a1a78', v: '#220a50' })
   ];
+  var HELPER_LOOK = [null, null, 'mer', 'explorer', 'astro', 'alien'];
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
 
   // ---------- drawing into a small canvas ----------
@@ -385,8 +396,9 @@ var DTWSprites = (function () {
     if (o.pack === true) o.pack = 1;
     c.clearRect(0, 0, W, H);
     var X0 = FX - 12, legY = FY - 7 + Math.round(pose.bob), Y = legY - 11 + Math.round(pose.body), X = X0 + Math.round(pose.lean);
-    var head = o.hair ? (back ? HEAD_HAIR_BACK : HEAD_HAIR) : (back ? HEAD_MINER_BACK : HEAD_MINER);
-    var Pl = P; if (!o.lampOn && !o.hair) { Pl = pal(P); Pl.L = '#cfc58a'; }
+    var look = o.look || null, bare = o.hair || look === 'mer' || look === 'alien';
+    var head = bare ? (back ? HEAD_HAIR_BACK : HEAD_HAIR) : (back ? HEAD_MINER_BACK : HEAD_MINER);
+    var Pl = P; if (!o.lampOn && !bare && look !== 'explorer') { Pl = pal(P); Pl.L = '#cfc58a'; }
     if (pose.blink && !back) { Pl = Pl === P ? pal(P) : Pl; Pl.e = Pl.k; Pl.w = Pl.S; }
     if (o.climb != null) return climber(o, P, Pl, X0, legY, head);
     // legs: each foot follows the walk cycle (planted, then lifted and swung forward); in the air they spread
@@ -439,6 +451,7 @@ var DTWSprites = (function () {
     if (inHand && !back) handPick(true);
     if (digging && !behind) pickTool(c, X, Y, sw, o.tier, P, t);
     stamp(c, head, Pl, X, Y - 17);
+    if (look) headExtras(c, look, X, Y - 17, back, Pl);
     if (digging && !behind && fistsClearOfHead(X, Y, sw)) pickFists(c, X, Y, sw, P);
     if (o.bone && back) bone(c, X, Y, o.bone, true);
     if (hasPack && back) packBack(c, X + 12, Y - 4, o.pack);
@@ -453,6 +466,24 @@ var DTWSprites = (function () {
     outline(c, W, H, OUT);
     // lx, ly: the centre of the helmet lamp (the L pixels of HEAD_MINER); facing away, the hat's front edge
     return { cv: cv, fx: FX, fy: FY, lx: back ? X + 19 : X + 22, ly: Y - 17 + (back ? 5 : 6) };
+  }
+  // what makes a world's helper look like it, drawn over the head (origin hx, hy; the head faces screen-right)
+  function headExtras(c, look, hx, hy, back, P) {
+    if (look === 'mer') { // a fin crest over the crown and a fin for an ear
+      px(c, hx + 7, hy - 3, P.h, 2, 4); px(c, hx + 9, hy - 4, P.H, 2, 5); px(c, hx + 11, hy - 3, P.h, 2, 4); px(c, hx + 13, hy - 1, P.H, 2, 2);
+      px(c, hx + 10, hy - 4, '#d8fbff', 1, 2);
+      var ex = back ? hx + 17 : hx + 3; px(c, ex, hy + 9, P.H, 2, 4); px(c, ex + (back ? 2 : -1), hy + 10, P.h, 1, 3);
+    } else if (look === 'alien') { // two antennae with glowing tips
+      line(c, hx + 8, hy + 1, hx + 6, hy - 5, P.k, 1); line(c, hx + 15, hy + 1, hx + 17, hy - 5, P.k, 1);
+      px(c, hx + 5, hy - 7, P.G, 3, 3); px(c, hx + 16, hy - 7, P.G, 3, 3); px(c, hx + 5, hy - 7, '#ffd0f4');
+      if (!back) { px(c, hx + 11, hy + 10, P.e, 3, 4); px(c, hx + 16, hy + 10, P.e, 3, 4); px(c, hx + 11, hy + 10, P.w); px(c, hx + 16, hy + 10, P.w); }
+    } else if (look === 'astro') { // the visor over the face, a white collar ring, and an antenna on the helmet
+      if (!back) { px(c, hx + 8, hy + 9, '#16204a', 14, 7); px(c, hx + 9, hy + 10, '#2a4a8a', 12, 5); px(c, hx + 10, hy + 10, '#9fd0ff', 4, 1); px(c, hx + 10, hy + 11, '#9fd0ff', 1, 2); }
+      else px(c, hx + 4, hy + 9, P.u, 16, 1);
+      line(c, hx + 6, hy + 2, hx + 4, hy - 3, P.u, 1); px(c, hx + 3, hy - 4, '#ff6b3a', 2, 2);
+    } else if (look === 'explorer') { // the pith helmet's wide brim
+      if (!back) { px(c, hx + 1, hy + 8, P.u, 23, 1); }
+    }
   }
   // seen from behind on the ladder, hands on the rungs; the pick hangs on the back
   function climber(o, P, Pl, X0, legY, head) {
@@ -751,7 +782,7 @@ var DTWSprites = (function () {
   return {
     PICK: PICK, hexShade: hexShade, item: item, pieceCanvas: pieceCanvas,
     miner: function (o) { o.P = BASE; return person(o); },
-    helper: function (k, o) { o.P = HELPERS[k % HELPERS.length]; return person(o); },
+    helper: function (k, o) { o.P = HELPERS[k % HELPERS.length]; o.look = HELPER_LOOK[k % HELPERS.length]; return person(o); },
     npc: npc, exhibit: exhibit, swing: swing, walkPose: walkPose, STEP_X: STEP_X,
     BODY_H: 38 // pixel height of a character, feet to hat
   };
