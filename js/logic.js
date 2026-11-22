@@ -993,6 +993,16 @@ var DTW = (function () {
       r.loot.splice(k, 1); collect(s, l.item, { x: l.x, y: l.y, z: l.z });
     }
   }
+  // a cleared layer: whatever still lies on its floor (or a floor above) goes straight into the pack, so the dig
+  // goes on without a sweep; a new bone that needs free hands stays where it is
+  function gatherLoot(s) {
+    var r = s.run;
+    for (var k = r.loot.length - 1; k >= 0; k--) {
+      var l = r.loot[k];
+      if (l.layer > r.y || lootWaits(s, l)) continue;
+      r.loot.splice(k, 1); collect(s, l.item, { x: l.x, y: l.y, z: l.z });
+    }
+  }
   // the nearest loot in the miner's layer that it can walk to over open cells: the steps to its cell
   // auto-mining's next block: the nearest one no helper is on, else the nearest of all
   function autoPath(s, g, y, crewT) {
@@ -1121,11 +1131,12 @@ var DTW = (function () {
         else r.manual = 0;
       }
       // loot on the floor: auto-mining goes for whichever is nearer, the loot or the next block (a tie goes to the
-      // loot), and a cleared layer is swept
+      // loot); a cleared layer's loot is gathered into the pack
       var hasBlocks = layerHasBlocks(g, y);
-      if (tgt < 0 && !moved && r.stun <= 0 && (!hasBlocks || (auto && r.manual <= 0))) {
+      if (!hasBlocks) gatherLoot(s);
+      if (tgt < 0 && !moved && r.stun <= 0 && hasBlocks && auto && r.manual <= 0) {
         var lsteps = lootPath(s);
-        if (lsteps && hasBlocks) {
+        if (lsteps) {
           if (!r.path || !canDig(s, g, r.path.target)) r.path = autoPath(s, g, y, crewT);
           if (r.path && r.path.steps.length < lsteps.length) lsteps = null; // the block is nearer: dig it first
         }

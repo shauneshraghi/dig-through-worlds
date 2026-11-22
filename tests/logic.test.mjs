@@ -433,15 +433,18 @@ test('auto-mining collects loot nearer than the next block first', () => {
   assert.equal(at(s.run.grid, 0, 10, 0), T.DIRT, 'before the far block was touched');
 });
 
-test('a cleared layer is swept for loot before the miner goes down', () => {
+test('loot left in a cleared layer goes into the bag and does not hold up the dig', () => {
   const s = digAt(0, 3, 10, 3, { drill: 16 });
   D._setTile(s, 4, 10, 3, T.ORE, 0); D.setAuto(s, false);
   digEast(s);
   assert.equal(s.run.loot.length, 1);
-  assert.equal(s.run.y, 10);
-  for (let i = 0; i < 400 && s.run.bag.length === 0; i++) D.step(s, 0.05);
-  assert.equal(s.run.bag.length, 1, 'picked up even with auto-mining off');
-  assert.equal(s.run.y, 10, 'still in the cleared layer');
+  D._teleport(s, 1, 10, 3); // away from the find, out of reach
+  for (let i = 0; i < 400 && s.run.y === 10; i++) D.step(s, 0.05);
+  assert.ok(s.run.y > 10, 'the miner went on down');
+  assert.equal(s.run.x, 1, 'without walking over to fetch it');
+  assert.equal(s.run.loot.length, 0);
+  assert.equal(s.run.bag.length, 1, 'with the find in the bag');
+  assert.ok(s.events.some(e => e.type === 'collect' && e.at), 'picked up from where it lay');
 });
 
 test('a bone is only picked up with free hands; otherwise it stays on the floor', () => {
