@@ -162,9 +162,10 @@ var DTWSprites = (function () {
     // ocean: a merfolk with sea-green skin, teal hair and a fin crest, scale-green clothes and flipper feet
     pal({ S: '#9be8cf', s: '#6ccdb2', k: '#3f9c86', H: '#2fb8c8', h: '#1a7f96', R: '#58c8e8', r: '#2f98c0', q: '#1f6890', B: '#2fa88a', b: '#1f7f68', n: '#145a4a', G: '#bff7ff',
       T: '#ff9f5a', t: '#e0703a', v: '#a04a20', e: '#103040' }),
-    // jungle: an explorer in a pith helmet with a brown band, khaki shirt and green shorts
-    pal({ Y: '#f2e6b8', y: '#d8c88a', u: '#a8945a', l: '#6a4228', L: '#8a5a30', R: '#d8c890', r: '#b8a468', q: '#8a7844', B: '#4a8a3a', b: '#336a28', n: '#22501a', G: '#6a4228',
-      S: '#b07850', s: '#94603c', k: '#704428' }),
+    // jungle: a wild jungle kid, bare-armed and barefoot, with long shaggy hair and a leaf headband, a spotted
+    // hide wrap and shorts tied with a vine, and a coil of vine rope over one shoulder for swinging through the trees
+    pal({ S: '#c88a5a', s: '#a86e44', k: '#80502e', H: '#3a2414', h: '#22140a', R: '#c88a5a', r: '#a86e44', q: '#80502e',
+      B: '#e8b04a', b: '#c88a2a', n: '#8a5a1a', G: '#5a3412', x: '#3f8a2a', T: '#c88a5a', t: '#a86e44', v: '#80502e' }),
     // moon: an astronaut in a white suit and helmet with a dark visor
     pal({ Y: '#ffffff', y: '#e4e8f0', u: '#a8b0c4', l: '#5a5a66', H: '#f4f6fa', h: '#c8cedc', R: '#f4f6fa', r: '#d0d6e2', q: '#9aa2b4', B: '#e8ecf4', b: '#c0c8d8', n: '#8a94aa', G: '#ff6b3a',
       T: '#8a94aa', t: '#5a6478', v: '#3a4256', x: '#5a6478' }),
@@ -172,7 +173,7 @@ var DTWSprites = (function () {
     pal({ S: '#9dff6a', s: '#6ad84a', k: '#3a9a2a', H: '#9dff6a', h: '#6ad84a', e: '#1a0a2a', w: '#d0b8ff', c: '#6ad84a', m: '#2a6a1a', R: '#b07aff', r: '#8a50e0', q: '#5a2ab0', B: '#7a4ad0', b: '#5a30a8', n: '#3a1a78', G: '#ff5ad0',
       T: '#5a30a8', t: '#3a1a78', v: '#220a50' })
   ];
-  var HELPER_LOOK = [null, null, 'mer', 'explorer', 'astro', 'alien'];
+  var HELPER_LOOK = [null, null, 'mer', 'wild', 'astro', 'alien'];
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
 
   // ---------- drawing into a small canvas ----------
@@ -409,9 +410,9 @@ var DTWSprites = (function () {
     if (o.pack === true) o.pack = 1;
     c.clearRect(0, 0, W, H);
     var X0 = FX - 12, legY = FY - 7 + Math.round(pose.bob), Y = legY - 11 + Math.round(pose.body), X = X0 + Math.round(pose.lean);
-    var look = o.look || null, bare = o.hair || look === 'mer' || look === 'alien';
+    var look = o.look || null, bare = o.hair || look === 'mer' || look === 'alien' || look === 'wild';
     var head = bare ? (back ? HEAD_HAIR_BACK : HEAD_HAIR) : (back ? HEAD_MINER_BACK : HEAD_MINER);
-    var Pl = P; if (!o.lampOn && !bare && look !== 'explorer') { Pl = pal(P); Pl.L = '#cfc58a'; }
+    var Pl = P; if (!o.lampOn && !bare) { Pl = pal(P); Pl.L = '#cfc58a'; }
     if (pose.blink && !back) { Pl = Pl === P ? pal(P) : Pl; Pl.e = Pl.k; Pl.w = Pl.S; }
     if (o.climb != null) return climber(o, P, Pl, X0, legY, head);
     // legs: each foot follows the walk cycle (planted, then lifted and swung forward); in the air they spread
@@ -518,8 +519,19 @@ var DTWSprites = (function () {
       if (!back) { px(c, hx + 8, hy + 9, '#16204a', 14, 7); px(c, hx + 9, hy + 10, '#2a4a8a', 12, 5); px(c, hx + 10, hy + 10, '#9fd0ff', 4, 1); px(c, hx + 10, hy + 11, '#9fd0ff', 1, 2); }
       else px(c, hx + 4, hy + 9, P.u, 16, 1);
       line(c, hx + 6, hy + 2, hx + 4, hy - 3, P.u, 1); px(c, hx + 3, hy - 4, '#ff6b3a', 2, 2);
-    } else if (look === 'explorer') { // the pith helmet's wide brim
-      if (!back) { px(c, hx + 1, hy + 8, P.u, 23, 1); }
+    } else if (look === 'wild') { // shaggy locks down past the shoulders, a leaf headband, a vine coiled on the shoulder
+      var LF = '#4fae3a', lf = '#2f7a22', VN = '#3f8a2a';
+      if (!back) {
+        px(c, hx + 3, hy + 14, P.h, 3, 7); px(c, hx + 4, hy + 20, P.h, 2, 2); px(c, hx + 6, hy + 16, P.H, 2, 5); px(c, hx + 2, hy + 12, P.H, 2, 5);
+        px(c, hx + 5, hy + 7, lf, 15, 1); px(c, hx + 4, hy + 4, LF, 3, 3); px(c, hx + 6, hy + 3, LF, 2, 2); px(c, hx + 5, hy + 5, lf);
+        px(c, hx + 9, hy - 1, P.H, 2, 2); px(c, hx + 13, hy - 1, P.h, 2, 2); // spiky crown
+        line(c, hx + 9, hy + 18, hx + 18, hy + 26, VN, 2); // the vine rope across the chest
+        px(c, hx + 6, hy + 17, VN, 5, 2); px(c, hx + 5, hy + 19, VN, 2, 3); px(c, hx + 7, hy + 18, '#6ccf4a', 2, 1);
+      } else {
+        px(c, hx + 5, hy + 14, P.h, 14, 5); px(c, hx + 6, hy + 19, P.h, 3, 2); px(c, hx + 11, hy + 19, P.H, 3, 3); px(c, hx + 16, hy + 19, P.h, 2, 2);
+        px(c, hx + 3, hy + 7, lf, 18, 1); px(c, hx + 17, hy + 5, LF, 3, 3);
+        line(c, hx + 6, hy + 18, hx + 17, hy + 27, VN, 2);
+      }
     }
   }
   // seen from behind on the ladder, hands on the rungs; the pick hangs on the back
