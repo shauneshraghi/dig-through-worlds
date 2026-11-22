@@ -12,7 +12,10 @@ A browser digging game in plain HTML, CSS and JavaScript with no build step and 
 - `js/render.js` is the isometric renderer (`DTWRender`): cube sprites built from 16×16 pixel textures drawn in code, the cut-away pit, the ladder, wall torches, the plaza props placed from the map (sorted by footprint in `depthSort`), and the people on the plaza. Hired helper diggers are drawn where the logic puts them (`run.crew`), easing between cells, and resting by their hut on the plaza. Visitors are visual only and use `Math.random`, never the game's rng. With WebGL2 it draws the scene into an offscreen canvas and glowing things (ores, torches, goo, the relic, the headlamp, whose light and beam start at the lamp pixel on the helmet that `DTWSprites.miner` reports as `lx`, `ly`) into a half-size emissive canvas, collects point lights, and hands all three to `DTWPost`; without WebGL2 it draws straight to `#cv` in plain 2D. Floating text and stun stars go on the `#ov` overlay canvas so the blur never touches them. Lighting and grading numbers sit in `GRADE` (`sun`: how golden and spotlit the plaza is, `dapple`: its leaf shade) and `lamp()` in `render.js`; plaza grass is four seamless tints (`grass0`–`grass3`, no tile outlines), forest and jungle trees are pixel-art canopies (`treeSprite`, drawn once on a 26×34 grid and scaled), and dark out-of-focus leaves frame the plaza's bottom corners (`nearLeaves`); per-block glows are in `decorate` (relic blocks fill the whole bottom layer, so theirs stay faint).
 - `js/audio.js` is the WebAudio sound effects, per-world music and ambience (`DTWAudio`). Everything passes a limiter (a compressor after `master`); noise effects play slices of one shared buffer; repeats of the busy effects inside `GAP` (45 ms) are dropped and `brk`, `tap`, `step` vary their pitch a little. Ambience runs on its own bus: wind and birdsong on the plaza (ocean swells, alien blips, a hum on the moon), a drone and echoing drips in the pit that come faster with depth.
 - `js/ui.js` holds state, saving, the HUD, surface menus, input and the main loop, and sets `window.__game`.
-- `tests/logic.test.mjs`, `tests/materials.test.mjs` and `tests/hub.test.mjs` run `js/logic.js` in a Node `vm` context.
+- `tests/logic.test.mjs`, `tests/materials.test.mjs`, `tests/hub.test.mjs` and `tests/plaza-life.test.mjs` run `js/logic.js` in a Node `vm` context.
+- `scripts/` holds dev tooling, none of it loaded by the game: `bootstrap.sh` checks Node (20+) and git, and with `--browser` installs Playwright and headless Chromium into `$DIG_TEST_DIR` (default `~/.local/share/dig-test`, outside the repo); `serve.mjs` is a dependency-free static server; `shots.mjs` starts its own server and screenshots the plaza and each world's pit, wide and phone-sized, into `shots/` (gitignored), printing page errors. `package.json` only names these as npm scripts; it has no dependencies.
+- `.claude/settings.json` runs `scripts/bootstrap.sh --browser` at session start in Claude Code on the web (when `CLAUDE_CODE_REMOTE` is `true`).
+- `docs/design-decisions.md` (settled design decisions; do not re-ask them) and `docs/art-style.md` (the target HD-2D look; judge visual changes against it).
 
 ## Grid and controls
 
@@ -37,8 +40,10 @@ A browser digging game in plain HTML, CSS and JavaScript with no build step and 
 
 ## Commands
 
-- Run the tests with `node --test tests/*.test.mjs`. Two playthrough tests stand in for a 6–9 year old, both spending `CHILD_LOCK` (30 s) on each chest puzzle: a steering bot (steers toward the nearest block, taps, dodges traps after 0.6 s, goes home when the bag is full or every 2.5 minutes, never hires) must take 10–20 minutes a world, with full bags sending it home and at least 60% of materials dug; a hands-off bot (auto-mining only, no taps or dodges, hires helpers and buys their tools) must take at most 22. Both print the minutes per world.
-- Play the game by serving the folder with `python3 -m http.server 8765 --bind 127.0.0.1` and opening `http://localhost:8765/`.
+- Set up with `bash scripts/bootstrap.sh` (add `--browser` for screenshots). Requirements: Node 20 or newer; nothing to `npm install`.
+- Run the tests with `node --test tests/*.test.mjs` (or `npm test`). Two playthrough tests stand in for a 6–9 year old, both spending `CHILD_LOCK` (30 s) on each chest puzzle: a steering bot (steers toward the nearest block, taps, dodges traps after 0.6 s, goes home when the bag is full or every 2.5 minutes, never hires) must take 10–20 minutes a world, with full bags sending it home and at least 60% of materials dug; a hands-off bot (auto-mining only, no taps or dodges, hires helpers and buys their tools) must take at most 22. Both print the minutes per world.
+- Play the game by serving the folder with `npm run serve` (or `python3 -m http.server 8765 --bind 127.0.0.1`) and opening `http://localhost:8765/`.
+- Check a visual change with `npm run shots` and look at the PNGs in `shots/`. Headless Chromium has no emoji font, so emoji labels show as boxes there; that is not a bug.
 - URL flags:
   - `?dev=1` gives a billion coins and unlocks every world, and does not save.
   - `?world=N` starts in world N, counting from 0.
@@ -59,4 +64,10 @@ A browser digging game in plain HTML, CSS and JavaScript with no build step and 
 
 ## Agent workflow
 
-- Fanning independent work out to parallel subagents (for example one for the logic and tests, one for rendering, one for CSS and controls) is pre-approved here; do not ask first (standing rule, 2026-11-21). Keep to the model tiers and concurrency limits in the global instructions, give each agent its own files so edits do not collide, and review and test the merged result before committing.
+- Fanning independent work out to parallel subagents (for example one for the logic and tests, one for rendering, one for CSS and controls) is pre-approved here; do not ask first (standing rule, 2026-11-21). Keep to the model tiers and concurrency limits in the global instructions, give each agent its own files so edits do not collide, and review and test the merged result before committing. Without those instructions (a cloud session): set each subagent's model explicitly, Haiku for file sweeps, Sonnet for spec'd implementation and tests, Opus for planning and hard debugging, at most 3 Opus and 5 Sonnet at once.
+- Game logic changes are test-first: write a failing test in `tests/`, make it pass, then refactor. Rendering, CSS and docs are not.
+- Carry a multi-step task through without stopping between steps, and report at the end.
+- The user is the only contributor: commit and push straight to `main`, no branch or PR. If the session can only push its own branch (Claude Code on the web), push that branch and open a pull request. Bump the `?v=N` stamps in `index.html` whenever a deployed file changes.
+- Commit messages, PRs and code comments carry no AI identity, session links, co-author trailers or generated-by text. End each commit message and PR body with the line `seshraghi-volpe`.
+- Update this file when a change makes its layout, rules or commands inaccurate.
+- Replies and reports: lead with the answer, keep them short by leaving things out, plain words rather than flourish, and describe a commit or file by what it is rather than by its id alone.
