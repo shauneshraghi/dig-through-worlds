@@ -391,6 +391,8 @@ var DTWRender = (function () {
   // the fossil piece the miner is carrying home, as the sprite draws it on its back
   // down in the ocean world everyone wears a round glass diving helmet
   function underSea(S) { return S.mode !== 'surface' && D.WORLDS[S.world].id === 'ocean'; }
+  // the round glass helmet: under the sea, and everywhere on the moon (no air), except on the astronaut helper (k = 4), who has its own
+  function helmet(S, k) { return D.WORLDS[S.world].id === 'moon' ? k !== 4 : underSea(S); }
   function carriedBone(S) { return boneOf(S, 0); }
   // carried bone i as a sprite draws it: the miner holds the first D.minerBones, helper k the one after those
   function boneOf(S, i) {
@@ -412,7 +414,7 @@ var DTWRender = (function () {
       p.walk = (p.walk || 0) + Math.min(l, st);
       if (l <= st) { p.x = tx; p.z = tz; } else { p.x += ex / l * st; p.z += ez / l * st; }
       p.y += Math.max(-st, Math.min(st, c.y - p.y));
-      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, walk: p.walk, stun: c.stun > 0, bone: boneOf(S, D.minerBones(S) + k) });
+      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: partyOn ? 's' : c.face, dig: !partyOn && c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, walk: p.walk, stun: c.stun > 0, bone: boneOf(S, D.minerBones(S) + k) });
     });
     crewPos.length = out.length;
     return out;
@@ -422,10 +424,10 @@ var DTWRender = (function () {
     // helpers are drawn at 0.85 scale, so they take more steps per cell
     var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / 0.85, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
     pose.lean = sw ? sw.lean : 0; pose.air = 0; pose.blink = false; if (sw) pose.body = sw.body;
-    var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', bowl: underSea(S), t: time });
+    var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', bowl: helmet(S, h.k), t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
-    if (S.mode === 'surface') ctx.translate(0, -cheerHop(h.k + 3));
+    if (S.mode === 'surface' || partyOn) ctx.translate(0, -cheerHop(h.k + 3));
     if (fc.flip) ctx.scale(-1, 1);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
@@ -449,7 +451,7 @@ var DTWRender = (function () {
     // the rucksack on the miner's back grows with the bag: stuffed full, it is time to go home
     var full = r && S.mode !== 'surface' ? Math.min(1, r.bag.length / D.bagCap(S)) : 0;
     var spr = DTWSprites.miner({ bone: carriedBone(S), back: climbing ? true : fc.back, swing: digging ? sw : null, carry: !digging, tier: pickTier(S.upgrades.drill), twin: !!(S.upgrades.twin | 0), splash: !!(S.upgrades.splash | 0), pose: pose, pack: S.mode === 'surface' ? null : full, surface: S.mode === 'surface',
-      lampOn: S.mode !== 'surface', bowl: underSea(S), climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
+      lampOn: S.mode !== 'surface', bowl: helmet(S), climb: climbing ? (Math.floor(disp.y * 3) & 1) : null, t: time });
     if (climbing) fc = FACE.w;
     var p = charScale();
     // squash and stretch about the feet: squash on landing and on each strike, stretch while falling
@@ -461,7 +463,7 @@ var DTWRender = (function () {
     var sh = 1 - disp.air * 0.35;
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.45 * sh, hh * 0.45 * sh, 0, 0, 7); ctx.fill();
     if (r && r.stun > 0) ctx.rotate(Math.sin(time * 14) * 0.1); // dazed wobble
-    if (S.mode === 'surface') ctx.translate(0, -cheerHop(0));
+    if (S.mode === 'surface' || partyOn) ctx.translate(0, -cheerHop(0));
     ctx.scale(fc.flip ? -scx : scx, scy);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
@@ -490,7 +492,9 @@ var DTWRender = (function () {
     octx.fillStyle = '#fff'; octx.fillText('TAP!', u * 1.25, u * 0.1); octx.restore();
   }
   // plaza cheering during the finale: a hop height in pixels, out of step per person
-  function cheerHop(seed) { return fin && fin.t < fin.dur ? Math.abs(Math.sin(time * 9 + seed * 2.1)) * TW * 0.3 : 0; }
+  // the relic-floor party (run.party): the miner and helpers jump for joy, and confetti flies
+  var partyOn = false, confT = 0, CONFETTI = ['#ff5a7a', '#ffd23f', '#5ad1ff', '#7dff8a', '#c58aff', '#ffffff'];
+  function cheerHop(seed) { if (partyOn) return Math.abs(Math.sin(time * 7 + seed * 1.3)) * TW * 0.34; return fin && fin.t < fin.dur ? Math.abs(Math.sin(time * 9 + seed * 2.1)) * TW * 0.3 : 0; }
 
   // ---------- surface scenery: iso boxes on the rim ----------
   function poly(pts, col) { ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]); ctx.closePath(); ctx.fill(); }
@@ -1727,6 +1731,12 @@ var DTWRender = (function () {
     stepPeople(dt, S);
     lifeUpdate(dt, S); critUpdate(dt, S); guestUpdate(dt, S);
     var r = S.run, tg = targets(S);
+    partyOn = S.mode === 'dig' && !!(r && r.party);
+    if (partyOn && (confT -= dt) <= 0) { // confetti bursts over the miner and the helpers
+      confT = 0.09;
+      var who = [r].concat(r.crew || []), pw = who[Math.floor(Math.random() * who.length)];
+      for (var ci = 0; ci < 3; ci++) parts.push({ x: pw.x + 0.5 + (Math.random() - 0.5) * 0.6, y: pw.y - 0.3, z: pw.z + 0.5 + (Math.random() - 0.5) * 0.6, vx: (Math.random() - 0.5) * 2.5, vy: -2.5 - Math.random() * 2.5, vz: (Math.random() - 0.5) * 2.5, life: 0.9 + Math.random() * 0.5, c: CONFETTI[Math.floor(Math.random() * CONFETTI.length)], s: 0.05 + Math.random() * 0.04 });
+    }
     if (disp.world !== S.world) { disp.world = S.world; disp.x = tg[0]; disp.y = tg[1]; disp.z = tg[2]; cam.init = false; }
     // a dig started away from the ladder (the Dig! button, Enter) jumps to the ladder top instead of sliding there
     if (disp.mode === 'surface' && S.mode === 'down' && Math.hypot(disp.x - tg[0], disp.z - tg[2]) > 1.5) { disp.x = tg[0]; disp.z = tg[2]; cam.init = false; }
@@ -1767,9 +1777,9 @@ var DTWRender = (function () {
       if (splash && r.target >= 0) { // Splash Pick: a ring of chips over the four blocks beside the target
         var ti = r.target, tx = ti % N, tz = Math.floor(ti / N) % N, ty = Math.floor(ti / (N * N));
         shocks.push({ x: tx, y: ty, z: tz, age: 0 });
-        [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {
+        [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]].forEach(function (d) {
           var nx = tx + d[0], nz = tz + d[1];
-          if (nx >= 0 && nx < N && nz >= 0 && nz < N) spawnBreak(nx, ty, nz, Math.random() < 0.5 ? '#ffd23fcc' : '#ff8a2acc', 3);
+          if (nx >= 0 && nx < N && nz >= 0 && nz < N && Math.random() < 0.35) spawnBreak(nx, ty, nz, '#ffd23f88', 1);
         });
       }
     }
@@ -1913,10 +1923,10 @@ var DTWRender = (function () {
     drawFinds();
     drawRoomFx();
     for (var sk = 0; sk < shocks.length; sk++) { // the Splash Pick's shock ring: a diamond spreading over the neighbouring blocks
-      var sh = shocks[sk], sa = sh.age / 0.45, sq = P(sh.x + 0.5, sh.y + 0.5, sh.z + 0.5), sr = (0.5 + 1.1 * sa) * hw * 1.4;
-      ctx.strokeStyle = 'rgba(255,214,90,' + (0.9 * (1 - sa)) + ')'; ctx.lineWidth = Math.max(2, TW / 16);
+      var sh = shocks[sk], sa = sh.age / 0.45, sq = P(sh.x + 0.5, sh.y + 0.5, sh.z + 0.5), sr = (0.5 + 2.1 * sa) * hw * 1.4;
+      ctx.strokeStyle = 'rgba(255,214,90,' + (0.32 * (1 - sa)) + ')'; ctx.lineWidth = Math.max(1, TW / 30);
       ctx.beginPath(); ctx.moveTo(sq[0], sq[1] - sr * 0.5); ctx.lineTo(sq[0] + sr, sq[1]); ctx.lineTo(sq[0], sq[1] + sr * 0.5); ctx.lineTo(sq[0] - sr, sq[1]); ctx.closePath(); ctx.stroke();
-      glow(sq[0], sq[1], TW * (0.6 + 1.2 * sa), '#ff9a3a', 0.7 * (1 - sa));
+      glow(sq[0], sq[1], TW * (0.5 + 1.2 * sa), '#ff9a3a', 0.2 * (1 - sa));
     }
     for (var k = 0; k < parts.length; k++) { var p = parts[k], pq = P(p.x, p.y, p.z); ctx.fillStyle = p.c; ctx.fillRect(pq[0], pq[1], p.s * TW, p.s * TW); }
     // headlamp: darkness grows with depth, with a pool of light around the miner

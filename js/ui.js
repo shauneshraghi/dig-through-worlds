@@ -330,6 +330,8 @@
       else if (e.type === 'relic') { A.sfx('relic'); toast('✨ <b>' + D.WORLDS[e.world].relic.name + '</b> found!', 2400); R.shake(0.5); }
       else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') { minerFloat('🫧', '#bff7ff'); R.spawnBreak(r.x, r.y, r.z, '#bff7ff', 12); } }
       else if (e.type === 'descend') A.sfx('down');
+      else if (e.type === 'party') { A.sfx('party'); R.shake(0.3); minerFloat('🎉', '#ffe9a8'); }
+      else if (e.type === 'partyClear') R.shake(0.2);
       else if (e.type === 'bigBone') { // dust and cracks on the cells still in the ground, and a dull knock
         A.sfx('crack'); var gg = D.site(S, S.world), NN = D.N;
         [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(function (d) {

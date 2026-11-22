@@ -594,6 +594,25 @@ test('bringing the relic home unlocks the next world; the first relic block give
   assert.ok(layerLeft(s.sites[0], D.DEPTH) < D.N * D.N, 'relic layer was dug into');
 });
 
+test('the relic floor ends in a party: everyone jumps for joy, every block on the floor breaks, then home', () => {
+  const s = digAt(0, 3, D.DEPTH - 1, 3, { drill: 4 });
+  s.relics[0] = false; s.workers.diggers = 2;
+  for (let i = 0; i < 1200 && !s.run.party; i++) { D.tap(s); D.step(s, 0.05); }
+  assert.ok(s.run.party, 'the first relic block starts the party');
+  assert.ok(s.events.some(e => e.type === 'party'));
+  const left0 = layerLeft(s.run.grid, D.DEPTH), digs0 = s.stats.digs;
+  run(s, D.PARTY_JUMP - 0.2);
+  assert.equal(s.mode, 'dig');
+  assert.equal(s.stats.digs, digs0, 'nobody digs while they jump');
+  assert.equal(s.run.state, 'party');
+  assert.ok(left0 > 0);
+  run(s, 0.4 + left0 * D.PARTY_POP);
+  assert.equal(layerLeft(s.run.grid, D.DEPTH), 0, 'the whole floor is cleared');
+  run(s, D.PARTY_END + 4);
+  assert.equal(s.mode, 'surface');
+  assert.equal(s.relics[0], true);
+});
+
 test('ocean: when oxygen runs out the miner floats home with its bag', () => {
   const s = digAt(1, 3, 30, 3);
   s.run.bag.push({ kind: 'ore', world: 1, idx: 0 });
@@ -741,6 +760,17 @@ test('museum coins pile up at the museum and are collected by walking in', () =>
   assert.ok(s2.pile < 1);
   const e = s2.events.find(e => e.type === 'museumCash');
   assert.ok(e && e.coins >= Math.floor(pile), 'a museumCash event reports the sum');
+  // after a collection the heap stays away for PILE_COOLDOWN s: coins earned meanwhile wait out of sight, then show at once
+  const inc2 = D.museumIncome(s2), c1 = s2.coins;
+  D.step(s2, D.PILE_COOLDOWN / 2); D.step(s2, 0.05);
+  assert.ok(s2.pile < 1, 'no heap during the cooldown');
+  assert.equal(s2.coins, c1, 'nothing collected during the cooldown');
+  const s3 = D.deserialize(D.serialize(s2));
+  assert.ok(s3.pile >= inc2 * D.PILE_COOLDOWN / 2 - 1e-6, 'coins waiting out the cooldown are kept in a save');
+  D.step(s2, D.PILE_COOLDOWN / 2);
+  D.step(s2, 0.05);
+  assert.ok(s2.coins >= c1 + Math.floor(inc2 * D.PILE_COOLDOWN) - 1, 'after the cooldown the coins are collected');
+  assert.equal(D.PILE_COOLDOWN, 60);
 });
 
 test('helper diggers: two in the first world, one more for each world unlocked', () => {

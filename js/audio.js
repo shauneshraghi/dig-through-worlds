@@ -84,6 +84,15 @@ var DTWAudio = (function () {
       [523, 659, 784, 1047, 1319].forEach(function (f) { tone(f, 0.9, 'triangle', 0.1, t + 2.5); });
       for (var c = 0; c < 8; c++) tone(500 + c * 90, 0.35, 'sawtooth', 0.04, t + 3.6 + c * 0.05, 1.6);
     },
+    party: function () { // the relic-floor party: a bouncy tune over about 4 s, with a bass line and a cymbal on each bar
+      var t = AC.currentTime + 0.05, b = 0.16;
+      var mel = [72, 76, 79, 84, 79, 76, 72, -1, 74, 77, 81, 86, 81, 77, 74, -1, 76, 79, 83, 88, 86, 84, 83, 81, 79, 84, 88, 91, 88, 84, -1, -1];
+      var bass = [48, 48, 50, 50, 52, 52, 55, 48];
+      mel.forEach(function (n, i) { if (n > 0) { tone(440 * Math.pow(2, (n - 69) / 12), b * 0.9, 'square', 0.07, t + i * b); tone(440 * Math.pow(2, (n - 57) / 12), b * 0.7, 'triangle', 0.04, t + i * b); } });
+      bass.forEach(function (n, i) { tone(440 * Math.pow(2, (n - 69) / 12), b * 3.6, 'triangle', 0.12, t + i * b * 4); tone(90, 0.12, 'sine', 0.14, t + i * b * 4, 0.4); });
+      [72, 76, 79, 84].forEach(function (n) { tone(440 * Math.pow(2, (n - 69) / 12), 0.9, 'triangle', 0.08, t + 32 * b); });
+    },
+    pop: function () { tone(500 + Math.random() * 500, 0.06, 'square', 0.05, 0, 1.8); },
     buy: function () { tone(660, 0.08, 'square', 0.1); tone(990, 0.12, 'square', 0.1, AC.currentTime + 0.06); },
     up: function () { tone(200, 0.6, 'triangle', 0.12, 0, 4); },
     down: function () { tone(500, 0.5, 'triangle', 0.1, 0, 0.3); },

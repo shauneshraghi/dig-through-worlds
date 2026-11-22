@@ -199,22 +199,25 @@ test('Splash Pick: one-time, fixed price, offered once world 2 is unlocked', () 
   assert.equal(D.upgradeCost(s, 'splash').coins, Infinity); assert.equal(D.buyUpgrade(s, 'splash'), false);
   assert.equal(D.buyUpgrade(s, 'twin'), true);
 });
-test('Splash Pick: a strike chips orthogonal neighbours, never chests, relics, bedrock or open cells', () => {
+test('Splash Pick: a strike chips the blocks around it two cells out, never chests, relics, bedrock or open cells', () => {
   const s = D.newState(3); s.unlocked[2] = true; s.upgrades.splash = 1; s.auto = false;
   digTo(s, 0); flatLayer(s, 1); const g = s.run.grid, y = 1;
   D._setTile(s, 4, y, 3, T.CHEST, 0); D._setTile(s, 2, y, 3, T.AIR, 0);
   D._setTile(s, 3, y, 2, T.STONE, 0); D._setTile(s, 3, y, 4, T.RELIC, 0);
-  for (const [x, z] of [[4,3],[3,2],[3,4]]) g.hp[D.idx(x, y, z)] = 100;
-  const hp0 = g.hp[D.idx(3, y, 2)];
+  for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) { const i = D.idx(x, y, z); if (g.t[i] !== T.AIR) g.hp[i] = 100; }
   D.steer(s, 'n'); D.tap(s); D.step(s, 0.05);
-  const hit = hp0 - g.hp[D.idx(3, y, 2)];
+  const hit = 100 - g.hp[D.idx(3, y, 2)];
   assert.ok(hit > 0, 'target damaged');
   assert.equal(g.hp[D.idx(4, y, 3)], 100, 'chest untouched'); assert.equal(g.hp[D.idx(3, y, 4)], 100, 'relic untouched');
   assert.equal(g.t[D.idx(2, y, 3)], T.AIR);
-  // the target's neighbours (2,2) and (4,2) take SPLASH_FRAC of the strike
-  const side = 100 - g.hp[D.idx(2, y, 2)];
-  assert.ok(Math.abs(side - D.SPLASH_FRAC * hit) < 1e-3, `${side} vs ${D.SPLASH_FRAC * hit}`);
-  assert.equal(D.SPLASH_FRAC, 0.4);
+  // the 8 blocks around the target take SPLASH_FRAC of the strike, diagonals too, and the ring beyond SPLASH_FAR
+  for (const [x, z, f] of [[2, 2, D.SPLASH_FRAC], [4, 2, D.SPLASH_FRAC], [2, 1, D.SPLASH_FRAC], [4, 1, D.SPLASH_FRAC], [5, 2, D.SPLASH_FAR], [3, 0, D.SPLASH_FAR], [1, 4, D.SPLASH_FAR]]) {
+    const i = D.idx(x, y, z); if (g.t[i] !== T.STONE) continue;
+    const side = 100 - g.hp[i];
+    assert.ok(Math.abs(side - f * hit) < 1e-3, `${x},${z}: ${side} vs ${f * hit}`);
+  }
+  assert.equal(g.hp[D.idx(6, y, 2)], 100, 'three cells out is untouched');
+  assert.equal(D.SPLASH_FRAC, 0.5); assert.equal(D.SPLASH_FAR, 0.25);
 });
 test('Splash Pick: a splash that breaks a block drops its loot', () => {
   const s = D.newState(3); s.unlocked[2] = true; s.upgrades.splash = 1; s.auto = false;

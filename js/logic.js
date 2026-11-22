@@ -197,7 +197,12 @@ var DTW = (function () {
     splash: { name: 'Splash Pick', max: 1, world: 2, fixed: { coins: 7000, mats: [70, 50, 35, 15, 7] }, text: 'Each strike also chips the blocks beside it' },
     twin:   { name: 'Twin Picks',  max: 1, world: 3, fixed: { coins: 20000, mats: [130, 100, 70, 35, 20] }, text: 'Swing 60% faster' }
   };
-  var SPLASH_FRAC = 0.4; // share of a miner strike's damage that also hits each orthogonal neighbour block
+  // share of a miner strike's damage that also hits each block of the same layer around the target: SPLASH_FRAC for the
+  // 8 cells touching it (diagonals too) and SPLASH_FAR for the ring two cells out
+  var SPLASH_FRAC = 0.5, SPLASH_FAR = 0.25;
+  // the relic floor ends in a party: the miner and helpers jump for joy for PARTY_JUMP s, then the floor's blocks break
+  // one every PARTY_POP s, its loot goes in the bag, and after PARTY_END s everyone climbs home
+  var PARTY_JUMP = 3.5, PARTY_POP = 0.12, PARTY_END = 1.2;
   var TWIN_RATE = 1.6;   // the miner's swing and tap damage multiplier with Twin Picks
   // units of material in one ore block's stack, by world index and tier (coal..crystal); a stack is one bag item
   // (upgrade prices need coal and copper in bulk at high levels, and late worlds hold little of them, so their stacks are big)
@@ -416,6 +421,7 @@ var DTW = (function () {
   // gives a gift: coins (GUEST_COINS of a quiz answer), a big gift (GUEST_BIG of one) or materials (GUEST_MATS stacks of
   // the newest world's two lowest tiers). Kinds: worlds (ids, or null for all), when ('day' is any phase but night,
   // 'night', or 'any') and an optional weather list.
+  var PILE_COOLDOWN = 60; // s the museum's coin heap stays away after it is collected
   var GUEST_EVERY = 150, GUEST_REACH = 1.0, GUEST_COINS = 0.5, GUEST_BIG = 1, GUEST_MATS = 2;
   var GUESTS = [
     { id: 'fox', name: 'Fox', worlds: ['forest'], when: 'day', gift: 'coins' },
@@ -556,7 +562,7 @@ var DTW = (function () {
     var h = s.hub, d = HUB_SPEED * dt;
     deliver(s);
     if (s.pile >= 1 && 'mM'.indexOf(hubCell(Math.floor(h.x), Math.floor(h.z))) >= 0) {
-      var got = Math.floor(s.pile); s.coins += got; s.pile -= got; emit(s, { type: 'museumCash', coins: got });
+      var got = Math.floor(s.pile); s.coins += got; s.pile -= got; s.pileCD = PILE_COOLDOWN; emit(s, { type: 'museumCash', coins: got });
     }
     // pushing down the ladder (mostly +x, down-right on screen) from its pad climbs into the pit
     if (h.input && h.input[0] > Math.abs(h.input[1]) && Math.floor(h.x) === -1 && Math.abs(Math.floor(h.z) - LADDER_Z) <= LADDER_DOWN && s.unlocked[s.world]) {
@@ -1220,7 +1226,7 @@ var DTW = (function () {
     if (isNewBone(s, it) && s.carry.length < boneCap(s)) { s.carry.push(it); it.carried = true; }
     else r.bag.push(it);
     emit(s, { type: 'collect', item: it, name: itemName(it), at: at || null });
-    if (it.kind === 'relic') { r.relicTimer = 1.5; emit(s, { type: 'relic', world: it.world }); }
+    if (it.kind === 'relic') emit(s, { type: 'relic', world: it.world });
   }
   // a chest holds a fossil piece still missing from the creature buried at this depth, or coins
   function chestLoot(s, w, y, smashed) {
@@ -1252,6 +1258,7 @@ var DTW = (function () {
     delete r.goo[i];
     s.stats.digs++;
     emit(s, { type: 'break', x: bx, y: by, z: bz, tile: tt });
+    if (tt === TILE.RELIC && !r.party) { r.party = { phase: 'jump', t: PARTY_JUMP }; r.lock = null; r.dodge = 0; emit(s, { type: 'party', world: w }); }
     if (!it) return;
     if (it.kind === 'relic') { collect(s, it); return; } // the relic is handed over at once
     // everything else drops on the floor of its cell and waits to be picked up; on the moon it bounces first
@@ -1377,18 +1384,43 @@ var DTW = (function () {
       if (g.hp[c.target] <= 0) { var done = c.target; c.target = -1; breakTile(s, done, c); if (r.path && r.path.target === done) r.path = null; }
     }
   }
-  // Splash Pick: a miner strike also hits the blocks orthogonally beside its target, in the same layer
+  // Splash Pick: a miner strike also hits the blocks around its target in the same layer, two cells out
   function splash(s, tgt, dmg, hit) {
     var r = s.run, g = r.grid, y = Math.floor(tgt / NN), x = tgt % N, z = Math.floor(tgt / N) % N;
-    ['e', 's', 'w', 'n'].forEach(function (k) {
-      var nx = x + DIRS[k][0], nz = z + DIRS[k][1];
-      if (nx < 0 || nx >= N || nz < 0 || nz >= N) return;
+    for (var dz = -2; dz <= 2; dz++) for (var dx = -2; dx <= 2; dx++) {
+      var ring = Math.max(Math.abs(dx), Math.abs(dz)), nx = x + dx, nz = z + dz;
+      if (!ring || nx < 0 || nx >= N || nz < 0 || nz >= N) continue;
       var ni = idx(nx, y, nz), tt = g.t[ni];
-      if (!diggable(tt) || tt === TILE.CHEST || tt === TILE.RELIC) return;
-      g.hp[ni] -= SPLASH_FRAC * dmg; hit[ni] = 1;
+      if (!diggable(tt) || tt === TILE.CHEST || tt === TILE.RELIC) continue;
+      g.hp[ni] -= (ring === 1 ? SPLASH_FRAC : SPLASH_FAR) * dmg; hit[ni] = 1;
       if (tt === TILE.GOO) r.goo[ni] = 1;
       if (g.hp[ni] <= 0) { breakTile(s, ni); if (r.path && r.path.target === ni) r.path = null; if (r.goal === ni) r.goal = -1; }
+    }
+  }
+  function stepParty(s, dt) {
+    var r = s.run, P = r.party, g = r.grid;
+    r.state = 'party'; r.target = -1; r.taps = 0; r.path = null; r.goal = -1;
+    // the helpers gather round the miner, on the relic blocks beside it, and drop onto the floor as those blocks go
+    var ring = [[1, 0], [0, 1], [-1, 0], [0, -1], [1, 1], [-1, 1], [-1, -1], [1, -1], [2, 0], [0, 2], [-2, 0], [0, -2]].filter(function (d) { var x = r.x + d[0], z = r.z + d[1]; return x >= 0 && x < N && z >= 0 && z < N; });
+    (r.crew || []).forEach(function (c, k) {
+      var d = ring[k % ring.length]; c.target = -1; c.stun = 0; c.x = r.x + d[0]; c.z = r.z + d[1]; c.face = d[0] > 0 ? 'w' : d[0] < 0 ? 'e' : d[1] > 0 ? 'n' : 's';
+      c.y = diggable(g.t[idx(c.x, DEPTH, c.z)]) ? DEPTH - 1 : DEPTH;
     });
+    P.t -= dt;
+    if (P.phase === 'jump') { if (P.t <= 0) { P.phase = 'clear'; P.t = 0; emit(s, { type: 'partyClear' }); } return; }
+    if (P.phase === 'clear') {
+      while (P.t <= 0) {
+        var next = -1, bd = 1e9;
+        for (var k = 0; k < NN; k++) { // nearest the miner first, so the floor bursts outward from it
+          var i = DEPTH * NN + k, x = k % N, z = Math.floor(k / N), d = Math.abs(x - r.x) + Math.abs(z - r.z);
+          if (diggable(g.t[i]) && d < bd) { bd = d; next = i; }
+        }
+        if (next < 0) { gatherLoot(s); P.phase = 'done'; P.t = PARTY_END; return; }
+        breakTile(s, next); P.t += PARTY_POP;
+      }
+      return;
+    }
+    if (P.t <= 0) { r.party = null; goHome(s, 'relic'); }
   }
   function stepDig(s, dt) {
     var r = s.run, g = r.grid, w = s.world, rule = WORLDS[w].rule;
@@ -1404,7 +1436,7 @@ var DTW = (function () {
       }
     }
     stepLoot(s, dt);
-    if (r.relicTimer > 0) { r.relicTimer -= dt; if (r.relicTimer <= 0) { goHome(s, 'relic'); return; } }
+    if (r.party) { stepParty(s, dt); return; }
     if (r.dodge > 0) { // a cracked trap is about to go off: the miner freezes; no dodge in time and it dazes
       r.dodge -= dt; r.taps = 0; r.state = 'idle';
       if (r.dodge <= 0) { r.dodge = 0; r.stun = 2; s.stats.trapsSprung++; emit(s, { type: 'trap' }); }
@@ -1533,7 +1565,11 @@ var DTW = (function () {
     s.stats.timePlayed += dt;
     stepQuiz(s, dt);
     stepGuest(s, dt);
-    s.pile = (s.pile || 0) + museumIncome(s) * dt; // visitor coins pile up at the museum till the miner walks in
+    // visitor coins pile up at the museum till the miner walks in; for PILE_COOLDOWN s after a collection they wait out
+    // of sight (s.pileHold) and then join the heap at once, so it does not grow back under the miner's feet
+    var inc = museumIncome(s) * dt;
+    if (s.pileCD > 0) { s.pileCD -= dt; s.pileHold = (s.pileHold || 0) + inc; if (s.pileCD <= 0) { s.pileCD = 0; s.pile = (s.pile || 0) + s.pileHold; s.pileHold = 0; } }
+    else s.pile = (s.pile || 0) + inc;
     if (s.mode === 'dig') stepDig(s, dt);
     else if (s.mode === 'surface') stepHub(s, dt);
     else if (s.mode === 'down') { s.run.elevT -= dt; if (s.run.elevT <= 0) { s.mode = 'dig'; emit(s, { type: 'arrive' }); } }
@@ -1544,7 +1580,7 @@ var DTW = (function () {
     var digging = s.run && s.mode !== 'surface', left = [];
     var bag = digging ? s.run.bag.concat(s.run.loot.filter(function (l) { if (lootWaits(s, l)) { left.push(l.item); return false; } return true; }).map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 5, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: s.pile || 0, seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 5, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0,
         bones: (g.bones || []).concat(digging && s.run.grid === g ? left : []) }; })
@@ -1612,7 +1648,7 @@ var DTW = (function () {
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ICE_N: ICE_N, ICE_ROCKS: ICE_ROCKS, ICE_MIN: ICE_MIN, LOCK_ONE: LOCK_ONE, LOCK_TWO: LOCK_TWO, iceSlide: iceSlide, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
-    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, ORE_STACK: ORE_STACK, DODGE_WINDOW: DODGE_WINDOW, dodge: dodge, buyUpgrade: buyUpgrade, hireCost: hireCost,
+    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, SPLASH_FAR: SPLASH_FAR, PILE_COOLDOWN: PILE_COOLDOWN, PARTY_JUMP: PARTY_JUMP, PARTY_POP: PARTY_POP, PARTY_END: PARTY_END, TWIN_RATE: TWIN_RATE, ORE_STACK: ORE_STACK, DODGE_WINDOW: DODGE_WINDOW, dodge: dodge, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, QUIZ_EVERY: QUIZ_EVERY, quizAnswer: quizAnswer, quizReward: quizReward, _quizNow: function (s) { s.quiz = quizMake(s); }, DAY_LEN: DAY_LEN, dayPhase: dayPhase, WEATHER: WEATHER, WEATHER_SLOT: WEATHER_SLOT, weather: weather, GUESTS: GUESTS, GUEST_EVERY: GUEST_EVERY, GUEST_REACH: GUEST_REACH, guestSpots: guestSpots, guestGift: guestGift, _guestNow: function (s) { s.guest = guestMake(s); }, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
