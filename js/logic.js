@@ -88,15 +88,16 @@ var DTW = (function () {
   var CHEST_FOSSIL = 0.6; // chance a chest holds a missing fossil piece of the creature buried at that depth
   // A chest is locked. The miner reaching one opens the lock puzzle (run.lock) and the dig waits: pins sit at one
   // of LOCK_LEVELS heights and must match the key's teeth; a tap moves a pin up one (wrapping round) and its linked
-  // neighbours with it (LOCK_LINK): in the first world only the pin to its right, so it is solved left to right; after
-  // that the pins on both sides, so the taps have to be planned. Picking it gives the contents and a
+  // neighbours with it. Only some neighbouring pins are linked (L.links, one per gap, placed at random): LOCK_ONE[w] gaps
+  // where the left pin pushes the right one (solved left to right), LOCK_TWO[w] where each pushes the other (to be
+  // planned), and the rest not linked at all, so the lock stays easy enough for a child. Picking it gives the contents and a
   // bonus gem worth LOCK_GEM coins (times the world's ore value); smashing it gives SMASH_COINS and never a fossil.
-  var LOCK_LEVELS = 4, LOCK_PINS = [4, 4, 5, 5, 6], LOCK_LINK = [1, 2, 2, 2, 2], LOCK_GEM = 30, SMASH_COINS = 8;
+  var LOCK_LEVELS = 4, LOCK_PINS = [4, 4, 5, 5, 6], LOCK_ONE = [2, 3, 2, 2, 2], LOCK_TWO = [0, 0, 1, 1, 2], LOCK_GEM = 30, SMASH_COINS = 8;
   // Not every chest is a pin lock (run.lock.kind): 'pairs' is a memory game, cards face down, two flipped at a time,
   // a match stays up and a miss turns back over after PAIR_MISS seconds; 'simon' lights SIMON_PADS gems in a sequence
   // (SIMON_STEP seconds each) for the player to tap back in order, and a wrong tap plays it again. Each chest picks
   // a kind other than the last one.
-  var LOCK_KINDS = ['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path'], PAIRS = [4, 6, 6, 8, 8], PAIR_MISS = 0.9;
+  var LOCK_KINDS = ['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path', 'ice'], PAIRS = [4, 6, 6, 8, 8], PAIR_MISS = 0.9;
   var SIMON_PADS = 4, SIMON_LEN = [4, 5, 5, 6, 7], SIMON_STEP = 0.7, SIMON_LEAD = 0.6;
   // More puzzles, each harder in later worlds (one entry per world). 'slide': sliding tiles on a SLIDE_N x SLIDE_N board
   // (always 3, since 4x4 is too hard for a kid), scrambled by SLIDE_K random legal moves from solved. 'pipes': turn tiles (a
@@ -108,6 +109,10 @@ var DTW = (function () {
   // and starts over.
   var SLIDE_N = [3, 3, 3, 3, 3], SLIDE_K = [8, 12, 14, 16, 18];
   var PIPE_N = [3, 4, 4, 5, 5], PIPE_OUTS = [1, 1, 2, 2, 3];
+  // 'ice': an ice block on an ICE_N x ICE_N board with ICE_ROCKS rocks; a push (lockTap 0-3, N E S W) slides it until a
+  // rock or the edge stops it, and it drops into the hole if it passes over it. The board is dealt so the fewest pushes
+  // into the hole is exactly ICE_MIN[w]; lockTap 4 puts the block back at the start.
+  var ICE_N = [5, 5, 6, 6, 6], ICE_ROCKS = [3, 4, 6, 7, 8], ICE_MIN = [2, 3, 3, 4, 5];
   var ODD_ROUNDS = [3, 3, 4, 4, 5], ODD_CARDS = [4, 6, 9, 12, 16], ODD_WAIT = 0.8;
   var ODD_SETS = [
     [['🍎', '🐟'], ['🐸', '🚗'], ['⭐', '🌳']],
@@ -727,6 +732,7 @@ var DTW = (function () {
     else if (kind === 'pipes') openPipes(s, i);
     else if (kind === 'odd') { r.lock = { i: i, kind: kind, round: 0, rounds: ODD_ROUNDS[w], wait: 0, bad: -1, taps: 0 }; dealOdd(s, r.lock); }
     else if (kind === 'path') openPath(s, i);
+    else if (kind === 'ice') openIce(s, i);
     else openPins(s, i);
     r.target = -1; r.state = 'idle'; r.taps = 0; r.steer = 0; r.path = null;
     emit(s, { type: 'lock', i: i, kind: kind });
@@ -848,24 +854,65 @@ var DTW = (function () {
   }
   function simonShow(seq) { return SIMON_LEAD + seq.length * SIMON_STEP; }
   function openPins(s, i) {
-    var r = s.run, w = s.world, n = LOCK_PINS[w], link = LOCK_LINK[w], key = [], pins = [];
+    var r = s.run, w = s.world, n = LOCK_PINS[w], key = [], pins = [], links = [];
+    for (var g = 0; g < n - 1; g++) links.push(g < LOCK_TWO[w] ? 2 : g < LOCK_TWO[w] + LOCK_ONE[w] ? 1 : 0);
+    for (var g2 = links.length - 1; g2 > 0; g2--) { var q2 = Math.floor(rand(s) * (g2 + 1)), t2 = links[g2]; links[g2] = links[q2]; links[q2] = t2; }
     for (var k = 0; k < n; k++) { key.push(Math.floor(rand(s) * LOCK_LEVELS)); pins.push(key[k]); }
     // scramble from the key with backward taps, so the lock can always be picked
     while (pins.join() === key.join()) for (var m = 0; m < n; m++) {
       var back = Math.floor(rand(s) * LOCK_LEVELS);
-      for (var b = 0; b < back; b++) bumpPins(pins, m, link, LOCK_LEVELS - 1);
+      for (var b = 0; b < back; b++) bumpPins(pins, m, links, LOCK_LEVELS - 1);
     }
-    r.lock = { i: i, kind: 'pins', key: key, pins: pins, link: link, taps: 0 };
+    r.lock = { i: i, kind: 'pins', key: key, pins: pins, links: links, taps: 0 };
   }
   // the timers of an open puzzle: a missed pair turning back over, the simon sequence playing
   function tickLock(L, dt) {
     if (L.wait > 0 && (L.wait -= dt) <= 0) { L.wait = 0; if (L.up) L.up = []; L.bad = -1; }
     if (L.show > 0) L.show = Math.max(0, L.show - dt);
   }
-  function bumpPins(pins, k, link, by) {
+  function bumpPins(pins, k, links, by) { // links[g] joins pins g and g + 1: 0 not, 1 left pushes right, 2 both ways
     pins[k] = (pins[k] + by) % LOCK_LEVELS;
-    if (link >= 1 && k + 1 < pins.length) pins[k + 1] = (pins[k + 1] + by) % LOCK_LEVELS;
-    if (link === 2 && k > 0) pins[k - 1] = (pins[k - 1] + by) % LOCK_LEVELS;
+    if (links[k] >= 1 && k + 1 < pins.length) pins[k + 1] = (pins[k + 1] + by) % LOCK_LEVELS;
+    if (k > 0 && links[k - 1] === 2) pins[k - 1] = (pins[k - 1] + by) % LOCK_LEVELS;
+  }
+  // ---- ice: rocks[k] marks a rock at cell k (row * n + col); the block is at L.at, the hole at L.goal
+  function iceSlide(L, at, d) {
+    var n = L.n, r = Math.floor(at / n), c = at % n;
+    for (;;) {
+      if (r * n + c === L.goal) return L.goal;
+      var nr = r + PIPE_DZ[d], nc = c + PIPE_DX[d];
+      if (nr < 0 || nr >= n || nc < 0 || nc >= n || L.rocks[nr * n + nc]) return r * n + c;
+      r = nr; c = nc;
+    }
+  }
+  function iceMoves(L) { // fewest pushes from the start into the hole, or -1
+    var dist = {}, q = [L.start]; dist[L.start] = 0;
+    while (q.length) {
+      var a = q.shift();
+      if (a === L.goal) return dist[a];
+      for (var d = 0; d < 4; d++) { var b = iceSlide(L, a, d); if (!(b in dist)) { dist[b] = dist[a] + 1; q.push(b); } }
+    }
+    return -1;
+  }
+  function openIce(s, i) {
+    var w = s.world, n = ICE_N[w], best = null, bestD = -1;
+    // deal boards until one needs exactly ICE_MIN pushes (keeping the closest in case none does)
+    for (var tries = 0; tries < 400 && bestD !== ICE_MIN[w]; tries++) {
+      var rocks = []; for (var k = 0; k < n * n; k++) rocks.push(0);
+      for (var m = 0; m < ICE_ROCKS[w]; m++) rocks[Math.floor(rand(s) * n * n)] = 1;
+      var free = []; for (var f = 0; f < n * n; f++) if (!rocks[f]) free.push(f);
+      var L = { i: i, kind: 'ice', n: n, rocks: rocks, start: free[Math.floor(rand(s) * free.length)], goal: -1, at: -1, taps: 0 };
+      // the hole goes on whichever free cell needs ICE_MIN pushes
+      var fits = [];
+      for (var g = 0; g < free.length; g++) {
+        if (free[g] === L.start) continue;
+        L.goal = free[g]; var d = iceMoves(L);
+        if (d === ICE_MIN[w]) fits.push(free[g]);
+        else if (d > 0 && (bestD < 0 || Math.abs(d - ICE_MIN[w]) < Math.abs(bestD - ICE_MIN[w]))) { bestD = d; best = { rocks: rocks, start: L.start, goal: free[g] }; }
+      }
+      if (fits.length) { bestD = ICE_MIN[w]; best = { rocks: rocks, start: L.start, goal: fits[Math.floor(rand(s) * fits.length)] }; }
+    }
+    s.run.lock = { i: i, kind: 'ice', n: n, rocks: best.rocks, start: best.start, goal: best.goal, at: best.start, taps: 0 };
   }
   function lockTap(s, k) {
     var L = s.mode === 'dig' && s.run.lock;
@@ -904,6 +951,16 @@ var DTW = (function () {
         L.round++; emit(s, { type: 'match' });
         if (L.round < L.rounds) dealOdd(s, L); else solved = true;
       } else { L.wait = ODD_WAIT; L.bad = k; emit(s, { type: 'miss' }); }
+    } else if (L.kind === 'ice') {
+      if (k > 4) return false;
+      L.taps++;
+      if (k === 4) { L.at = L.start; emit(s, { type: 'miss' }); }
+      else {
+        var to = iceSlide(L, L.at, k);
+        if (to === L.at) return false;
+        L.at = to; emit(s, { type: 'pin', k: k });
+      }
+      solved = L.at === L.goal;
     } else if (L.kind === 'path') {
       if (k >= L.cells.length || !L.cells[k] || L.cells[k] < L.next || L.show > 0) return false;
       L.taps++;
@@ -915,7 +972,7 @@ var DTW = (function () {
       solved = L.next > L.n;
     } else {
       if (k >= L.pins.length) return false;
-      bumpPins(L.pins, k, L.link, 1); L.taps++;
+      bumpPins(L.pins, k, L.links, 1); L.taps++;
       emit(s, { type: 'pin', k: k });
       solved = L.pins.join() === L.key.join();
     }
@@ -1346,7 +1403,7 @@ var DTW = (function () {
     MATS: MATS, MAT_PRICE: MAT_PRICE, GEM: GEM, canAfford: canAfford, sellMat: sellMat, buyMat: buyMat, matBuyPrice: matBuyPrice, bank: bank,
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
-    SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
+    SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ICE_N: ICE_N, ICE_ROCKS: ICE_ROCKS, ICE_MIN: ICE_MIN, LOCK_ONE: LOCK_ONE, LOCK_TWO: LOCK_TWO, iceSlide: iceSlide, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, TWIN_RATE: TWIN_RATE, COAL_BATCH: COAL_BATCH, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,

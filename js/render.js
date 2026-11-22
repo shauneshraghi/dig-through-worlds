@@ -1436,14 +1436,17 @@ var DTWRender = (function () {
       var cq = P(x + 0.5, y + 0.15, z + 0.5);
       if (tt === T.ORE) { var oc = D.WORLDS[w].ores[g.v[i]].color, k = 0.25 + 0.14 * g.v[i]; glow(cq[0], cq[1], TW * (0.4 + 0.06 * g.v[i]), oc, k * (0.8 + 0.2 * Math.sin(time * 2 + x + z))); if (g.v[i] >= 3) light(cq[0], cq[1], TW * 1.5, 0.35, oc); }
       else if (tt === T.GOO) { glow(cq[0], cq[1], TW * 0.45, '#5dff7a', 0.16); light(cq[0], cq[1], TW * 1.3, 0.12, '#5dff7a'); }
-      else if (tt === T.RELIC) { glow(cq[0], cq[1], TW * 1.2, D.WORLDS[w].relic.color, 0.8); light(cq[0], cq[1], TW * 3, 0.9, D.WORLDS[w].relic.color); }
+      else if (tt === T.RELIC) { // the whole bottom layer is relic blocks: keep each one's glow faint so loot on the floor still shows
+        glow(cq[0], cq[1], TW * 0.45, D.WORLDS[w].relic.color, 0.14 + 0.06 * Math.sin(time * 2 + x + z));
+        if ((x + z) % 3 === 0) light(cq[0], cq[1], TW * 1.8, 0.18, D.WORLDS[w].relic.color);
+      }
       else if (tt === T.FOSSIL) glow(cq[0], cq[1], TW * 0.35, '#ffe9a8', 0.3);
       else if (tt === T.CHEST) { // chests shine gold and twinkle
         var tw = 0.5 + 0.5 * Math.sin(time * 3 + x * 2 + z); glow(cq[0], cq[1], TW * 0.85, '#ffd23f', 0.35 + 0.25 * tw); light(cq[0], cq[1], TW * 2.2, 0.35, '#ffd23f');
         if (tw > 0.7) cross(cq[0] + Math.sin(time * 1.3 + z) * hw * 0.5, cq[1] - hh * 0.7, Math.max(1, TW * 0.035), '#fff8d0', (tw - 0.7) * 3);
       }
     }
-    if (tt === T.RELIC && !S.relics[w]) { ctx.globalAlpha = 0.15 + 0.15 * Math.sin(time * 3); ctx.fillStyle = '#ffd23f'; hexPath(ctx, q[0] - hw, q[1]); ctx.fill(); ctx.globalAlpha = 1; }
+    if (tt === T.RELIC && !S.relics[w]) { ctx.globalAlpha = 0.06 + 0.05 * Math.sin(time * 3); ctx.fillStyle = '#ffd23f'; hexPath(ctx, q[0] - hw, q[1]); ctx.fill(); ctx.globalAlpha = 1; }
     if (!isTarget) return;
     var mh = D.maxHp(w, tt, y);
     if (!(mh > 0 && isFinite(mh) && g.hp[i] < mh)) return;

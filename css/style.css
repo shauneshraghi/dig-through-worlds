@@ -87,6 +87,15 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #lockBoard .pipes { display:grid; gap:3px; margin:0 auto; }
 #lockBoard .pipe { aspect-ratio:1; min-width:0; padding:0; border:2px solid #4a3d6e; border-radius:8px; background:#1a1426; cursor:pointer; touch-action:manipulation; }
 #lockBoard .pipe svg { width:100%; height:100%; display:block; }
+#lockBoard .ice { position:relative; display:grid; gap:0; max-width:300px; aspect-ratio:1; margin:0 auto; border:3px solid #8fd0ff; border-radius:10px; background:linear-gradient(135deg,#dff4ff,#a9dcf7); overflow:hidden; }
+#lockBoard .ic { display:flex; align-items:center; justify-content:center; font-size:26px; border:1px solid #ffffff55; }
+#lockBoard .ic.rock { background:#6d6a7a55; }
+#lockBoard .ic.hole { background:radial-gradient(circle,#0a1a30 45%,#2d5d8a 70%,transparent 72%); }
+#iceBlock { position:absolute; display:flex; align-items:center; justify-content:center; font-size:30px; transition:left .25s ease-out, top .25s ease-out, transform .25s; pointer-events:none; }
+#iceBlock.in { transform:scale(.4); }
+#lockBoard .icepad { display:flex; gap:8px; justify-content:center; margin-top:10px; }
+#lockBoard .icepad button { width:56px; height:56px; border:none; border-radius:12px; font-size:26px; background:#3f7fe0; color:#fff; cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #0008; padding:0; }
+#lockBoard .icepad .reset { background:#4a3a5a; margin-left:8px; }
 #lockBoard .odd { display:grid; gap:8px; margin:0 auto; }
 #lockBoard .oc { aspect-ratio:1; max-height:76px; border:none; border-radius:12px; font-size:36px; background:#fff7e8; cursor:pointer; touch-action:manipulation; box-shadow:0 3px 0 #0008; padding:0; }
 #lockBoard .oc.bad { background:#ffd0cc; animation:shake .3s; }
@@ -103,7 +112,7 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #lockBoard .pin i { display:block; background:linear-gradient(#ffffff,#c8c8d2 40%,#8d8d96); border-radius:6px; transition:height .12s; }
 #lockBoard .pin.ok { border-color:var(--good); }
 #lockBoard .pin.ok i { background:linear-gradient(#d8ffe0,var(--good) 40%,#2f9a4a); }
-#lockBoard .link { align-self:flex-end; margin:0 -8px 26px; color:var(--accent); font-size:20px; }
+#lockBoard .link { align-self:flex-end; margin:0 -8px 26px; min-width:12px; text-align:center; color:var(--accent); font-size:20px; }
 #bSmash { margin-top:6px; font-size:19px; background:#4a3a5a; color:var(--ink); padding:10px 16px; }
 #bSmash small { color:var(--muted); font-size:14px; }
 #surface { position:absolute; inset:auto 0 0 0; max-height:62%; /* portrait: lifted above the controls, see --ctl */ display:none; flex-direction:column; background:var(--panel); border-radius:18px 18px 0 0; z-index:4; box-shadow:0 -6px 20px #0009; }

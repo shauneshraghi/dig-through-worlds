@@ -347,6 +347,7 @@
     slide: ['🧩 A puzzle chest!', 'Tap a tile next to the gap to slide it. Put the numbers in order, 1 first.'],
     pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!', 'Tap a pipe to turn it. Make the water reach every green outlet!'],
     odd: ['🔎 An odd-one-out chest!', 'Find the one that is different.'],
+    ice: ['🧊 An ice chest!', 'Push the ice block with the arrows. It slides until it hits a rock or the edge. Get it into the hole!'],
     path: ['💎 A gem-trail chest!', 'Tap the gems in order, 1, 2, 3…', 'Remember the numbers! Look…', 'The numbers are hidden. Tap the gems in order!']
   };
   var SLIDE_ICONS = ['🍎', '🍊', '🍋', '🍐', '🍇', '🍓', '🍒', '🥝', '🍑', '🍍', '🥥', '🍉', '🥕', '🌽', '🍄'];
@@ -382,6 +383,18 @@
       html = '<div class="pipes" style="max-width:' + L.n * 64 + 'px;grid-template-columns:repeat(' + L.n + ',minmax(0,1fr))">';
       L.tiles.forEach(function (_, j) { html += '<button class="pipe" data-k="' + j + '" aria-label="Pipe ' + (j + 1) + '">' + pipeSvg(L, j, wet.indexOf(j) >= 0) + '</button>'; });
       html += '</div>';
+    } else if (kind === 'ice') {
+      // the board is drawn once per chest; after that only the block moves, so its slide animates
+      var blk = $('iceBlock'), pos = function () { return 'left:' + (L.at % L.n) * 100 / L.n + '%;top:' + Math.floor(L.at / L.n) * 100 / L.n + '%;width:' + 100 / L.n + '%;height:' + 100 / L.n + '%'; };
+      key = 'ic|' + L.i;
+      if (key === lockKey && blk) { blk.style.cssText = pos(); blk.classList.toggle('in', L.at === L.goal); return; }
+      hint = T0[1];
+      html = '<div class="ice" style="grid-template-columns:repeat(' + L.n + ',1fr)">';
+      L.rocks.forEach(function (r, j) { html += '<div class="ic' + (r ? ' rock' : '') + (j === L.goal ? ' hole' : '') + '">' + (r ? '🪨' : '') + '</div>'; });
+      html += '<div id="iceBlock" style="' + pos() + '">🧊</div></div>' +
+        '<div class="icepad"><button data-k="3" aria-label="Push left">⬅</button><button data-k="0" aria-label="Push up">⬆</button>' +
+        '<button data-k="2" aria-label="Push down">⬇</button><button data-k="1" aria-label="Push right">➡</button>' +
+        '<button class="reset" data-k="4" aria-label="Start again">↺</button></div>';
     } else if (kind === 'odd') {
       key = 'od|' + L.i + '|' + L.round + '|' + L.cards.join('') + '|' + L.bad;
       if (key === lockKey) return;
@@ -425,11 +438,11 @@
     } else {
       key = 'k|' + L.i + '|' + L.pins.join() + '|' + L.key.join();
       if (key === lockKey) return;
-      hint = L.link === 2 ? 'Match the golden key. Tricky: each pin moves its neighbours on both sides too!' : 'Match the golden key. Careful: each pin pushes the one to its right!';
+      hint = L.links.indexOf(2) >= 0 ? 'Match the golden key. ➜ pushes the next pin too, ⇄ pushes both ways.' : L.links.indexOf(1) >= 0 ? 'Match the golden key. A ➜ means that pin pushes the next one too.' : 'Match the golden key.';
       var h = function (v) { return Math.round((v + 1) / D.LOCK_LEVELS * 100) + '%'; };
       html = '<div class="pinrow">';
       for (var k = 0; k < L.pins.length; k++) {
-        if (k && L.link) html += '<span class="link">' + (L.link === 2 ? '⇄' : '➜') + '</span>';
+        if (k) html += '<span class="link">' + ['', '➜', '⇄'][L.links[k - 1]] + '</span>';
         html += '<div class="col"><div class="tooth"><i style="height:' + h(L.key[k]) + '"></i></div>' +
           '<button class="pin' + (L.pins[k] === L.key[k] ? ' ok' : '') + '" data-k="' + k + '" aria-label="Pin ' + (k + 1) + '"><i style="height:' + h(L.pins[k]) + '"></i></button></div>';
       }
@@ -596,6 +609,8 @@
     if (splash) { startGame(); return; }
     if (e.target.tagName === 'INPUT') return; // typing in the reset box
     var k = e.key.toLowerCase();
+    var ICE_KEY = { arrowup: 0, w: 0, arrowright: 1, d: 1, arrowdown: 2, s: 2, arrowleft: 3, a: 3, r: 4 };
+    if (S.mode === 'dig' && S.run.lock && S.run.lock.kind === 'ice' && k in ICE_KEY) { if (!e.repeat) D.lockTap(S, ICE_KEY[k]); e.preventDefault(); return; }
     if (S.mode === 'dig' && S.run.lock && k >= '1' && k <= '9') { D.lockTap(S, +k - 1); e.preventDefault(); return; } // number keys tap pins
     if (KEYS[k]) { if (!e.repeat) { delete held[k]; press(k, KEYS[k]); steer(GRID[KEYS[k]]); } e.preventDefault(); }
     else if (k === 'q' || k === 'tab') { $('bAuto').onclick(); e.preventDefault(); }

@@ -32,15 +32,16 @@ function digAt(w, x, y, z, up = {}) {
   return s;
 }
 const breaks = s => s.events.filter(e => e.type === 'break');
-// what one tap on pin k does to the pins: it moves up one, and so do its linked neighbours (right only, or both sides)
-const tapPins = (pins, k, link) => pins.map((v, j) => (j === k || (j === k + 1 && link >= 1) || (j === k - 1 && link === 2)) ? (v + 1) % D.LOCK_LEVELS : v);
+// what one tap on pin k does to the pins: it moves up one, and so do its linked neighbours. links[g] joins pins g and
+// g + 1: 0 not at all, 1 pin g pushes pin g + 1, 2 each pushes the other
+const tapPins = (pins, k, links) => pins.map((v, j) => (j === k || (j === k + 1 && links[k] >= 1) || (j === k - 1 && links[j] === 2)) ? (v + 1) % D.LOCK_LEVELS : v);
 // the fewest taps that open a lock, found by searching every pin setting
 const lockPlan = L => {
   const goal = L.key.join(), seen = new Map([[L.pins.join(), []]]), q = [L.pins.slice()];
   while (q.length) {
     const p = q.shift(), plan = seen.get(p.join());
     if (p.join() === goal) return plan;
-    for (let k = 0; k < p.length; k++) { const n = tapPins(p, k, L.link); if (!seen.has(n.join())) { seen.set(n.join(), plan.concat(k)); q.push(n); } }
+    for (let k = 0; k < p.length; k++) { const n = tapPins(p, k, L.links); if (!seen.has(n.join())) { seen.set(n.join(), plan.concat(k)); q.push(n); } }
   }
   return null;
 };
@@ -129,6 +130,28 @@ const pipePlan = L => {
   if (!go()) return null;
   return [...set].flatMap(([k, r]) => Array((r - L.tiles[k].r + 4) % 4).fill(k));
 };
+// ice: where the block ends up after a push in direction d (N E S W): it slides until a rock or the edge stops it, or
+// drops into the hole on the way
+const iceSlide = (L, at, d) => {
+  const n = L.n, DX = [0, 1, 0, -1], DZ = [-1, 0, 1, 0];
+  let r = Math.floor(at / n), c = at % n;
+  for (;;) {
+    if (r * n + c === L.goal) return L.goal;
+    const nr = r + DZ[d], nc = c + DX[d];
+    if (nr < 0 || nr >= n || nc < 0 || nc >= n || L.rocks[nr * n + nc]) return r * n + c;
+    r = nr; c = nc;
+  }
+};
+// the fewest pushes from where the block is now into the hole, by breadth-first search
+const icePlan = L => {
+  const seen = new Map([[L.at, []]]), q = [L.at];
+  while (q.length) {
+    const a = q.shift(), plan = seen.get(a);
+    if (a === L.goal) return plan;
+    for (let d = 0; d < 4; d++) { const b = iceSlide(L, a, d); if (!seen.has(b)) { seen.set(b, plan.concat(d)); q.push(b); } }
+  }
+  return null;
+};
 // solve whatever puzzle the chest holds, as a careful player would
 const solveLock = s => {
   const L = s.run.lock;
@@ -144,6 +167,7 @@ const solveLock = s => {
   if (L.kind === 'slide') { const plan = slidePlan(L); for (const k of plan) D.lockTap(s, k); return plan.length; }
   if (L.kind === 'pipes') { const plan = pipePlan(L); for (const k of plan) D.lockTap(s, k); return plan.length; }
   if (L.kind === 'odd') { let taps = 0; while (s.run.lock) { D.lockTap(s, s.run.lock.odd); taps++; } return taps; }
+  if (L.kind === 'ice') { const plan = icePlan(L); for (const k of plan) D.lockTap(s, k); return plan.length; }
   if (L.kind === 'path') { D.step(s, L.show + 0.01); for (let n = 1; n <= L.n; n++) D.lockTap(s, L.cells.indexOf(n)); return L.n; }
   D.step(s, L.show + 0.01); // watch the sequence, then play it back
   for (const k of L.seq.slice()) D.lockTap(s, k);
@@ -152,7 +176,7 @@ const solveLock = s => {
 // the naive way: left to right, tap each pin until it matches the key (gives up after a few rounds)
 const greedyOpens = L => {
   let p = L.pins.slice();
-  for (let k = 0; k < p.length; k++) for (let t = 0; t < D.LOCK_LEVELS && p[k] !== L.key[k]; t++) p = tapPins(p, k, L.link);
+  for (let k = 0; k < p.length; k++) for (let t = 0; t < D.LOCK_LEVELS && p[k] !== L.key[k]; t++) p = tapPins(p, k, L.links);
   return p.join() === L.key.join();
 };
 
@@ -1012,25 +1036,34 @@ test('reaching a chest opens a lock instead of breaking it, and the dig waits fo
   assert.equal(at(s.run.grid, 4, 10, 3), T.CHEST);
 });
 
-test('locks are always solvable; they grow from 4 to 6 pins, and after the first world a tap moves the pins on both sides', () => {
+test('locks are always solvable; they grow from 4 to 6 pins, only some pins push their neighbours, and only a few both ways', () => {
   assert.equal(D.LOCK_LEVELS, 4);
-  const greedy = [0, 0, 0, 0, 0];
+  assert.deepEqual([...D.LOCK_ONE], [2, 3, 2, 2, 2]); assert.deepEqual([...D.LOCK_TWO], [0, 0, 1, 1, 2]);
+  const greedy = [0, 0, 0, 0, 0], kinds = new Set();
   for (let w = 0; w < 5; w++) for (let k = 0; k < 30; k++) {
     const s = digAt(w, 3, 10, 3); s.rng = k * 131 + 7; D.setAuto(s, false); D._lockKind('pins');
     D._setTile(s, 4, 10, 3, T.CHEST); D.steer(s, 'e'); run(s, 2); D._lockKind(null);
     const L = s.run.lock;
     assert.equal(L.pins.length, [4, 4, 5, 5, 6][w]);
-    assert.equal(L.link, w === 0 ? 1 : 2);
+    assert.equal(L.links.length, L.pins.length - 1);
+    assert.equal(L.links.filter(x => x === 1).length, D.LOCK_ONE[w]);
+    assert.equal(L.links.filter(x => x === 2).length, D.LOCK_TWO[w]);
+    assert.ok(L.links.includes(0) || w === 1, 'some pins move on their own');
+    kinds.add(L.links.join());
     assert.notDeepEqual([...L.pins], [...L.key], 'it starts locked');
     if (greedyOpens(L)) greedy[w]++;
-    const before = [...L.pins], mid = Math.min(2, L.pins.length - 1);
-    D.lockTap(s, mid); assert.deepEqual([...s.run.lock.pins], tapPins(before, mid, L.link), 'a tap moves the pin and its linked neighbours');
-    solveLock(s);
+    for (let mid = 0; mid < L.pins.length; mid++) {
+      const before = [...s.run.lock.pins];
+      D.lockTap(s, mid); assert.deepEqual([...s.run.lock.pins], tapPins(before, mid, L.links), 'a tap moves the pin and its linked neighbours');
+      if (!s.run.lock) break;
+    }
+    if (s.run.lock) solveLock(s);
     assert.equal(s.run.lock, null, `world ${w} lock ${k} solved`);
     assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
   }
-  assert.equal(greedy[0], 30, 'the first world is the tutorial: left to right always works');
-  for (let w = 1; w < 5; w++) assert.ok(greedy[w] <= 10, `world ${w}: left to right opened ${greedy[w]} of 30 locks`);
+  assert.ok(kinds.size > 10, 'the links differ from chest to chest');
+  assert.equal(greedy[0], 30, 'one-way pushes only: left to right always works');
+  assert.equal(greedy[1], 30);
 });
 
 const openChest = (w, kind, rng) => {
@@ -1079,7 +1112,7 @@ test('chests hold seven kinds of puzzle and never the same kind twice in a row',
     D._setTile(s, 4, 10, 3, T.CHEST); D._teleport(s, 3, 10, 3); D.steer(s, 'e'); run(s, 2);
     if (!s.run.lock) throw new Error('no lock at ' + k + ' after ' + kinds.slice(-3)); kinds.push(s.run.lock.kind); solveLock(s); run(s, 1);
   }
-  assert.deepEqual(new Set(kinds), new Set(['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path']));
+  assert.deepEqual(new Set(kinds), new Set(['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path', 'ice']));
   for (let k = 1; k < kinds.length; k++) assert.notEqual(kinds[k], kinds[k - 1]);
 });
 
@@ -1134,6 +1167,27 @@ test('pipes: with two outlets, water reaching only one of them does not open the
   for (let c = 0; c < n; c++) L.tiles[c] = { t: 0, r: 1 }; // east-west straights
   assert.equal(D.pipeDone(L), false, 'row 2 is still dry');
   L.outlets = [0]; assert.equal(D.pipeDone(L), true);
+});
+
+test('ice: push the block and it slides until a rock or the edge stops it; into the hole opens the chest; more pushes needed later', () => {
+  assert.deepEqual([...D.ICE_N], [5, 5, 6, 6, 6]);
+  for (let w = 0; w < 5; w++) for (let k = 0; k < 20; k++) {
+    const s = openChest(w, 'ice', 41 * w + k), L = s.run.lock, n = L.n;
+    assert.equal(n, D.ICE_N[w]); assert.equal(L.rocks.length, n * n);
+    assert.equal(L.at, L.start); assert.notEqual(L.start, L.goal);
+    assert.ok(!L.rocks[L.start] && !L.rocks[L.goal]);
+    const plan = icePlan(L);
+    assert.equal(plan && plan.length, D.ICE_MIN[w], `world ${w} ice ${k} takes ${plan && plan.length} pushes`);
+    // each push slides as far as it can; the reset button (4) puts the block back
+    const d0 = [0, 1, 2, 3].find(d => iceSlide(L, L.at, d) !== L.at && iceSlide(L, L.at, d) !== L.goal);
+    if (d0 !== undefined) {
+      const to = iceSlide(L, L.at, d0); D.lockTap(s, d0); assert.equal(L.at, to);
+      D.lockTap(s, 4); assert.equal(L.at, L.start, 'reset');
+    }
+    assert.equal(D.lockTap(s, 5), false, 'no such button');
+    solveLock(s);
+    assert.equal(s.run.lock, null, `world ${w} ice ${k} solved`); assert.equal(at(s.run.grid, 4, 10, 3), T.AIR);
+  }
 });
 
 test('odd: all cards the same but one; a wrong tap waits a moment, a right tap starts the next round; bigger and closer-looking later', () => {
