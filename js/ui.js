@@ -624,7 +624,20 @@
   window.addEventListener('keyup', function (e) { delete held[e.key.toLowerCase()]; });
   window.addEventListener('blur', function () { held = {}; stickRelease(); });
   var splash = true;
-  function startGame(gesture) { if (!splash) return; splash = false; $('splash').style.display = 'none'; if (gesture !== false) audio(); }
+  function startGame(gesture) { if (!splash) return; splash = false; $('splash').style.display = 'none'; if (gesture !== false) audio(); keepSave(); }
+  // Ask the browser to keep the save permanently, so it is not cleared to free space (Chrome grants it quietly to a
+  // site in use, Firefox may ask once). Asked on the first tap, since some browsers only grant it after a gesture.
+  var keepAsked = false;
+  function keepSave() {
+    if (keepAsked || DEV) return; keepAsked = true;
+    try {
+      var st = navigator.storage;
+      if (!st || !st.persist) return;
+      st.persisted().then(function (on) { return on || st.persist(); })
+        .then(function (on) { console.log('Dig Through Worlds save storage: ' + (on ? 'persistent' : 'best effort')); })
+        .catch(function () {});
+    } catch (e) {}
+  }
   $('splash').addEventListener('pointerdown', startGame);
   if (params.get('nosplash') === '1') startGame(false); // no user gesture yet, so no audio until the first tap
 
