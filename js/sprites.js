@@ -174,6 +174,8 @@ var DTWSprites = (function () {
       T: '#5a30a8', t: '#3a1a78', v: '#220a50' })
   ];
   var HELPER_LOOK = [null, null, 'mer', 'wild', 'astro', 'alien'];
+  // the museum quiz visitor: a professor in a white coat with white hair and purple trousers
+  var PROF = pal({ H: '#eeeef4', h: '#b8b8c8', R: '#ffffff', r: '#d8d8e4', q: '#a8a8bc', B: '#6a4aa8', b: '#4e3484', n: '#34235e', G: '#ffd23f' });
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
 
   // ---------- drawing into a small canvas ----------
@@ -554,10 +556,10 @@ var DTWSprites = (function () {
   function npc(kind, seed, back, frame, moving, t) {
     var key = kind + '|' + seed + '|' + (back ? 1 : 0) + '|' + frame + '|' + (moving ? 1 : 0) + (kind === 'keeper' ? '|' + (Math.sin(t * 10) > 0 ? 1 : 0) : '');
     if (cache[key]) return cache[key];
-    var P = kind === 'guide' ? GUIDE : kind === 'keeper' ? KEEPER : visitorPal(seed);
+    var P = kind === 'guide' ? GUIDE : kind === 'keeper' ? KEEPER : kind === 'prof' ? PROF : visitorPal(seed);
     var pose = moving ? walkPose((frame & 7) / 8, 1) : { bob: 0, body: frame & 1 ? 1 : 0, gait: 0, cyc: 0, blink: frame === 3 };
     pose.lean = 0; pose.air = 0;
-    person({ back: back, pose: pose, ang: null, P: P, hair: true, arms: kind === 'keeper' ? 'wave' : '', t: t });
+    person({ back: back, pose: pose, ang: null, P: P, hair: true, arms: kind === 'keeper' || (kind === 'prof' && seed === 1) ? 'wave' : '', t: t });
     var out = canvas(W, H); out.getContext('2d').drawImage(cv, 0, 0);
     if (Object.keys(cache).length > 600) cache = {};
     return (cache[key] = { cv: out, fx: FX, fy: FY });

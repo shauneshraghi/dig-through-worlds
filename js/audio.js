@@ -48,6 +48,10 @@ var DTWAudio = (function () {
     bubble: function () { tone(300, 0.2, 'sine', 0.2, 0, 3); },
     relic: function () { [523, 659, 784, 1047, 784, 1047].forEach(function (f, i) { tone(f, 0.25, 'square', 0.12, AC.currentTime + i * 0.13); }); },
     crack: function () { noise(0.1, 0.2, 700); tone(130, 0.08, 'square', 0.08); tone(95, 0.12, 'square', 0.06, AC.currentTime + 0.05); },
+    // the quiz: a soft two-note doorbell with a curious rising "hmm?", a cheer, and a gentle wrong-answer sigh
+    doorbell: function () { var t = AC.currentTime; tone(784, 0.35, 'sine', 0.12, t); tone(659, 0.45, 'sine', 0.12, t + 0.28); tone(440, 0.3, 'triangle', 0.08, t + 0.8, 1.5); },
+    quizyes: function () { var t = AC.currentTime; [523, 659, 784, 1047].forEach(function (f, i) { tone(f, 0.2, 'triangle', 0.14, t + i * 0.08); }); for (var c = 0; c < 6; c++) tone(600 + c * 110, 0.3, 'sawtooth', 0.03, t + 0.35 + c * 0.04, 1.5); noise(0.3, 0.08, 3000); },
+    quizno: function () { var t = AC.currentTime; tone(392, 0.25, 'sine', 0.1, t); tone(330, 0.4, 'sine', 0.1, t + 0.2); },
     alert: function () { var t = AC.currentTime; tone(1568, 0.1, 'square', 0.12, t); tone(1568, 0.1, 'square', 0.12, t + 0.14); tone(1175, 0.2, 'square', 0.1, t + 0.28); },
     dodge: function () { noise(0.2, 0.15, 3000); tone(300, 0.25, 'sine', 0.18, 0, 4); tone(523, 0.1, 'triangle', 0.14, AC.currentTime + 0.18); tone(784, 0.18, 'triangle', 0.14, AC.currentTime + 0.26); },
     treasure: function () { var t = AC.currentTime; [523, 659, 784, 1047, 1319, 1568].forEach(function (f, i) { tone(f, 0.22, 'triangle', 0.14, t + i * 0.07); tone(f * 2, 0.15, 'sine', 0.05, t + i * 0.07); }); tone(1568, 0.5, 'triangle', 0.12, t + 0.45); },

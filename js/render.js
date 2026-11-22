@@ -806,12 +806,12 @@ var DTWRender = (function () {
     }
   }
   function plinthBlock(k) { return hubBlocks().filter(function (bb) { return bb.c === PL.charAt(k); })[0]; }
-  function drawPerson(kind, seed, x, z, face, moving, walk) {
+  function drawPerson(kind, seed, x, z, face, moving, walk, hop) {
     var fc = FACE[face] || FACE.e, frame = moving ? Math.floor(walk * CYC_PER_CELL * 8) & 7 : Math.floor(time * 1.5 + seed) & 3;
     var spr = DTWSprites.npc(kind, seed, fc.back, frame, moving, time), q = P(x, 1, z), p = charScale();
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.4, hh * 0.4, 0, 0, 7); ctx.fill();
-    ctx.translate(0, -cheerHop(seed));
+    ctx.translate(0, -cheerHop(seed) - (hop ? Math.abs(Math.sin(time * 12)) * TW * 0.3 : 0));
     if (fc.flip) ctx.scale(-1, 1);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
@@ -820,6 +820,8 @@ var DTWRender = (function () {
     for (var g = 0; g < Math.min(S.workers.staff, GUIDE_SPOTS.length); g++) (function (sp, g) {
       items.push(feet(sp[0], sp[1], function () { drawPerson('guide', g, sp[0], sp[1], g % 2 ? 's' : 'e', false, 0); }));
     })(GUIDE_SPOTS[g], g);
+    var qs = quizSpot(S); // the museum quiz visitor stands by the plinth, waving, until the question is answered
+    if (qs) items.push(feet(qs[0], qs[1], function () { drawPerson('prof', quizCheerT > 0 ? 1 : 1, qs[0], qs[1], 's', false, 0, quizCheerT > 0); }));
     visitors.forEach(function (v) { items.push(feet(v.x, v.z, function () { drawPerson('visitor', v.seed, v.x, v.z, v.face, v.moving, v.walk); })); });
     // hired helper diggers rest by their hut while the miner is up top, unless they hold a bone for the museum
     plazaHelpers(S).forEach(function (h) { items.push(feet(h.x, h.z, function () { drawHelper(h, S); })); });
@@ -871,6 +873,33 @@ var DTWRender = (function () {
   // ---------- hand-in guide: where to take the bone being carried ----------
   var GOLD = '#ffd23f', trail = { t: 0, pts: [] }, celebs = [], sparks = [];
   // the plinth the carried bone belongs to and the open floor cell beside it to stand on, or null
+  // ---------- the museum quiz visitor and the ? over their head ----------
+  var quizCheerT = 0;
+  function quizSpot(S) {
+    if (!S.quiz || S.mode !== 'surface') return null;
+    var b = plinthBlock(S.quiz.k); if (!b) return null;
+    var cand = [[b.x0, b.z1], [b.x1 - 1, b.z1], [b.x0, b.z0 - 1], [b.x1 - 1, b.z0 - 1], [b.x0 - 1, b.z0], [b.x1, b.z0]];
+    for (var i = 0; i < cand.length; i++) if (D.hubWalkable(cand[i][0], cand[i][1])) return [cand[i][0] + 0.5, cand[i][1] + 0.5];
+    return null;
+  }
+  // a big bouncing gold ? over the visitor; off screen, a small ? at the screen edge points to them
+  function quizMark(S) {
+    var qs = quizSpot(S); if (!qs) return;
+    var q = P(qs[0], 1, qs[1]), u = TW * 0.5, bob = Math.abs(Math.sin(time * 5)) * TW * 0.22, pulse = 1 + 0.06 * Math.sin(time * 10);
+    var x = q[0], y = q[1] - TW * 1.9 - bob, m = u * 1.1, off = x < m || x > vw - m || y < m * 1.6 || y > vh - m;
+    var ex = Math.max(m, Math.min(vw - m, x)), ey = Math.max(m * 1.6, Math.min(vh - m * 2.4, y));
+    if (off) { x = ex; y = ey; u *= 0.6; }
+    glow(x, y, TW * (off ? 0.9 : 1.5), '#ffd23f', 0.7); light(x, y, TW * 2.6, 0.35, '#ffcc33');
+    octx.save(); octx.translate(x, y); octx.scale(pulse, pulse);
+    if (off) { // the arrow towards the visitor
+      var ang = Math.atan2(q[1] - TW * 1.9 - y, q[0] - x); octx.save(); octx.rotate(ang); octx.fillStyle = '#ffd23f'; octx.strokeStyle = '#1a1020'; octx.lineWidth = 3;
+      octx.beginPath(); octx.moveTo(u * 1.7, 0); octx.lineTo(u * 1.0, -u * 0.55); octx.lineTo(u * 1.0, u * 0.55); octx.closePath(); octx.fill(); octx.stroke(); octx.restore();
+      octx.fillStyle = 'rgba(30,20,50,0.85)'; octx.beginPath(); octx.arc(0, 0, u * 1.0, 0, 7); octx.fill(); octx.strokeStyle = '#ffd23f'; octx.lineWidth = 3; octx.stroke();
+    }
+    octx.font = '900 ' + Math.round(u * (off ? 1.5 : 2.3)) + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle'; octx.lineJoin = 'round';
+    octx.lineWidth = Math.max(5, u * 0.34); octx.strokeStyle = '#1a1020'; octx.strokeText('?', 0, 0);
+    octx.fillStyle = '#ffd23f'; octx.fillText('?', 0, 0); octx.restore();
+  }
   function carryTarget(S) {
     if (S.mode !== 'surface' || !S.carry || !S.carry.length) return null;
     var it = S.carry[0], k = it.world * 3 + Math.floor(it.idx / 5), b = plinthBlock(k);
@@ -1070,7 +1099,7 @@ var DTWRender = (function () {
     return [r.x, r.y, r.z];
   }
   function update(dt, S) {
-    time += dt; shakeT = Math.max(0, shakeT - dt); burstT = Math.max(0, burstT - dt);
+    time += dt; quizCheerT = Math.max(0, quizCheerT - dt); shakeT = Math.max(0, shakeT - dt); burstT = Math.max(0, burstT - dt);
     celebUpdate(dt);
     stepPeople(dt, S);
     var r = S.run, tg = targets(S);
@@ -1288,7 +1317,7 @@ var DTWRender = (function () {
       for (var b = 0; b < 12; b++) { var bx2 = ((b * 0.61) % 1) * vw, by2 = vh - ((time * (14 + b * 2) * TW / 32 + b * 71) % (vh + 20)); ctx.fillStyle = '#9dff8a66'; ctx.fillRect(bx2, by2, TW * 0.06, TW * 0.06); }
     }
     motes(id, viewTop);
-    if (surfaceView) { hubLabels(S); handInTop(S); celebTop(); if (S.mode === 'surface') drawFinale(); }
+    if (surfaceView) { hubLabels(S); handInTop(S); quizMark(S); celebTop(); if (S.mode === 'surface') drawFinale(); }
     for (var fi = 0; fi < floaters.length; fi++) { // short notes (O2 full, hearts) on the overlay
       var fl = floaters[fi], fq = P(fl.x, fl.y, fl.z), fs = Math.max(16, Math.round(TW * 0.4));
       octx.globalAlpha = Math.min(1, fl.life * 2);
@@ -1654,7 +1683,7 @@ var DTWRender = (function () {
     get hd() { return post; },
     resize: resize, update: update, draw: draw,
     setView: function (v) { view = v; },
-    celebrate: celebrate, roomChest: roomChest, finale: finale, finaleTime: function () { return fin ? fin.t : -1; },
+    celebrate: celebrate, quizCheer: function () { quizCheerT = 1.6; }, roomChest: roomChest, finale: finale, finaleTime: function () { return fin ? fin.t : -1; },
     spawnBreak: spawnBreak, floatText: floatText, coinBurst: function () { burstT = 0.8; }, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
     // the point on the ground (y = 1) under a pointer, in plaza cells

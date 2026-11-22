@@ -313,6 +313,7 @@
       else if (e.type === 'miss') A.sfx('no');
       else if (e.type === 'unlocked') { lockWon(); A.sfx('unlock'); }
       else if (e.type === 'smashed') { R.shake(0.25); A.sfx('brk'); R.coinBurst(); }
+      else if (e.type === 'quizVisitor') A.sfx('doorbell');
       else if (e.type === 'trapWarn') { A.sfx('alert'); R.shake(0.15); }
       else if (e.type === 'dodged') { A.sfx('dodge'); minerFloat('💨', '#dff6ff'); }
       else if (e.type === 'roomChest') {
@@ -354,6 +355,56 @@
         lastPanelKey = ''; save();
       }
     });
+  }
+
+  // ---------- the museum quiz ----------
+  // A visitor with a ? waits by a finished skeleton (S.quiz). Standing at that plinth opens the question (S.quiz.open);
+  // walking away closes the panel but keeps the question. Pictures for 'shape' and 'piece' questions are drawn from the
+  // same exhibit art as the plinths.
+  var quizEl = $('quiz'), quizObj = null, quizBusy = false, quizHide = 0;
+  function quizPic(q, o) {
+    var c = document.createElement('canvas'), sp = DTWSprites;
+    if (q.kind === 'shape') {
+      c.width = 50 * 3; c.height = 30 * 3; var cx = c.getContext('2d'); cx.imageSmoothingEnabled = false;
+      sp.exhibit(cx, o, [1, 1, 1, 1, 1], true, c.width / 2, c.height - 2, 3);
+    } else {
+      var pc = sp.pieceCanvas(q.k, o % D.PIECES), sc = Math.max(1, Math.min(Math.floor(150 / pc.width), Math.floor(84 / pc.height)));
+      c.width = pc.width * sc; c.height = pc.height * sc; var c2 = c.getContext('2d'); c2.imageSmoothingEnabled = false; c2.drawImage(pc, 0, 0, c.width, c.height);
+    }
+    return c;
+  }
+  function quizOpen(q) {
+    quizObj = q; quizBusy = false; clearTimeout(quizHide);
+    $('quizQ').textContent = q.text; $('quizMsg').textContent = ''; $('quizMsg').className = '';
+    var box = $('quizOpts'); box.innerHTML = ''; box.className = q.kind === 'fact' ? 'words' : 'pics';
+    q.opts.forEach(function (o, i) {
+      var b = document.createElement('button'); b.dataset.i = i; b.setAttribute('aria-label', q.kind === 'fact' ? o : 'Answer ' + (i + 1));
+      if (q.kind === 'fact') b.textContent = o; else b.appendChild(quizPic(q, o));
+      box.appendChild(b);
+    });
+    quizEl.classList.add('show');
+  }
+  function quizClose() { quizEl.classList.remove('show'); quizObj = null; quizBusy = false; }
+  $('quizOpts').addEventListener('pointerdown', function (e) {
+    var b = e.target.closest('button'); if (!b || quizBusy || !S.quiz || !S.quiz.open) return;
+    audio(); e.preventDefault();
+    var q = S.quiz, i = +b.dataset.i, r = D.quizAnswer(S, i); if (!r) return;
+    quizBusy = true;
+    var bs = $('quizOpts').children; for (var j = 0; j < bs.length; j++) bs[j].disabled = true;
+    bs[q.ans].classList.add('right'); if (!r.right) b.classList.add('wrong');
+    var m = $('quizMsg'); m.textContent = (r.right ? '🎉 +' : '🪙 +') + fmt(r.coins) + (r.right ? ' coins!' : ' coins'); m.className = 'pop';
+    A.sfx(r.right ? 'quizyes' : 'quizno'); pulse('hCoins'); lastPanelKey = '';
+    if (r.right) { R.coinBurst(); if (R.quizCheer) R.quizCheer(); }
+    quizHide = setTimeout(quizClose, r.right ? 1200 : 2000); save();
+  });
+  function renderQuiz() {
+    var q = S.mode === 'surface' && S.quiz;
+    if (quizBusy) { if (S.mode !== 'surface') quizClose(); return; }
+    if (q && q.open) {
+      var near = D.hubNearExhibit(S);
+      if (!near || near.creature < 0 || near.world * D.CREATURES + near.creature !== q.k) { q.open = false; quizClose(); return; } // walked away: keep the question
+      if (quizObj !== q) quizOpen(q);
+    } else if (quizObj) quizClose();
   }
 
   // ---------- the ending and the golden replay ----------
@@ -752,7 +803,7 @@
     }
     if (swung) { A.sfx('tap'); R.swingKick(); }
     drain(); R.update(dt, S);
-    if (!noDraw) { R.draw(S); updateHud(); renderPanel(); renderLock(); }
+    if (!noDraw) { R.draw(S); updateHud(); renderPanel(); renderLock(); renderQuiz(); }
   }
   var last = performance.now();
   function frame(now) {

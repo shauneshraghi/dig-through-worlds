@@ -280,3 +280,23 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 /* a HUD chip bump in place of a text pop-up */
 .pulse { animation:chipPulse .5s ease-out; }
 @keyframes chipPulse { 30% { transform:scale(1.18); filter:brightness(1.5); } }
+
+/* the museum quiz: the chest-frame family in marble and brass */
+#quiz { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:none; flex-direction:column; align-items:center; gap:8px; width:min(96%,520px); max-height:calc(100% - 16px); box-sizing:border-box; padding:14px 12px 12px; color:#3a2c22; background:linear-gradient(115deg,#0000 30%,#9a8f8040 31%,#0000 32%),linear-gradient(60deg,#0000 55%,#9a8f8030 56%,#0000 57%),linear-gradient(135deg,#faf6ee,#ddd5c6 50%,#f3ede0); border:5px solid #c9972b; border-radius:22px; box-shadow:inset 0 0 0 3px #7a5410, inset 0 0 0 7px #fff6, 0 10px 34px #000b; z-index:6; text-align:center; animation:lpop .3s cubic-bezier(.2,1.4,.4,1); }
+#quiz.show { display:flex; }
+#quiz .qhead { display:flex; align-items:center; gap:10px; width:100%; }
+#quiz .qmark { flex:none; width:46px; height:46px; border-radius:50%; background:radial-gradient(circle at 35% 30%,#fff3b0,#e0a82e 60%,#a8741a); color:#fff; font-size:34px; font-weight:900; line-height:46px; text-shadow:0 2px 0 #7a5410; box-shadow:0 3px 0 #7a5410; }
+#quiz h3 { margin:0; flex:1; font-size:26px; line-height:1.15; text-align:left; color:#3a2c22; }
+#quizOpts { display:grid; gap:10px; width:100%; }
+#quizOpts.pics { grid-template-columns:repeat(3,1fr); }
+#quizOpts button { font-family:inherit; border:4px solid #c9972b; border-radius:16px; background:linear-gradient(#fffdf6,#efe3c8); color:#3a2c22; cursor:pointer; touch-action:manipulation; box-shadow:0 5px 0 #7a5410; min-height:84px; padding:6px; display:flex; align-items:center; justify-content:center; transition:transform .1s, box-shadow .1s, background .2s; -webkit-tap-highlight-color:transparent; }
+#quizOpts.words button { font-size:24px; font-weight:600; min-height:68px; }
+#quizOpts button:not(:disabled):active { transform:translateY(4px); box-shadow:0 1px 0 #7a5410; }
+#quizOpts canvas { width:100%; height:auto; image-rendering:pixelated; max-height:96px; object-fit:contain; }
+#quizOpts button.right { background:linear-gradient(#d8ffe0,#7fe69b); border-color:#2f9a4a; box-shadow:0 0 22px 4px #58e07acc, 0 5px 0 #1f6a32; animation:qpop .5s ease-out; }
+#quizOpts button.wrong { background:#ffd8d4; border-color:#d9534f; animation:shake .35s; }
+#quizOpts button:disabled { cursor:default; }
+@keyframes qpop { 40% { transform:scale(1.1); } }
+#quizMsg { min-height:30px; font-size:24px; font-weight:700; color:#8a5a10; }
+#quizMsg.pop { animation:qpop .5s ease-out; }
+@media (max-height:520px) { #quiz h3 { font-size:22px; } #quizOpts button { min-height:64px; } #quizOpts canvas { max-height:64px; } }
