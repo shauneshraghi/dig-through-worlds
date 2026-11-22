@@ -346,8 +346,10 @@ var DTWRender = (function () {
   // scale) and the planted foot keeps pace with the ground.
   var CYC_PER_CELL = 16 / (2 * DTWSprites.STEP_X);
   // the fossil piece the miner is carrying home, as the sprite draws it on its back
-  function carriedBone(S) {
-    var it = S.carry && S.carry[0];
+  function carriedBone(S) { return boneOf(S, 0); }
+  // carried bone i as a sprite draws it: the miner holds the first D.minerBones, helper k the one after those
+  function boneOf(S, i) {
+    var it = S.carry && S.carry[i];
     if (!it || it.kind !== 'fossil') return null;
     var w = D.WORLDS[it.world], cr = w && w.creatures[Math.floor(it.idx / 5)], part = cr ? cr.parts[it.idx % 5] : '';
     return { shape: /Skull/.test(part) ? 'skull' : /Tusk|Fang|Horn|Antenna/.test(part) ? 'tusk' : 'bone', moon: w && w.id === 'moon' };
@@ -365,7 +367,7 @@ var DTWRender = (function () {
       p.walk = (p.walk || 0) + Math.min(l, st);
       if (l <= st) { p.x = tx; p.z = tz; } else { p.x += ex / l * st; p.z += ez / l * st; }
       p.y += Math.max(-st, Math.min(st, c.y - p.y));
-      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, walk: p.walk, stun: c.stun > 0 });
+      out.push({ k: k, x: p.x, z: p.z, y: p.y, face: c.face, dig: c.target >= 0 && !(c.stun > 0) && l <= st, walking: l > st, walk: p.walk, stun: c.stun > 0, bone: boneOf(S, D.minerBones(S) + k) });
     });
     crewPos.length = out.length;
     return out;
@@ -375,7 +377,7 @@ var DTWRender = (function () {
     // helpers are drawn at 0.85 scale, so they take more steps per cell
     var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / 0.85, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
     pose.lean = sw ? sw.lean : 0; pose.air = 0; pose.blink = false; if (sw) pose.body = sw.body;
-    var spr = DTWSprites.helper(h.k, { back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', t: time });
+    var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
     ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(0, 0, hw * 0.38, hh * 0.38, 0, 0, 7); ctx.fill();
     if (fc.flip) ctx.scale(-1, 1);
@@ -770,9 +772,51 @@ var DTWRender = (function () {
       items.push(feet(sp[0], sp[1], function () { drawPerson('guide', g, sp[0], sp[1], g % 2 ? 's' : 'e', false, 0); }));
     })(GUIDE_SPOTS[g], g);
     visitors.forEach(function (v) { items.push(feet(v.x, v.z, function () { drawPerson('visitor', v.seed, v.x, v.z, v.face, v.moving, v.walk); })); });
-    // hired helper diggers rest by their hut while the miner is up top
-    HUT_SPOTS.filter(function (sp) { return D.hubWalkable(Math.floor(sp[0]), Math.floor(sp[1])); }).slice(0, Math.min(S.workers.diggers, 6)).forEach(function (sp, k) {
-      items.push(feet(sp[0], sp[1], function () { drawHelper({ k: k, x: sp[0], z: sp[1], y: 0, face: sp[2], dig: false, walking: false }, S); }));
+    // hired helper diggers rest by their hut while the miner is up top, unless they hold a bone for the museum
+    plazaHelpers(S).forEach(function (h) { items.push(feet(h.x, h.z, function () { drawHelper(h, S); })); });
+  }
+  // ---------- helpers holding bones follow the miner ----------
+  // The miner's path on the plaza is kept as a trail; a helper with a bone walks FOLLOW_GAP cells apart along it,
+  // and once its bone is handed in it walks back to its spot by the hut.
+  var fol = { trail: [], pos: [], t: 0 }, FOLLOW_GAP = 0.9;
+  function trailPoint(d) {
+    var tr = fol.trail, acc = 0;
+    for (var i = 1; i < tr.length; i++) {
+      var ex = tr[i][0] - tr[i - 1][0], ez = tr[i][1] - tr[i - 1][1], seg = Math.sqrt(ex * ex + ez * ez);
+      if (acc + seg >= d) { var f = (d - acc) / (seg || 1); return [tr[i - 1][0] + ex * f, tr[i - 1][1] + ez * f]; }
+      acc += seg;
+    }
+    return tr[tr.length - 1];
+  }
+  function stepToward(p, tx, tz, st) { // returns the distance moved
+    var ex = tx - p.x, ez = tz - p.z, l = Math.sqrt(ex * ex + ez * ez);
+    if (l < 1e-4) return 0;
+    var m = Math.min(l, st); p.x += ex / l * m; p.z += ez / l * m; p.walk += m; p.face = faceOf(ex, ez);
+    return m;
+  }
+  function plazaHelpers(S) {
+    var dt = Math.min(0.1, Math.max(0, time - fol.t)); fol.t = time;
+    var spots = HUT_SPOTS.filter(function (sp) { return D.hubWalkable(Math.floor(sp[0]), Math.floor(sp[1])); }).slice(0, Math.min(S.workers.diggers, 6));
+    if (S.mode !== 'surface') { fol.trail = []; fol.pos = []; }
+    var mx = S.hub.x, mz = S.hub.z, tr = fol.trail;
+    if (S.mode === 'surface' && (!tr.length || Math.abs(tr[0][0] - mx) + Math.abs(tr[0][1] - mz) > 0.1)) { tr.unshift([mx, mz]); if (tr.length > 300) tr.length = 300; }
+    var mb = D.minerBones(S);
+    return spots.map(function (sp, k) {
+      var bone = S.mode === 'surface' ? boneOf(S, mb + k) : null, p = fol.pos[k], moved = 0, st = D.HUB_SPEED * dt;
+      if (bone) {
+        if (!p) p = fol.pos[k] = { x: mx, z: mz, walk: 0, face: 's' }; // they come up the ladder with the miner
+        p.home = null;
+        var tp = trailPoint((k + 1) * FOLLOW_GAP), far = Math.abs(tp[0] - p.x) + Math.abs(tp[1] - p.z) > 1.5;
+        moved = stepToward(p, tp[0], tp[1], st * (far ? 1.6 : 1.1));
+        if (!moved) p.face = faceOf(mx - p.x, mz - p.z);
+      } else if (p) {
+        if (!p.home) p.home = (D.hubPath(p.x, p.z, sp[0], sp[1]) || []).concat([[sp[0], sp[1]]]);
+        var left = st;
+        while (left > 1e-4 && p.home.length) { var m = stepToward(p, p.home[0][0], p.home[0][1], left); moved += m; left -= m; if (left > 1e-4) p.home.shift(); }
+        if (!p.home.length) { fol.pos[k] = p = null; }
+      }
+      if (!p) return { k: k, x: sp[0], z: sp[1], y: 0, face: sp[2], dig: false, walking: false };
+      return { k: k, x: p.x, z: p.z, y: 0, face: p.face, dig: false, walking: moved > 0, walk: p.walk, bone: bone };
     });
   }
   // ---------- hand-in guide: where to take the bone being carried ----------

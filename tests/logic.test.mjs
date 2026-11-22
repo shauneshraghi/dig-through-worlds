@@ -477,6 +477,19 @@ test('bag upgrades let the miner carry a few more bones at once', () => {
   assert.ok(s.events.some(e => e.type === 'boneFull'));
 });
 
+test('each helper digging in the world holds one more bone', () => {
+  const base = { upgrades: { bag: 0 }, world: 0 };
+  assert.equal(D.boneCap(Object.assign({ workers: { diggers: 1 } }, base)), 2);
+  assert.equal(D.boneCap(Object.assign({ workers: { diggers: 4 } }, base)), 3, 'only the two that dig in the first world');
+  assert.equal(D.boneCap({ upgrades: { bag: 6 }, world: 2, workers: { diggers: 4 } }), 6);
+  assert.equal(D.minerBones({ upgrades: { bag: 6 }, world: 2, workers: { diggers: 4 } }), 2, 'the miner holds the first ones');
+  const s = digAt(0, 3, 20, 3); D.setAuto(s, false); s.workers.diggers = 1; s.run.crew = [];
+  D._setTile(s, 4, 20, 3, T.FOSSIL, 2); D._setTile(s, 2, 20, 3, T.FOSSIL, 3);
+  D.steer(s, 'e'); run(s, 15); D.steer(s, 'e'); run(s, 2);
+  D.steer(s, 'w'); run(s, 1); D.steer(s, 'w'); run(s, 15); D.steer(s, 'w'); run(s, 2);
+  assert.equal(s.carry.length, 2, 'the second bone goes to the helper');
+});
+
 test('a full bag slows digging but never stops it', () => {
   const s = D.newState(1);
   const cap = D.bagCap(s);
@@ -1194,7 +1207,7 @@ test('helpers dig the cells of a big fossil and the bone drops once', () => {
   D._setFossil(s, 4, 20, 4, 3, 2, 2);
   run(s, 60);
   for (const [x, z] of [[4, 4], [5, 4], [4, 5], [5, 5]]) assert.equal(at(s.run.grid, x, 20, z), T.AIR, `cell ${x},${z} dug`);
-  const bones = s.run.loot.map(l => l.item).concat(s.run.bag, s.carry).filter(it => it.kind === 'fossil');
+  const bones = s.run.loot.map(l => l.item).concat(s.run.bag, s.carry).filter(it => it.kind === 'fossil' && it.idx === 3); // with helpers' hands free, bones further down may be dug too
   assert.equal(bones.length, 1);
 });
 

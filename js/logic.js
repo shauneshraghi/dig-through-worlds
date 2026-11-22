@@ -416,7 +416,10 @@ var DTW = (function () {
   // While its hands are full, fossil blocks stay in the ground.
   // (a new bone lying on the floor, not picked up yet, counts as in hand)
   // Bag Size adds room for one more bone every BONE_EVERY levels, up to BONE_MAX.
-  function boneCap(s) { return Math.min(BONE_MAX, 1 + Math.floor((s.upgrades.bag || 0) / BONE_EVERY)); }
+  // Each helper who digs in this world holds one more: the miner holds the first minerBones(s), helper k the next.
+  function minerBones(s) { return Math.min(BONE_MAX, 1 + Math.floor((s.upgrades.bag || 0) / BONE_EVERY)); }
+  function crewBones(s) { return Math.min(s.workers ? s.workers.diggers : 0, DIGGERS_FIRST + (s.world || 0)); }
+  function boneCap(s) { return minerBones(s) + crewBones(s); }
   function handsFull(s) {
     var held = {}, n = (s.carry || []).length;
     if (s.run && s.run.loot) s.run.loot.forEach(function (l) { var it = l.item; if (isNewBone(s, it) && !held[it.world * 100 + it.idx]) { held[it.world * 100 + it.idx] = 1; n++; } });
@@ -1045,7 +1048,7 @@ var DTW = (function () {
     return best || { x: x, z: z, y: y - 1, face: 'e' };
   }
   function stepCrew(s, dt, hit) {
-    var r = s.run, g = r.grid, y = r.y, n = Math.min(s.workers.diggers, DIGGERS_FIRST + s.world); // world w lets 2 + w of them dig
+    var r = s.run, g = r.grid, y = r.y, n = crewBones(s); // world w lets 2 + w of them dig, and each holds a bone
     if (!r.crew) r.crew = [];
     r.crew.length = Math.min(r.crew.length, n);
     if (!n || y < 1 || y > DEPTH) return;
@@ -1280,7 +1283,7 @@ var DTW = (function () {
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
-    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
+    pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, buyUpgrade: buyUpgrade, hireCost: hireCost,
     hire: hire, museumIncome: museumIncome, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
