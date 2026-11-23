@@ -105,6 +105,7 @@
     if (bh.dataset.k !== label) {
       bh.dataset.k = label;
       bh.innerHTML = surf ? icon('pick') + '<span>Dig!</span>' : full ? icon('bag') + '<span>Full! Home</span>' : icon('up') + '<span>Home</span>';
+      if (full) bark(-1, 'full');
       bh.classList.toggle('dig', surf); bh.classList.toggle('primary', surf); bh.classList.toggle('full', full); bh.classList.toggle('gold', full); bh.classList.toggle('glass', !surf && !full);
     }
     // on the plaza a station's menu opens while the miner stands on its pad, or from the ☰ button
@@ -133,7 +134,8 @@
     var afford = Object.keys(D.UPGRADES).map(function (k) { return (D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0) + (D.upgradeAvailable ? (D.upgradeAvailable(S, k) ? 'a' : 'h') : ''); }).concat(Object.keys(D.WORKERS).map(function (k) { return D.canAfford(S, D.hireCost(S, k)) ? 1 : 0; }))
       .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; })).join('');
     return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(), S.golden ? 'g' + D.WORLDS.map(function (w, wi) { return [0, 1, 2].map(function (c) { return D.goldFound(S, wi, c); }).join(''); }).join() : '',
-      S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind].join(';');
+      S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind,
+      station === 'helpers' ? D.dayNum(S) + ':' + S.friends.map(function (f) { return [Math.floor(f.xp), f.talk, f.gift, f.told].join(','); }).join('|') : '', S.voice !== false].join(';');
   }
   // a price as chips: coins, then each material needed with a dot in its colour; a chip is dimmed when the player is short of it
   function dot(t) { return '<i class="dot" style="background:' + D.MATS[t].color + '"></i>'; }
@@ -203,7 +205,9 @@
       }
       exchangeRows(body);
     } else if (tab === 'he') {
+      friendCards(body);
       Object.keys(D.WORKERS).forEach(function (key) {
+        if (key === 'diggers') return; // the friends above
         var u = D.WORKERS[key], c = D.hireCost(S, key), n = S.workers[key], dig = key === 'diggers', cap = dig ? D.maxDiggers(S) : u.max;
         var sub = dig ? u.text + ' · up to ' + cap + ' now' + (cap < u.max ? ', one more each new world' : '') : u.text;
         var btn = isFinite(c.coins) ? 'Hire' : dig && n < u.max ? '🔒 New world' : 'MAX';
@@ -271,6 +275,10 @@
       sw.className = 'row nav'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on);
       sw.innerHTML = '<span class="ic">' + (on ? '🔊' : '🔇') + '</span><span class="txt"><b>Sound</b><small>' + (on ? 'On' : 'Off') + '</small></span><span class="switch' + (on ? ' on' : '') + '"><i></i></span>';
       sw.onclick = function () { audio(); setMute(!A.isMuted()); }; body.appendChild(sw);
+      var von = S.voice !== false, vs = document.createElement('button');
+      vs.className = 'row nav'; vs.setAttribute('role', 'switch'); vs.setAttribute('aria-checked', von);
+      vs.innerHTML = '<span class="ic">🗣️</span><span class="txt"><b>Read aloud</b><small>' + (von ? 'Friends talk out loud' : 'Off') + '</small></span><span class="switch' + (von ? ' on' : '') + '"><i></i></span>';
+      vs.onclick = function () { audio(); S.voice = S.voice === false; if (S.voice === false) hush(); else speak(0, 'Hi! I will read for you.'); save(); lastPanelKey = ''; }; body.appendChild(vs);
       restartRows();
     }
     function restartRows() {
@@ -328,6 +336,7 @@
         else R.spawnFind(lastBreak.x, lastBreak.y, lastBreak.z, it, lbl, { chest: lastBreak.tile === T.CHEST, carried: !!it.carried });
         lastBreak = null;
         A.sfx(it.kind === 'fossil' ? 'fossil' : it.kind === 'treasure' ? 'coin' : 'ding');
+        if (it.kind === 'fossil' && Math.random() < 0.6) bark(-1, 'fossil');
       } else if (e.type === 'lock') { A.sfx('ding'); lockKey = ''; }
       else if (e.type === 'pin') { if (!(S.run && S.run.lock && S.run.lock.kind === 'simon')) A.sfx('click'); }
       else if (e.type === 'match') A.sfx('coin');
@@ -345,13 +354,15 @@
         A.sfx('treasure'); R.coinBurst();
       }
       else if (e.type === 'golden') { A.sfx('treasure'); lastPanelKey = ''; }
-      else if (e.type === 'trap' && e.helper) { A.sfx('trap'); R.shake(0.15); }
+      else if (e.type === 'trap' && e.helper) { A.sfx('trap'); R.shake(0.15); if (e.friend >= 0) bark(e.friend, 'trap', true); }
+      else if (e.type === 'friendUp') friendUp(e);
+      else if (e.type === 'arrive') { if (Math.random() < 0.35) bark(-1, 'hello'); }
       else if (e.type === 'trap') { A.sfx('trap'); R.shake(0.4); }
       else if (e.type === 'bubble') { A.sfx('bubble'); R.floatText(e.x + 0.5, e.y, e.z + 0.5, 'O₂ full!', '#bff7ff'); R.spawnBreak(e.x, e.y, e.z, '#bff7ff', 10); }
       else if (e.type === 'relic') { A.sfx('relic'); toast('✨ <b>' + D.WORLDS[e.world].relic.name + '</b> found!', 2400); R.shake(0.5); }
       else if (e.type === 'ascend') { A.sfx('up'); if (e.reason === 'oxygen') { minerFloat('🫧', '#bff7ff'); R.spawnBreak(r.x, r.y, r.z, '#bff7ff', 12); } }
       else if (e.type === 'descend') A.sfx('down');
-      else if (e.type === 'party') { A.sfx('party'); R.shake(0.3); minerFloat('🎉', '#ffe9a8'); }
+      else if (e.type === 'party') { bark(-1, 'party', true); A.sfx('party'); R.shake(0.3); minerFloat('🎉', '#ffe9a8'); }
       else if (e.type === 'partyClear') R.shake(0.2);
       else if (e.type === 'bigBone') { // dust and cracks on the cells still in the ground, and a dull knock
         A.sfx('crack'); var gg = D.site(S, S.world), NN = D.N;
@@ -362,7 +373,7 @@
       }
       else if (e.type === 'boneFull') { A.sfx('no'); pulse('hBag'); if (lastBreak) R.floatText(lastBreak.x + 0.5, lastBreak.y, lastBreak.z + 0.5, '🦴✋', '#ffe9a8'); else minerFloat('🦴✋', '#ffe9a8'); }
       else if (e.type === 'delivered') { A.sfx('fossil'); lastPanelKey = ''; R.celebrate(e.world, e.creature); save(); }
-      else if (e.type === 'buy' || e.type === 'hire') { A.sfx('buy'); R.coinBurst(); }
+      else if (e.type === 'buy' || e.type === 'hire') { A.sfx('buy'); R.coinBurst(); if (e.friend >= 0) setTimeout(function () { talkOpen(e.friend, [STORY.friends[e.friend].meet], 'New friend!'); }, 400); }
       else if (e.type === 'sell' || e.type === 'exchange') A.sfx('coin');
       else if (e.type === 'museumCash') museumCash(e.coins);
       else if (e.type === 'banked') {
@@ -458,6 +469,116 @@
       if (!near || near.creature < 0 || near.world * D.CREATURES + near.creature !== q.k) { q.open = false; quizClose(); return; } // walked away: keep the question
       if (quizObj !== q) quizOpen(q);
     } else if (quizObj) quizClose();
+  }
+
+  // ---------- friends: the helpers' cards at the hut, the talk box, read-aloud and what they say on a dig ----------
+  var STORY = DTWStory, talkEl = $('talk'), talkPages = [], talkK = 0, chatN = 0, lastBark = -1e9, hutHello = -1e9;
+  function hearts(k) { var n = D.friendLevel(S, k), h = ''; for (var i = 1; i < D.HEARTS.length; i++) h += i <= n ? '♥' : '♡'; return h; }
+  // a friend's picture: their helper sprite, standing, three times as big
+  function portrait(k, size) {
+    var pose = DTWSprites.walkPose(0, 0); pose.lean = 0; pose.air = 0; pose.blink = false;
+    var spr = DTWSprites.helper(k, { back: false, carry: false, tier: 0, pose: pose, lampOn: false, surface: true, t: 0 });
+    var c = document.createElement('canvas'), sc = size || 2; c.width = 40 * sc; c.height = 46 * sc; c.className = 'fpic';
+    var x = c.getContext('2d'); x.imageSmoothingEnabled = false;
+    x.drawImage(spr.cv, spr.fx - 20, spr.fy - 43, 40, 46, 0, 0, c.width, c.height);
+    return c;
+  }
+  function friendCards(body) {
+    var n = S.workers.diggers, cap = D.maxDiggers(S);
+    var h = document.createElement('div'); h.className = 'xhead'; h.innerHTML = '<b>Your digging friends</b> <span class="small">' + n + ' / ' + D.FRIENDS.length + '</span>'; body.appendChild(h);
+    D.FRIENDS.forEach(function (f, k) {
+      if (k > n) return; // only the next friend to meet is shown
+      var st = STORY.friends[k], d = document.createElement('div'); d.className = 'row friend' + (k < n ? '' : ' new');
+      var pic = document.createElement('div'); pic.className = 'ic'; pic.appendChild(portrait(k, 2)); d.appendChild(pic);
+      var txt = document.createElement('div'); txt.className = 'txt';
+      if (k < n) {
+        var lv = D.friendLevel(S, k), on = lv >= D.PERK_LEVEL, here = f.world <= S.world;
+        txt.innerHTML = '<b>' + st.name + ' <span class="hearts">' + hearts(k) + '</span></b><small>' + STORY.HEART_NAMES[lv] + ' · ' + st.who + '</small>' +
+          '<small class="perk' + (on ? ' on' : '') + '">' + (on ? '✓ ' : '🔒 ♥♥ ') + '<b>' + st.perk + ':</b> ' + st.perkText + '</small>' +
+          (here ? '' : '<small>Digs in ' + D.WORLDS[f.world].name + ' and later</small>');
+        d.appendChild(txt);
+        var bs = document.createElement('div'); bs.className = 'fbtns';
+        var tb = document.createElement('button'); tb.className = 'btn blue small'; tb.innerHTML = '💬 <span>Talk</span>';
+        tb.onclick = function () { audio(); talkTo(k); };
+        var c = D.giftCost(S, k), ready = D.giftReady(S, k), gb = document.createElement('button'); gb.className = 'btn gold small';
+        gb.innerHTML = '🎁 <span>' + (ready ? 'Gift' : 'Tomorrow') + '</span>'; gb.disabled = !ready || !D.canAfford(S, c);
+        gb.onclick = function () { audio(); if (D.gift(S, k)) { A.sfx('gift'); talkOpen(k, [st.gift], '🎁 +♥'); save(); } else A.sfx('no'); };
+        bs.appendChild(tb); bs.appendChild(gb); d.appendChild(bs);
+        if (ready) { var pr = document.createElement('div'); pr.className = 'fgift'; pr.innerHTML = '<small>Gift:</small>' + priceHtml(c); txt.appendChild(pr); }
+      } else if (k < cap) {
+        txt.innerHTML = '<b>' + st.name + '</b><small>' + st.who + '. ' + st.about + '</small>' + priceHtml(D.hireCost(S, 'diggers'));
+        d.appendChild(txt);
+        var hb = document.createElement('button'); hb.className = 'btn go'; hb.textContent = 'Ask to join'; hb.disabled = !D.canAfford(S, D.hireCost(S, 'diggers'));
+        hb.onclick = function () { audio(); if (D.hire(S, 'diggers')) save(); else A.sfx('no'); };
+        d.appendChild(hb);
+      } else {
+        d.classList.add('locked');
+        txt.innerHTML = f.needs != null
+          ? '<b>' + st.name + '</b><small>' + STORY.friends[f.needs].name + "'s little sister wants to dig too! Be good friends with " + STORY.friends[f.needs].name + ' (♥♥) first.</small>'
+          : '<b>???</b><small>A new friend waits in ' + (S.unlocked[f.world] ? D.WORLDS[f.world].name : 'the next world') + '.</small>';
+        d.appendChild(txt);
+      }
+      body.appendChild(d);
+    });
+  }
+  function talkTo(k) {
+    var r = D.talk(S, k); if (!r) return;
+    var st = STORY.friends[k], pages = [], title = r.xp ? '+♥' : '';
+    if (r.beat) { pages.push(st.story[r.beat - 1]); title = '📖 Story ' + r.beat + ' of ' + st.story.length; }
+    else pages.push(st.chat[(r.day + k + chatN++) % st.chat.length]);
+    talkOpen(k, pages, title); save();
+  }
+  function talkOpen(k, pages, tag) {
+    talkK = k; talkPages = pages.slice();
+    var pic = $('talkPic'); pic.innerHTML = ''; pic.appendChild(portrait(k, 3));
+    $('talkName').innerHTML = STORY.friends[k].name + ' <span class="hearts">' + hearts(k) + '</span>' + (tag ? ' <span class="tag">' + tag + '</span>' : '');
+    talkEl.classList.add('show'); talkShow();
+  }
+  function talkShow() {
+    var line = talkPages[0]; if (line == null) { talkClose(); return; }
+    $('talkText').textContent = line; $('talkNext').textContent = talkPages.length > 1 ? 'Next ▸' : 'OK';
+    speak(talkK, line);
+  }
+  function talkClose() { talkEl.classList.remove('show'); talkPages = []; hush(); lastPanelKey = ''; }
+  $('talkNext').onclick = function () { audio(); talkPages.shift(); talkShow(); };
+  $('talkAgain').onclick = function () { audio(); speak(talkK, $('talkText').textContent, true); };
+  // read-aloud: each friend has a voice (pitch and speed) from story.js; nothing is read while the sound is off
+  var synth = window.speechSynthesis || null, enVoice = null;
+  function pickVoice() {
+    try { var vs = synth.getVoices(); enVoice = vs.filter(function (v) { return /^en[-_]/i.test(v.lang); }).sort(function (a, b) { return (b.localService ? 1 : 0) - (a.localService ? 1 : 0); })[0] || null; } catch (e) {}
+  }
+  if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) {} }
+  function speak(k, text, force) {
+    if (!synth || (!force && (S.voice === false || A.isMuted()))) return;
+    try {
+      var u = new SpeechSynthesisUtterance(text.replace(/[^\w\s.,!?'’-]/g, ' ')), v = (STORY.friends[k] || STORY.friends[0]).voice;
+      u.pitch = v.pitch; u.rate = v.rate * 0.95; u.lang = 'en-US'; if (enVoice) u.voice = enVoice;
+      synth.cancel(); synth.speak(u);
+    } catch (e) {}
+  }
+  function hush() { try { if (synth) synth.cancel(); } catch (e) {} }
+  // a friend on screen says something now and then: k, or -1 for any helper on screen; urgent lines skip the wait
+  var BARK_GAP = 14;
+  function bark(k, kind, urgent) {
+    var now = performance.now() / 1000;
+    if (!urgent && now - lastBark < BARK_GAP) return;
+    var who = [];
+    for (var i = 0; i < S.workers.diggers; i++) if ((k < 0 || i === k) && R.helperShown(i)) who.push(i);
+    if (!who.length) return;
+    var f = who[Math.floor(Math.random() * who.length)], ls = STORY.friends[f].lines[kind]; if (!ls) return;
+    var line = ls[Math.floor(Math.random() * ls.length)];
+    lastBark = now; R.say(f, line); if (!talkEl.classList.contains('show')) speak(f, line);
+  }
+  function friendUp(e) {
+    var st = STORY.friends[e.friend];
+    A.sfx('ding');
+    toast('💛 <b>' + st.name + '</b> is now your ' + STORY.HEART_NAMES[e.level] + '! ' + hearts(e.friend) + (e.perk ? '<br>✨ ' + st.perk + ' unlocked!' : '') + '<br><small>Talk at the Helpers hut for a story.</small>', 3600);
+    bark(e.friend, 'up', true); lastPanelKey = '';
+  }
+  function hutTick() { // walking up to the hut, a friend says hello
+    if (S.mode !== 'surface' || D.hubStation(S) !== 'helpers' || !S.workers.diggers) return;
+    var now = performance.now() / 1000; if (now - hutHello < 40) return;
+    hutHello = now; bark(-1, 'hello', true);
   }
 
   // ---------- the ending and the golden replay ----------
@@ -821,7 +942,7 @@
     else if (k === 'h') D.goHome(S);
     else if (k === 'enter' && S.mode === 'surface') { audio(); D.startDig(S, S.world); }
     else if (k === 'm') setMute(!A.isMuted());
-    else if (k === 'escape') toggleMenu();
+    else if (k === 'escape') { if (talkEl.classList.contains('show')) talkClose(); else toggleMenu(); }
   });
 
   window.addEventListener('keyup', function (e) { delete held[e.key.toLowerCase()]; });
@@ -856,7 +977,7 @@
       D.step(S, h); left -= h;
     }
     if (swung) { A.sfx('tap'); R.swingKick(); }
-    drain(); stormTick(dt); R.update(dt, S);
+    drain(); stormTick(dt); hutTick(); R.update(dt, S);
     if (!noDraw) { R.draw(S); updateHud(); renderPanel(); renderLock(); renderQuiz(); }
   }
   var last = performance.now();

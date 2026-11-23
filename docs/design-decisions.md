@@ -2,6 +2,13 @@
 
 Settled by the user; treat them as decided and do not re-ask. Rebalance against the two-bot playthrough test (see `AGENTS.md`, Commands).
 
+## Helpers become friends, 2026-11-23
+
+- Helpers are six named friends with backstories and personalities, met in world order, with hearts, a perk each at two hearts, story parts told at the hut, daily chat and gifts. Claude drafts the names and stories; the user edits.
+- The first world starts with one helper, Theo (an older boy); his little sister Pip joins at two hearts with him or when the second world opens. The rest come one per world as before.
+- Lines are read aloud with the browser's speech (a Read aloud switch, on by default).
+- Turn-based battles were considered and not chosen: they add menus and reading to a game for 6–9 year olds and a second kind of pause beside the chest puzzles. Light real-time cave creatures (bats, rattle-bones) may come later.
+
 ## Progression review, 2026-11-21
 
 - The player is a 6–9 year old; worlds stay flat in length.

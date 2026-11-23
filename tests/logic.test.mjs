@@ -773,8 +773,11 @@ test('museum coins pile up at the museum and are collected by walking in', () =>
   assert.equal(D.PILE_COOLDOWN, 60);
 });
 
-test('helper diggers: two in the first world, one more for each world unlocked', () => {
+test('helper diggers: one in the first world (two once Pip joins), one more for each world unlocked', () => {
   const s = D.newState(1); s.coins = 1e12; s.mats = [1e9, 1e9, 1e9, 1e9, 1e9];
+  while (D.hire(s, 'diggers'));
+  assert.equal(s.workers.diggers, 1);
+  s.friends[0].xp = D.HEARTS[D.PIP_LEVEL];
   while (D.hire(s, 'diggers'));
   assert.equal(s.workers.diggers, 2);
   assert.equal(D.maxDiggers(s), 2);

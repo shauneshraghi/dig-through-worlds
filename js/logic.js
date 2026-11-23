@@ -218,7 +218,26 @@ var DTW = (function () {
     crewSpeed: { name: 'Helper Pace',  base: 30, mult: 1.7,  max: 20, text: 'Helpers swing faster' }
   };
   var BONE_EVERY = 6, BONE_MAX = 4; // bones carried at once: one more every BONE_EVERY bag levels
-  var DIGGERS_FIRST = 2; // helpers allowed in the first world; each world unlocked allows one more
+  // ---------- friends ----------
+  // The helpers are six friends, met in world order (helper k is FRIENDS[k]; their words are in js/story.js). Hiring
+  // asks the next one to join. Pip, Theo's little sister, joins once Theo is a good friend (PIP_LEVEL hearts) or the
+  // second world opens. Hearts come from digging together, bones a friend carried home, a chat and a gift at the hut
+  // (each once a day) and relic parties; at PERK_LEVEL hearts a friend's perk works on every dig they are part of.
+  // fav is the material tier they like as a gift.
+  var FRIENDS = [
+    { key: 'theo',  world: 0, perk: 'strong',    fav: 2 },
+    { key: 'pip',   world: 0, perk: 'cheer',     fav: 1, needs: 0 },
+    { key: 'marlo', world: 1, perk: 'breath',    fav: 4 },
+    { key: 'wren',  world: 2, perk: 'trapsense', fav: 3 },
+    { key: 'nova',  world: 3, perk: 'reach',     fav: 2 },
+    { key: 'blip',  world: 4, perk: 'bones',     fav: 0 }
+  ];
+  var HEARTS = [0, 10, 30, 60, 100]; // xp for each heart level, 0-4
+  var PERK_LEVEL = 2, PIP_LEVEL = 2;
+  var FRIEND_DIG = 0.1, FRIEND_BONE = 3, FRIEND_TALK = 5, FRIEND_GIFT = 8, FRIEND_PARTY = 10; // xp per second dug together, per bone, chat, gift, party
+  // strong: Theo hits this much harder; cheer: the miner swings this much faster; breath: oxygen tank ×; trapsense: dodge
+  // window ×; reach: pickup reach + cells; bones: fossil blocks take this much more damage from everyone
+  var PERK = { strong: 1.5, cheer: 1.15, breath: 1.5, trapsense: 2, reach: 1, bones: 2 };
   var O2_MAX = 75;
   var ORE_P = 0.11; // chance that a ground block holds ore
   var WALK = 6;      // cells per second the miner walks between blocks
@@ -550,10 +569,10 @@ var DTW = (function () {
     if (!s.carry.length) return;
     var desk = hubStation(s) === 'museum', near = desk ? null : hubNearExhibit(s);
     if (!desk && !(near && near.creature >= 0)) return;
-    var given = [], keep = [];
-    s.carry.forEach(function (it) {
+    var given = [], keep = [], mine = minerBones(s);
+    s.carry.forEach(function (it, i) {
       var ok = desk || (it.world === near.world && Math.floor(it.idx / PIECES) === near.creature);
-      if (ok) { shelf(s, it)[it.idx]++; given.push(itemName(it)); } else keep.push(it);
+      if (ok) { shelf(s, it)[it.idx]++; given.push(itemName(it)); if (i >= mine && hired(s, i - mine)) addXp(s, i - mine, FRIEND_BONE); } else keep.push(it); // bone i past the miner's own rode on helper i - mine
     });
     s.carry = keep;
     if (given.length) emit(s, { type: 'delivered', names: given, world: desk ? -1 : near.world, creature: desk ? -1 : near.creature });
@@ -607,7 +626,8 @@ var DTW = (function () {
   // Bag Size adds room for one more bone every BONE_EVERY levels, up to BONE_MAX.
   // Each helper who digs in this world holds one more: the miner holds the first minerBones(s), helper k the next.
   function minerBones(s) { return Math.min(BONE_MAX, 1 + Math.floor((s.upgrades.bag || 0) / BONE_EVERY)); }
-  function crewBones(s) { return Math.min(s.workers ? s.workers.diggers : 0, DIGGERS_FIRST + (s.world || 0)); }
+  // helpers who dig in this world: the friends met in it or earlier (two in the first world, one more for each after)
+  function crewBones(s) { var w = s.world || 0, n = 0; while (n < FRIENDS.length && FRIENDS[n].world <= w) n++; return Math.min(s.workers ? s.workers.diggers : 0, n); }
   function boneCap(s) { return minerBones(s) + crewBones(s); }
   function handsFull(s) { return (s.carry || []).length >= boneCap(s); }
   // The fossil piece at cell i, or null: { idx, y, x0, z0, w, d (its footprint), dx, dz (this cell's place in it),
@@ -774,7 +794,7 @@ var DTW = (function () {
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
       museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false, quiz: null, quizT: 0, guest: null, guestT: 0, guestN: 0,
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
-      stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }
+      stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }, friends: newFriends()
     };
     return s;
   }
@@ -810,19 +830,65 @@ var DTW = (function () {
     if (!upgradeAvailable(s, k) || !canAfford(s, c)) return false;
     pay(s, c); s.upgrades[k] = (s.upgrades[k] | 0) + 1; emit(s, { type: 'buy', key: k }); return true;
   }
-  // helpers the player may have: two in the first world, one more for each world unlocked after it
-  function maxDiggers(s) { return DIGGERS_FIRST + s.unlocked.lastIndexOf(true); }
+  // helpers the player may have: the friends, in order, whose world is open (and Pip once Theo is a good friend)
+  function friendAvailable(s, k) {
+    var f = FRIENDS[k];
+    if (!f || !s.unlocked[f.world]) return false;
+    return f.needs == null || friendLevel(s, f.needs) >= PIP_LEVEL || !!s.unlocked[f.world + 1];
+  }
+  function maxDiggers(s) { var n = 0; while (friendAvailable(s, n)) n++; return n; }
+  function newFriends() { return FRIENDS.map(function () { return { xp: 0, talk: -1, gift: -1, told: 0 }; }); }
+  function friendList(s) { if (!s.friends) s.friends = newFriends(); return s.friends; }
+  function friendLevel(s, k) { var xp = friendList(s)[k].xp, n = 0; while (n + 1 < HEARTS.length && xp >= HEARTS[n + 1]) n++; return n; }
+  function addXp(s, k, x) {
+    var f = friendList(s)[k], before = friendLevel(s, k);
+    f.xp += x;
+    var after = friendLevel(s, k);
+    if (after > before) emit(s, { type: 'friendUp', friend: k, level: after, perk: after === PERK_LEVEL });
+  }
+  function hired(s, k) { return k < (s.workers ? s.workers.diggers : 0); }
+  function dayNum(s) { return Math.floor(s.stats.timePlayed / DAY_LEN + DAY_START); }
+  // a perk works while its friend is one of the helpers digging here, with PERK_LEVEL hearts
+  function perkOn(s, perk) {
+    if (!s.run || s.mode === 'surface') return false;
+    for (var k = 0; k < crewBones(s); k++) if (FRIENDS[k].perk === perk) return friendLevel(s, k) >= PERK_LEVEL;
+    return false;
+  }
+  // a chat at the hut: hearts once a day, and the next part of the friend's story once the hearts allow it
+  function talk(s, k) {
+    if (!hired(s, k)) return null;
+    var f = friendList(s)[k], day = dayNum(s), xp = 0, beat = 0;
+    if (f.talk !== day) { f.talk = day; xp = FRIEND_TALK; addXp(s, k, xp); }
+    if (f.told < friendLevel(s, k)) beat = ++f.told;
+    return { xp: xp, beat: beat, day: day };
+  }
+  // a gift is one stack of their favourite material, as the newest world's ore gives it
+  function giftCost(s, k) {
+    var m = emptyMats(), w = Math.max(0, s.unlocked.lastIndexOf(true)), t = FRIENDS[k].fav;
+    m[t] = ORE_STACK[w][t]; return { coins: 0, mats: m };
+  }
+  function giftReady(s, k) { return hired(s, k) && friendList(s)[k].gift !== dayNum(s); }
+  function gift(s, k) {
+    var c = giftCost(s, k);
+    if (!giftReady(s, k) || !canAfford(s, c)) return false;
+    pay(s, c); friendList(s)[k].gift = dayNum(s); addXp(s, k, FRIEND_GIFT);
+    emit(s, { type: 'gift', friend: k }); return true;
+  }
   function hireCost(s, k) { return k === 'diggers' && s.workers[k] >= maxDiggers(s) ? { coins: Infinity, mats: emptyMats() } : priceOf(WORKERS[k], s.workers[k]); }
   function hire(s, k) {
     var c = hireCost(s, k);
     if (!canAfford(s, c)) return false;
-    pay(s, c); s.workers[k]++; emit(s, { type: 'hire', key: k }); return true;
+    pay(s, c); s.workers[k]++; emit(s, { type: 'hire', key: k, friend: k === 'diggers' ? s.workers[k] - 1 : -1 }); return true;
   }
   function drillDamage(s) { return Math.pow(1.5, s.upgrades.drill); }
   function crewDamage(s) { return Math.pow(1.5, s.upgrades.crewDrill | 0); }
   function crewRate(s) { return HELPER_RATE * (1 + 0.35 * (s.upgrades.crewSpeed | 0)); } // each helper's swings per second
   function twinMul(s) { return s.upgrades.twin ? TWIN_RATE : 1; }
-  function hitRate(s) { return 2 * (1 + 0.35 * s.upgrades.speed) * twinMul(s); } // the miner's own swings per second
+  function hitRate(s) { return 2 * (1 + 0.35 * s.upgrades.speed) * twinMul(s) * (perkOn(s, 'cheer') ? PERK.cheer : 1); }
+  function o2Max(s) { return O2_MAX * (perkOn(s, 'breath') ? PERK.breath : 1); }
+  function dodgeWindow(s) { return DODGE_WINDOW * (perkOn(s, 'trapsense') ? PERK.trapsense : 1); }
+  function lootReach(s) { return pickupReach(s.upgrades.magnet) + (perkOn(s, 'reach') ? PERK.reach : 0); }
+  function boneMul(s, tt) { return tt === TILE.FOSSIL && perkOn(s, 'bones') ? PERK.bones : 1; } // the miner's own swings per second
 
   // The golden replay: once all five relics are home, every world is dug again and its bones come up gold. A gold bone
   // goes on the gold shelf (museum[w].gold), drawn gold on the plinths; it pays nothing extra.
@@ -882,7 +948,7 @@ var DTW = (function () {
       s.run.loot.push({ x: g.deepestX + 0.3 + 0.2 * (k % 3), y: FLOOR_Y + g.deepest, z: g.deepestZ + 0.3 + 0.2 * (Math.floor(k / 3) % 3), layer: g.deepest, rest: true, item: it, age: 0, delay: 0.3, vx: 0, vy: 0, vz: 0 });
     });
     g.bones = [];
-    s.mode = 'down';
+    s.mode = 'down'; s.run.oxygen = o2Max(s);
     emit(s, { type: 'descend' });
   }
   function tap(s) { if (s.mode === 'dig' && s.run.stun <= 0 && !(s.run.dodge > 0)) s.run.taps++; }
@@ -1248,8 +1314,8 @@ var DTW = (function () {
       else { it = { kind: 'fossil', world: w, idx: fo.idx }; if (s.golden) it.gold = true; }
     }
     else if (tt === TILE.CHEST) it = chestLoot(s, w, by, smashed);
-    else if (tt === TILE.TRAP && helper) { helper.stun = 2; emit(s, { type: 'trap', helper: true }); }
-    else if (tt === TILE.TRAP) { r.dodge = DODGE_WINDOW; emit(s, { type: 'trapWarn', x: bx, y: by, z: bz }); } // the miner may still dodge it
+    else if (tt === TILE.TRAP && helper) { helper.stun = 2; emit(s, { type: 'trap', helper: true, friend: r.crew.indexOf(helper) }); }
+    else if (tt === TILE.TRAP) { r.dodge = dodgeWindow(s); emit(s, { type: 'trapWarn', x: bx, y: by, z: bz }); } // the miner may still dodge it
     else if (tt === TILE.RELIC) {
       var have = s.relics[w] || r.bag.some(function (b) { return b.kind === 'relic'; });
       it = have ? { kind: 'treasure', world: w, value: Math.round(100 * WORLDS[w].oreMult) } : { kind: 'relic', world: w };
@@ -1258,7 +1324,7 @@ var DTW = (function () {
     delete r.goo[i];
     s.stats.digs++;
     emit(s, { type: 'break', x: bx, y: by, z: bz, tile: tt });
-    if (tt === TILE.RELIC && !r.party) { r.party = { phase: 'jump', t: PARTY_JUMP }; r.lock = null; r.dodge = 0; emit(s, { type: 'party', world: w }); }
+    if (tt === TILE.RELIC && !r.party) { for (var pk = 0; pk < crewBones(s); pk++) addXp(s, pk, FRIEND_PARTY); r.party = { phase: 'jump', t: PARTY_JUMP }; r.lock = null; r.dodge = 0; emit(s, { type: 'party', world: w }); }
     if (!it) return;
     if (it.kind === 'relic') { collect(s, it); return; } // the relic is handed over at once
     // everything else drops on the floor of its cell and waits to be picked up; on the moon it bounces first
@@ -1291,7 +1357,7 @@ var DTW = (function () {
     }
   }
   function pickLoot(s, dt) { // collect loot in reach; with a magnet, loot in reach slides toward the miner first
-    var r = s.run, reach = pickupReach(s.upgrades.magnet), px = r.x + 0.5, pz = r.z + 0.5, mag = s.upgrades.magnet > 0;
+    var r = s.run, reach = lootReach(s), px = r.x + 0.5, pz = r.z + 0.5, mag = s.upgrades.magnet > 0;
     for (var k = r.loot.length - 1; k >= 0; k--) {
       var l = r.loot[k];
       if (!lootReady(s, l)) continue;
@@ -1378,7 +1444,8 @@ var DTW = (function () {
         var sp = crewSpot(g, y, best, r.x, r.z, stand);
         c.target = best; c.x = sp.x; c.z = sp.z; c.y = sp.y; c.face = sp.face;
       }
-      var tt = g.t[c.target], dmg = crewDamage(s) * crewRate(s) * dt * (tt === TILE.GOO ? 0.45 : 1);
+      var tt = g.t[c.target], dmg = crewDamage(s) * crewRate(s) * dt * (tt === TILE.GOO ? 0.45 : 1) * boneMul(s, tt) * (FRIENDS[k].perk === 'strong' && friendLevel(s, k) >= PERK_LEVEL ? PERK.strong : 1);
+      addXp(s, k, FRIEND_DIG * dt);
       g.hp[c.target] -= dmg; hit[c.target] = 1;
       if (tt === TILE.GOO) r.goo[c.target] = 1;
       if (g.hp[c.target] <= 0) { var done = c.target; c.target = -1; breakTile(s, done, c); if (r.path && r.path.target === done) r.path = null; }
@@ -1432,7 +1499,7 @@ var DTW = (function () {
       for (var oy = r.y - 1; oy <= r.y + 1; oy++) for (var oz = r.z - 1; oz <= r.z + 1; oz++) for (var ox = r.x - 1; ox <= r.x + 1; ox++) {
         if (ox < 0 || ox >= N || oz < 0 || oz >= N || oy < 0) continue;
         var oi = idx(ox, oy, oz);
-        if (g.t[oi] === TILE.BUBBLE) { g.t[oi] = TILE.AIR; r.oxygen = O2_MAX; emit(s, { type: 'bubble', x: ox, y: oy, z: oz }); }
+        if (g.t[oi] === TILE.BUBBLE) { g.t[oi] = TILE.AIR; r.oxygen = o2Max(s); emit(s, { type: 'bubble', x: ox, y: oy, z: oz }); }
       }
     }
     stepLoot(s, dt);
@@ -1534,8 +1601,8 @@ var DTW = (function () {
         r.walkAcc = 0; r.fallAcc = 0; r.state = 'dig';
         var wf = weightFactor(s, r.bag.length);
         // the miner's own swing is slower on auto-pilot
-        var idle = drillDamage(s) * hitRate(s) * (steered || r.manual > 0 ? 1 : AUTO_PACE) * dt * wf;
-        var dmg = idle + drillDamage(s) * twinMul(s) * r.taps * wf;
+        var idle = boneMul(s, g.t[tgt]) * drillDamage(s) * hitRate(s) * (steered || r.manual > 0 ? 1 : AUTO_PACE) * dt * wf;
+        var dmg = idle + boneMul(s, g.t[tgt]) * drillDamage(s) * twinMul(s) * r.taps * wf;
         if (g.t[tgt] === TILE.GOO) dmg -= idle * 0.55; // goo grows back while you drill it
         r.taps = 0;
         g.hp[tgt] -= dmg; hit[tgt] = 1; r.target = tgt;
@@ -1580,7 +1647,7 @@ var DTW = (function () {
     var digging = s.run && s.mode !== 'surface', left = [];
     var bag = digging ? s.run.bag.concat(s.run.loot.filter(function (l) { if (lootWaits(s, l)) { left.push(l.item); return false; } return true; }).map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 5, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 6, friends: friendList(s), voice: s.voice !== false, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0,
         bones: (g.bones || []).concat(digging && s.run.grid === g ? left : []) }; })
@@ -1589,10 +1656,14 @@ var DTW = (function () {
   function deserialize(str) {
     try {
       var o = JSON.parse(str);
-      if (!o || [1, 2, 3, 4, 5].indexOf(o.v) < 0) return null;
+      if (!o || [1, 2, 3, 4, 5, 6].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
-      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats', 'golden'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats', 'golden', 'voice'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
       if (!Array.isArray(s.mats) || s.mats.length !== 5) s.mats = emptyMats();
+      s.friends = newFriends();
+      (Array.isArray(o.friends) ? o.friends : []).forEach(function (f, k) {
+        if (k < FRIENDS.length && f) s.friends[k] = { xp: +f.xp || 0, talk: f.talk == null ? -1 : f.talk | 0, gift: f.gift == null ? -1 : f.gift | 0, told: f.told | 0 };
+      });
       s.upgrades = Object.assign(newState(0).upgrades, s.upgrades); s.workers = Object.assign(newState(0).workers, s.workers);
       // before v3 each world had one creature of five pieces: it is now that world's middle creature
       var old = o.v < 3;
@@ -1649,7 +1720,8 @@ var DTW = (function () {
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
     SLIDE_N: SLIDE_N, SLIDE_K: SLIDE_K, PIPE_N: PIPE_N, PIPE_OUTS: PIPE_OUTS, ICE_N: ICE_N, ICE_ROCKS: ICE_ROCKS, ICE_MIN: ICE_MIN, LOCK_ONE: LOCK_ONE, LOCK_TWO: LOCK_TWO, iceSlide: iceSlide, ODD_ROUNDS: ODD_ROUNDS, ODD_CARDS: ODD_CARDS, ODD_WAIT: ODD_WAIT, PATH_N: PATH_N, PATH_GRID: PATH_GRID, PATH_PREVIEW: PATH_PREVIEW, PATH_RECALL: PATH_RECALL, pipeSides: pipeSides, pipeWet: pipeWet, pipeDone: pipeDone,
     pickupReach: pickupReach, bagCap: bagCap, boneCap: boneCap, minerBones: minerBones, weightFactor: weightFactor, upgradeCost: upgradeCost, upgradeAvailable: upgradeAvailable, SPLASH_FRAC: SPLASH_FRAC, SPLASH_FAR: SPLASH_FAR, PILE_COOLDOWN: PILE_COOLDOWN, PARTY_JUMP: PARTY_JUMP, PARTY_POP: PARTY_POP, PARTY_END: PARTY_END, TWIN_RATE: TWIN_RATE, ORE_STACK: ORE_STACK, DODGE_WINDOW: DODGE_WINDOW, dodge: dodge, buyUpgrade: buyUpgrade, hireCost: hireCost,
-    hire: hire, museumIncome: museumIncome, QUIZ_EVERY: QUIZ_EVERY, quizAnswer: quizAnswer, quizReward: quizReward, _quizNow: function (s) { s.quiz = quizMake(s); }, DAY_LEN: DAY_LEN, dayPhase: dayPhase, WEATHER: WEATHER, WEATHER_SLOT: WEATHER_SLOT, weather: weather, GUESTS: GUESTS, GUEST_EVERY: GUEST_EVERY, GUEST_REACH: GUEST_REACH, guestSpots: guestSpots, guestGift: guestGift, _guestNow: function (s) { s.guest = guestMake(s); }, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
+    hire: hire, FRIENDS: FRIENDS, HEARTS: HEARTS, PERK: PERK, PERK_LEVEL: PERK_LEVEL, PIP_LEVEL: PIP_LEVEL, FRIEND_DIG: FRIEND_DIG, FRIEND_BONE: FRIEND_BONE, FRIEND_TALK: FRIEND_TALK, FRIEND_GIFT: FRIEND_GIFT, FRIEND_PARTY: FRIEND_PARTY,
+    friendLevel: friendLevel, friendAvailable: friendAvailable, perkOn: perkOn, talk: talk, gift: gift, giftCost: giftCost, giftReady: giftReady, o2Max: o2Max, dodgeWindow: dodgeWindow, reach: lootReach, dayNum: dayNum, museumIncome: museumIncome, QUIZ_EVERY: QUIZ_EVERY, quizAnswer: quizAnswer, quizReward: quizReward, _quizNow: function (s) { s.quiz = quizMake(s); }, DAY_LEN: DAY_LEN, dayPhase: dayPhase, WEATHER: WEATHER, WEATHER_SLOT: WEATHER_SLOT, weather: weather, GUESTS: GUESTS, GUEST_EVERY: GUEST_EVERY, GUEST_REACH: GUEST_REACH, guestSpots: guestSpots, guestGift: guestGift, _guestNow: function (s) { s.guest = guestMake(s); }, digAgain: digAgain, goldFound: goldFound, exhibitDone: exhibitDone, piecesFound: piecesFound, CREATURES: CREATURES, PIECES: PIECES, FOSSILS: FOSSILS, itemValue: itemValue, itemName: itemName,
     serialize: serialize, deserialize: deserialize, resetSite: resetSite, maxHp: maxHp, passable: passable,
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, LADDER_DOWN: LADDER_DOWN, CLIMB_PUSH: CLIMB_PUSH, hubCell: hubCell, hubWalkable: hubWalkable,

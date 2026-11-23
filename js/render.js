@@ -419,10 +419,14 @@ var DTWRender = (function () {
     crewPos.length = out.length;
     return out;
   }
+  // Theo is the big kid and Pip his little sister; the rest are drawn at 0.85 of the miner's size
+  var HELPER_SCALE = [0.95, 0.68, 0.85, 0.85, 0.85, 0.85];
+  // speech bubbles: what a friend says floats over their head on the overlay (say), anchored where it was last drawn
+  var talkB = {}, talkAt = {};
   function drawHelper(h, S) {
-    var fc = FACE[h.face] || FACE.e, phase = time * 1.7 + h.k * 0.37, q = P(h.x, h.y + 1, h.z), p = charScale() * 0.85;
-    // helpers are drawn at 0.85 scale, so they take more steps per cell
-    var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / 0.85, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
+    var hs = HELPER_SCALE[h.k] || 0.85, fc = FACE[h.face] || FACE.e, phase = time * 1.7 + h.k * 0.37, q = P(h.x, h.y + 1, h.z), p = charScale() * hs;
+    // smaller helpers take more steps per cell
+    var pose = DTWSprites.walkPose((h.walk || 0) * CYC_PER_CELL / hs, h.walking ? 1 : 0), sw = h.dig ? DTWSprites.swing(phase, true) : null;
     pose.lean = sw ? sw.lean : 0; pose.air = 0; pose.blink = false; if (sw) pose.body = sw.body;
     var spr = DTWSprites.helper(h.k, { bone: h.bone || null, back: fc.back, swing: sw, carry: !h.dig, tier: 0, pose: pose, lampOn: S.mode !== 'surface', bowl: helmet(S, h.k), t: time });
     ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(q[0]), Math.round(q[1]));
@@ -431,6 +435,7 @@ var DTWRender = (function () {
     if (fc.flip) ctx.scale(-1, 1);
     ctx.drawImage(spr.cv, -spr.fx * p, -spr.fy * p, spr.cv.width * p, spr.cv.height * p);
     ctx.restore();
+    talkAt[h.k] = { wx: h.x, wy: h.y + 1, wz: h.z, up: 40 * p, t: time };
     if (h.dig && (phase % 1) > 0.72 && (phase % 1) < 0.76 && Math.random() < 0.5) { // chips fly off the block being hit
       var d = D.DIRS[h.face]; spawnBreak(h.x - 0.5 + d[0] * 0.5, h.y, h.z - 0.5 + d[1] * 0.5, '#c8a07088', 1);
     }
@@ -974,7 +979,9 @@ var DTWRender = (function () {
     var mx = S.hub.x, mz = S.hub.z, tr = fol.trail;
     if (S.mode === 'surface' && (!tr.length || Math.abs(tr[0][0] - mx) + Math.abs(tr[0][1] - mz) > 0.1)) { tr.unshift([mx, mz]); if (tr.length > 300) tr.length = 300; }
     var mb = D.minerBones(S);
+    var away = S.mode === 'dig' && S.run ? (S.run.crew || []).length : 0; // those digging in the pit are not at the hut
     return spots.map(function (sp, k) {
+      if (k < away) return null;
       var bone = S.mode === 'surface' ? boneOf(S, mb + k) : null, p = fol.pos[k], moved = 0, st = D.HUB_SPEED * dt;
       if (bone) {
         if (!p) p = fol.pos[k] = { x: mx, z: mz, walk: 0, face: 's' }; // they come up the ladder with the miner
@@ -990,7 +997,7 @@ var DTWRender = (function () {
       }
       if (!p) return { k: k, x: sp[0], z: sp[1], y: 0, face: sp[2], dig: false, walking: false };
       return { k: k, x: p.x, z: p.z, y: 0, face: p.face, dig: false, walking: moved > 0, walk: p.walk, bone: bone };
-    });
+    }).filter(Boolean);
   }
   // ---------- hand-in guide: where to take the bone being carried ----------
   var GOLD = '#ffd23f', trail = { t: 0, pts: [] }, celebs = [], sparks = [];
@@ -1964,6 +1971,7 @@ var DTWRender = (function () {
       octx.lineWidth = Math.max(4, fs * 0.22); octx.strokeStyle = '#000'; octx.strokeText(fl.text, fq[0], fq[1]);
       octx.fillStyle = fl.c; octx.fillText(fl.text, fq[0], fq[1]); octx.globalAlpha = 1;
     }
+    drawTalk();
     var fa = flashAmt(); if (fa > 0) { octx.fillStyle = 'rgba(255,255,255,' + (0.6 * fa) + ')'; octx.fillRect(0, 0, vw, vh); }
     if (post) composite(S, w, viewTop, surfaceView);
   }
@@ -2315,6 +2323,32 @@ var DTWRender = (function () {
     for (var i = 0; i < n; i++) parts.push({ x: x + 0.5, y: y + 0.4, z: z + 0.5, vx: (Math.random() - 0.5) * 3, vy: -Math.random() * 4, vz: (Math.random() - 0.5) * 3, life: 0.5 + Math.random() * 0.4, c: color, s: 0.05 + Math.random() * 0.05 });
   }
   // short floating text over a spot (finds use spawnFind instead)
+  function say(k, text, secs) { talkB[k] = { text: text, life: secs || 3.5, t0: time }; }
+  function drawTalk() {
+    Object.keys(talkB).forEach(function (k) {
+      var b = talkB[k], a = talkAt[k]; b.life -= Math.max(0, time - (b.last || time)); b.last = time;
+      if (b.life <= 0) { delete talkB[k]; return; }
+      if (!a || time - a.t > 0.25) return; // not on screen just now
+      var aq = P(a.wx, a.wy, a.wz); a = { x: aq[0], y: aq[1] - a.up };
+      var fs = Math.max(14, Math.round(TW * 0.3)), pad = fs * 0.5, maxW = Math.max(160, TW * 3.2);
+      octx.save(); octx.font = '700 ' + fs + 'px Fredoka, sans-serif'; octx.textAlign = 'center'; octx.textBaseline = 'middle';
+      var words = b.text.split(' '), lines = [], cur = '';
+      words.forEach(function (w) { var tr = cur ? cur + ' ' + w : w; if (octx.measureText(tr).width > maxW && cur) { lines.push(cur); cur = w; } else cur = tr; });
+      if (cur) lines.push(cur);
+      var bw = Math.max.apply(null, lines.map(function (l) { return octx.measureText(l).width; })) + pad * 2, lh = fs * 1.2, bh = lines.length * lh + pad;
+      var pop = Math.min(1, (time - b.t0) * 6), bx = Math.max(bw / 2 + 4, Math.min(vw - bw / 2 - 4, a.x)), by = a.y - 10 - bh / 2;
+      octx.globalAlpha = Math.min(1, b.life * 2); octx.translate(bx, by + bh / 2); octx.scale(0.6 + 0.4 * pop, 0.6 + 0.4 * pop); octx.translate(0, -bh / 2);
+      octx.fillStyle = '#fffaf0'; octx.strokeStyle = '#1a1020'; octx.lineWidth = 3;
+      octx.beginPath();
+      if (octx.roundRect) octx.roundRect(-bw / 2, -bh / 2, bw, bh, fs * 0.6); else octx.rect(-bw / 2, -bh / 2, bw, bh);
+      octx.moveTo(a.x - bx - 6, bh / 2 - 1); octx.lineTo(a.x - bx, bh / 2 + 9); octx.lineTo(a.x - bx + 6, bh / 2 - 1);
+      octx.fill(); octx.stroke();
+      octx.fillRect(a.x - bx - 5, bh / 2 - 3, 10, 3); // hides the box's edge where the tail joins it
+      octx.fillStyle = '#2a1a3a';
+      lines.forEach(function (l, i) { octx.fillText(l, 0, -bh / 2 + pad / 2 + lh * (i + 0.5)); });
+      octx.restore();
+    });
+  }
   function floatText(x, y, z, text, color) { floaters.push({ x: x, y: y, z: z, text: text, c: color || '#fff', life: 1.3 }); }
   function itemIcon(it) { return DTWSprites.item(it.kind, it.idx || 0, itemColor(it), D.WORLDS[it.world].id === 'moon', !!it.gold); }
   // swipe on screen -> compass direction. In this projection +x runs down-right and +z down-left.
@@ -2340,6 +2374,7 @@ var DTWRender = (function () {
     setView: function (v) { view = v; },
     celebrate: celebrate, quizCheer: function () { quizCheerT = 1.6; }, roomChest: roomChest, finale: finale, finaleTime: function () { return fin ? fin.t : -1; },
     flash: flash, guestIcon: guestIcon,
+    say: say, helperShown: function (k) { return !!talkAt[k] && time - talkAt[k].t < 0.25; },
     spawnBreak: spawnBreak, floatText: floatText, coinBurst: function () { burstT = 0.8; }, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
     // the point on the ground (y = 1) under a pointer, in plaza cells

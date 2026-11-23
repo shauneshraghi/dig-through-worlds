@@ -153,7 +153,7 @@ test('digging coal in world 0 for a few minutes is far cheaper than buying that 
 test('save version 5 keeps the materials', () => {
   const s = D.newState(3); s.mats = [5, 4, 3, 2, 1]; s.coins = 12;
   const o = JSON.parse(D.serialize(s));
-  assert.equal(o.v, 5);
+  assert.equal(o.v, 6);
   const s2 = D.deserialize(D.serialize(s));
   assert.deepEqual([...s2.mats], [5, 4, 3, 2, 1]); assert.equal(s2.coins, 12);
 });

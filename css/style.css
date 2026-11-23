@@ -358,3 +358,37 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
   #controls .btn:active:not(:disabled) { transform:translateY(5px); }
 }
 @media (max-width: 480px) { #bMenu { width:50px; height:48px; font-size:28px; } }
+/* friends at the helpers' hut: a card each with their picture, hearts, perk, and Talk and Gift buttons */
+.row.friend { align-items:flex-start; flex-wrap:wrap; }
+.row.friend .ic { width:80px; height:92px; background:radial-gradient(circle at 50% 40%,#4a3a70,#1a1430 75%); border-radius:12px; display:flex; align-items:flex-end; justify-content:center; overflow:hidden; }
+.row.friend .ic canvas { width:80px; height:92px; image-rendering:pixelated; }
+.row.friend .txt small { display:block; margin-top:2px; }
+.row.friend .perk { color:#d8c8f0; }
+.row.friend .perk.on { color:var(--good); }
+.row.friend.new { border:2px solid var(--good); }
+.row.friend.locked { opacity:.6; }
+.row.friend.locked .ic canvas { filter:brightness(0) opacity(.5); }
+.hearts { color:#ff6b9a; letter-spacing:1px; font-size:.9em; white-space:nowrap; }
+.fbtns { display:flex; flex-direction:column; gap:6px; flex:none; }
+.row .fbtns .btn { min-width:110px; min-height:46px; font-size:18px; padding:6px 10px; }
+.fgift { display:flex; align-items:center; gap:6px; margin-top:4px; }
+.fgift .price { margin:0; }
+@media (max-width:480px) { .fbtns { flex-direction:row; width:100%; } .row .fbtns .btn { flex:1; } }
+/* talking with a friend: a story box along the bottom of the scene, their picture on the left */
+#talk { position:absolute; left:50%; bottom:calc(var(--ctl, 90px) + 10px); transform:translateX(-50%); display:none; gap:12px; align-items:stretch; width:min(96%,640px); box-sizing:border-box; padding:12px; color:#2a1a3a; background:linear-gradient(#fffaf0,#f1e6d0); border:5px solid #c9972b; border-radius:20px; box-shadow:inset 0 0 0 3px #7a5410, 0 10px 30px #000b; z-index:7; animation:tpop .3s cubic-bezier(.2,1.4,.4,1); }
+@keyframes tpop { from { transform:translate(-50%,20px) scale(.85); opacity:0; } }
+#talk.show { display:flex; }
+#talkPic { flex:none; width:96px; border-radius:12px; background:radial-gradient(circle at 50% 40%,#6a5a9a,#2a1f45 75%); display:flex; align-items:flex-end; justify-content:center; overflow:hidden; }
+#talkPic canvas { width:96px; height:110px; image-rendering:pixelated; }
+#talk .tbody { flex:1; min-width:0; display:flex; flex-direction:column; }
+#talk h3 { margin:0 0 4px; font-size:24px; color:#5a3a10; }
+#talk h3 .tag { font-size:16px; color:#fff; background:#c9972b; border-radius:8px; padding:1px 8px; vertical-align:middle; }
+#talk p { margin:0 0 8px; font-size:23px; line-height:1.3; flex:1; }
+#talk .tbtns { display:flex; justify-content:flex-end; gap:8px; }
+#talk .tbtns .btn { min-height:50px; min-width:96px; font-size:21px; }
+#talk .tbtns .btn.small { min-width:56px; }
+@media (max-width:480px) { #talkPic { width:72px; } #talkPic canvas { width:72px; height:83px; } #talk p { font-size:20px; } }
+.row.friend .txt small b, .row.friend .txt b .hearts { display:inline; font-size:inherit; }
+#talkPic { align-self:flex-start; height:110px; }
+#talk h3 .tag { white-space:nowrap; }
+@media (max-width:480px) { #talkPic { height:83px; } }

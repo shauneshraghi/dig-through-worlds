@@ -161,7 +161,9 @@ var DTWSprites = (function () {
   // hired helper diggers: orange hard hats, a different shirt and overalls each
   var HELPERS = [
     pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#9dff8a', r: '#5ad04a', q: '#3a9a2a', B: '#c8a070', b: '#9a7448', n: '#6a4c2a', G: '#ff8c2a' }),
-    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#c8a0ff', r: '#9a70e0', q: '#6a48b0', B: '#5a6a8a', b: '#3a4a6a', n: '#2a3450', G: '#ff8c2a', S: '#b07850', s: '#94603c', k: '#704428' }),
+    // Theo, the big kid (drawn a little taller in render.js), and Pip, his little sister (drawn small), with ginger
+    // pigtails and pink bows under her hat
+    pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#c8a0ff', r: '#9a70e0', q: '#6a48b0', B: '#ff7aa8', b: '#d8507e', n: '#a0305a', G: '#ff8c2a', S: '#f0c49a', s: '#d8a478', k: '#b07850', H: '#e0702a', h: '#a8481a' }),
     // from the third on, each helper comes with a world unlocked and looks like it (HELPER_LOOK)
     // ocean: a merfolk with sea-green skin, teal hair and a fin crest, scale-green clothes and flipper feet
     pal({ S: '#9be8cf', s: '#6ccdb2', k: '#3f9c86', H: '#2fb8c8', h: '#1a7f96', R: '#58c8e8', r: '#2f98c0', q: '#1f6890', B: '#2fa88a', b: '#1f7f68', n: '#145a4a', G: '#bff7ff',
@@ -177,7 +179,7 @@ var DTWSprites = (function () {
     pal({ S: '#9dff6a', s: '#6ad84a', k: '#3a9a2a', H: '#9dff6a', h: '#6ad84a', e: '#1a0a2a', w: '#d0b8ff', c: '#6ad84a', m: '#2a6a1a', R: '#b07aff', r: '#8a50e0', q: '#5a2ab0', B: '#7a4ad0', b: '#5a30a8', n: '#3a1a78', G: '#ff5ad0',
       T: '#5a30a8', t: '#3a1a78', v: '#220a50' })
   ];
-  var HELPER_LOOK = [null, null, 'mer', 'wild', 'astro', 'alien'];
+  var HELPER_LOOK = [null, 'girl', 'mer', 'wild', 'astro', 'alien'];
   // the museum quiz visitor: a professor in a white coat with white hair and purple trousers
   var PROF = pal({ H: '#eeeef4', h: '#b8b8c8', R: '#ffffff', r: '#d8d8e4', q: '#a8a8bc', B: '#6a4aa8', b: '#4e3484', n: '#34235e', G: '#ffd23f' });
   var KEEPER = pal({ H: '#c8c8d0', h: '#8a8a96', R: '#e74c3c', r: '#b03a2a', q: '#7a2418', B: '#fff7e8', b: '#d8cfc0', n: '#a89e90', G: '#e74c3c' });
@@ -544,7 +546,14 @@ var DTWSprites = (function () {
   }
   // what makes a world's helper look like it, drawn over the head (origin hx, hy; the head faces screen-right)
   function headExtras(c, look, hx, hy, back, P) {
-    if (look === 'mer') { // a fin crest over the crown and a fin for an ear
+    if (look === 'girl') { // two ginger pigtails sticking out under the hat brim, each tied with a pink bow
+      var L0 = back ? hx + 20 : hx + 1, L1 = back ? hx + 1 : hx + 20;
+      [L0, L1].forEach(function (x, j) {
+        var d = x < hx + 10 ? -1 : 1, bx = x + (d < 0 ? -1 : 2);
+        px(c, x, hy + 11, P.H, 3, 3); px(c, x + d, hy + 13, P.H, 3, 4); px(c, x + d * 2, hy + 16, P.h, 2, 3); px(c, x + (d < 0 ? 1 : 0), hy + 11, P.h, 2, 1);
+        px(c, bx, hy + 9, '#ff5a9a', 2, 2); px(c, bx + d * 2, hy + 9, '#ff5a9a', 2, 2); px(c, bx + (d < 0 ? -1 : 1), hy + 10, '#ffb0d0');
+      });
+    } else if (look === 'mer') { // a fin crest over the crown and a fin for an ear
       px(c, hx + 7, hy - 3, P.h, 2, 4); px(c, hx + 9, hy - 4, P.H, 2, 5); px(c, hx + 11, hy - 3, P.h, 2, 4); px(c, hx + 13, hy - 1, P.H, 2, 2);
       px(c, hx + 10, hy - 4, '#d8fbff', 1, 2);
       var ex = back ? hx + 17 : hx + 3; px(c, ex, hy + 9, P.H, 2, 4); px(c, ex + (back ? 2 : -1), hy + 10, P.h, 1, 3);
