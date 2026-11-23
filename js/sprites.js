@@ -117,6 +117,10 @@ var DTWSprites = (function () {
     '      obbBBnBBBbbnno',
     '      onbbbbnonbbbno'
   ];
+  // The walking figure's torso has no arms below the shoulders: person() draws both arms as limbs that swing, so a
+  // sleeve left in the grid would show as a second, static arm beside the moving one. The climber keeps the full grid.
+  function armless(g) { return g.map(function (r, i) { return i < 4 || i > 7 ? r : r.split('').map(function (ch, x) { return x < 9 || x > 16 ? ' ' : ch; }).join(''); }); }
+  var TORSO_BODY = armless(TORSO), TORSO_BODY_BACK = armless(TORSO_BACK);
   // the two legs: columns 5..11 and 12..19 move separately for the walk cycle
   var LEG_L = [
     '      obbBno',
@@ -493,7 +497,7 @@ var DTWSprites = (function () {
     var hipN = back ? X0 + 15 : X0 + 9, hipF = back ? X0 + 9 : X0 + 15;
     leg(c, P, hipF, legY - 3, gy - 1, fF.x - ap - st, fF.lift, false, sv);
     leg(c, P, hipN, legY - 2, gy, fN.x + ap + st, fN.lift, true, sv);
-    stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
+    stamp(c, back ? TORSO_BODY_BACK : TORSO_BODY, P, X, Y);
     if (air) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
     if ((hasPack || stow) && !back) line(c, X + 9, Y + 1, X + 11, Y + 8, PACK.k, 1); // shoulder strap
     // seen from behind the near arm goes on before the head and the pack, which cover it
