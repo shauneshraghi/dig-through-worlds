@@ -161,7 +161,7 @@ var DTWSprites = (function () {
   // hired helper diggers: orange hard hats, a different shirt and overalls each
   var HELPERS = [
     pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#9dff8a', r: '#5ad04a', q: '#3a9a2a', B: '#c8a070', b: '#9a7448', n: '#6a4c2a', G: '#ff8c2a' }),
-    // Theo, the big kid (drawn a little taller in render.js), and Pip, his little sister (drawn small), with ginger
+    // Baron, Nim's big brother (drawn a little taller in render.js), and Hale, the little sister (drawn small), with ginger
     // pigtails and pink bows under her hat
     pal({ Y: '#ffb36b', y: '#ff8c2a', u: '#b85a10', R: '#c8a0ff', r: '#9a70e0', q: '#6a48b0', B: '#ff7aa8', b: '#d8507e', n: '#a0305a', G: '#ff8c2a', S: '#f0c49a', s: '#d8a478', k: '#b07850', H: '#e0702a', h: '#a8481a' }),
     // from the third on, each helper comes with a world unlocked and looks like it (HELPER_LOOK)

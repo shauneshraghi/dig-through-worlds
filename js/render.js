@@ -419,8 +419,8 @@ var DTWRender = (function () {
     crewPos.length = out.length;
     return out;
   }
-  // Theo is the big kid and Pip his little sister; the rest are drawn at 0.85 of the miner's size
-  var HELPER_SCALE = [0.95, 0.68, 0.85, 0.85, 0.85, 0.85];
+  // Baron is Nim's big brother, Hale the little sister, Jon a big grown-up merman; the rest are drawn at 0.85 of the miner's size
+  var HELPER_SCALE = [0.95, 0.68, 1.12, 0.85, 0.85, 0.85];
   // speech bubbles: what a friend says floats over their head on the overlay (say), anchored where it was last drawn
   var talkB = {}, talkAt = {};
   function drawHelper(h, S) {

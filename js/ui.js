@@ -513,8 +513,8 @@
         d.appendChild(hb);
       } else {
         d.classList.add('locked');
-        txt.innerHTML = f.needs != null
-          ? '<b>' + st.name + '</b><small>' + STORY.friends[f.needs].name + "'s little sister wants to dig too! Be good friends with " + STORY.friends[f.needs].name + ' (♥♥) first.</small>'
+        txt.innerHTML = st.wait
+          ? '<b>' + st.name + '</b><small>' + st.wait + '</small>'
           : '<b>???</b><small>A new friend waits in ' + (S.unlocked[f.world] ? D.WORLDS[f.world].name : 'the next world') + '.</small>';
         d.appendChild(txt);
       }
@@ -536,6 +536,7 @@
   }
   function talkShow() {
     var line = talkPages[0]; if (line == null) { talkClose(); return; }
+    if (isToot(line)) toot(talkK);
     $('talkText').textContent = line; $('talkNext').textContent = talkPages.length > 1 ? 'Next ▸' : 'OK';
     speak(talkK, line);
   }
@@ -567,7 +568,14 @@
     if (!who.length) return;
     var f = who[Math.floor(Math.random() * who.length)], ls = STORY.friends[f].lines[kind]; if (!ls) return;
     var line = ls[Math.floor(Math.random() * ls.length)];
-    lastBark = now; R.say(f, line); if (!talkEl.classList.contains('show')) speak(f, line);
+    lastBark = now; R.say(f, line); if (isToot(line)) toot(f); if (!talkEl.classList.contains('show')) speak(f, line);
+  }
+  // Baron's toots: a line starting with 💨 comes with a toot sound and, in the pit, a little green puff by him
+  function isToot(line) { return line.indexOf('💨') === 0; }
+  function toot(k) {
+    A.sfx('toot');
+    var c = S.mode === 'dig' && S.run && (S.run.crew || [])[k];
+    if (c) { R.floatText(c.x + 0.5, c.y + 0.6, c.z + 0.5, '💨', '#b8f07a'); R.spawnBreak(c.x, c.y, c.z, '#a8d86a88', 6); }
   }
   function friendUp(e) {
     var st = STORY.friends[e.friend];

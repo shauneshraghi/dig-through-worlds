@@ -53,6 +53,7 @@ var DTWAudio = (function () {
     trap: function () { tone(600, 0.5, 'sawtooth', 0.12, 0, 0.2); },
     bubble: function () { tone(300, 0.2, 'sine', 0.2, 0, 3); },
     relic: function () { [523, 659, 784, 1047, 784, 1047].forEach(function (f, i) { tone(f, 0.25, 'square', 0.12, AC.currentTime + i * 0.13); }); },
+    toot: function () { var t = AC.currentTime; tone(105, 0.32, 'sawtooth', 0.13, t, 0.55); tone(82, 0.2, 'square', 0.07, t + 0.1, 0.7); tone(140, 0.12, 'sawtooth', 0.06, t + 0.3, 0.5); noise(0.4, 0.1, 260); }, // Baron's toot
     crack: function () { noise(0.1, 0.2, 700); tone(130, 0.08, 'square', 0.08); tone(95, 0.12, 'square', 0.06, AC.currentTime + 0.05); },
     // the quiz: a soft two-note doorbell with a curious rising "hmm?", a cheer, and a gentle wrong-answer sigh
     doorbell: function () { var t = AC.currentTime; tone(784, 0.35, 'sine', 0.12, t); tone(659, 0.45, 'sine', 0.12, t + 0.28); tone(440, 0.3, 'triangle', 0.08, t + 0.8, 1.5); },

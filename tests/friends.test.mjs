@@ -86,14 +86,14 @@ test('a gift of the favourite material once a day', () => {
 });
 
 test('perks: each friend helps once the hearts reach PERK_LEVEL, and only on a dig they are part of', () => {
-  // Theo hits harder
+  // Baron hits harder
   const a = digAt(0, 0, 20, 0); a.workers.diggers = 1; D.setAuto(a, false);
   for (let z = 0; z < D.N; z++) for (let x = 0; x < D.N; x++) if (x + z > 0) D._setTile(a, x, 20, z, T.STONE);
   assert.equal(D.perkOn(a, 'strong'), false); level(a, 0, D.PERK_LEVEL); assert.equal(D.perkOn(a, 'strong'), true);
-  // Pip cheers the miner on
+  // Hale bosses the miner into swinging faster
   const b = digAt(0, 0, 20, 0); b.workers.diggers = 2; const r0 = D.hitRate(b); level(b, 1, D.PERK_LEVEL);
   assert.ok(Math.abs(D.hitRate(b) / r0 - D.PERK.cheer) < 1e-9);
-  // Marlo: more oxygen in the ocean
+  // Jon: more oxygen in the ocean
   const c = digAt(1, 0, 20, 0); c.workers.diggers = 3; assert.equal(D.o2Max(c), D.O2_MAX);
   level(c, 2, D.PERK_LEVEL); assert.equal(D.o2Max(c), D.O2_MAX * D.PERK.breath);
   // Wren: a longer dodge window
@@ -102,7 +102,7 @@ test('perks: each friend helps once the hearts reach PERK_LEVEL, and only on a d
   // Nova: a longer pickup reach
   const e = digAt(3, 0, 20, 0); e.workers.diggers = 5; const re = D.reach(e); level(e, 4, D.PERK_LEVEL);
   assert.equal(D.reach(e), re + D.PERK.reach);
-  // Blip: fossils give way faster
+  // Grog: fossils give way faster
   const f = digAt(4, 0, 20, 0); f.workers.diggers = 6; level(f, 5, D.PERK_LEVEL); assert.equal(D.perkOn(f, 'bones'), true);
   // a friend from a later world does not dig, so no perk, in an earlier one
   const g = digAt(0, 0, 20, 0); g.workers.diggers = 6; level(g, 5, 4); assert.equal(D.perkOn(g, 'bones'), false);

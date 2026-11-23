@@ -220,22 +220,22 @@ var DTW = (function () {
   var BONE_EVERY = 6, BONE_MAX = 4; // bones carried at once: one more every BONE_EVERY bag levels
   // ---------- friends ----------
   // The helpers are six friends, met in world order (helper k is FRIENDS[k]; their words are in js/story.js). Hiring
-  // asks the next one to join. Pip, Theo's little sister, joins once Theo is a good friend (PIP_LEVEL hearts) or the
+  // asks the next one to join. Hale, the hero Nim's little sister, joins once Baron (Nim's big brother) is a good friend (PIP_LEVEL hearts) or the
   // second world opens. Hearts come from digging together, bones a friend carried home, a chat and a gift at the hut
   // (each once a day) and relic parties; at PERK_LEVEL hearts a friend's perk works on every dig they are part of.
   // fav is the material tier they like as a gift.
   var FRIENDS = [
-    { key: 'theo',  world: 0, perk: 'strong',    fav: 2 },
-    { key: 'pip',   world: 0, perk: 'cheer',     fav: 1, needs: 0 },
-    { key: 'marlo', world: 1, perk: 'breath',    fav: 4 },
+    { key: 'baron', world: 0, perk: 'strong',    fav: 2 },
+    { key: 'hale',  world: 0, perk: 'cheer',     fav: 1, needs: 0 },
+    { key: 'jon',   world: 1, perk: 'breath',    fav: 4 },
     { key: 'wren',  world: 2, perk: 'trapsense', fav: 3 },
     { key: 'nova',  world: 3, perk: 'reach',     fav: 2 },
-    { key: 'blip',  world: 4, perk: 'bones',     fav: 0 }
+    { key: 'grog',  world: 4, perk: 'bones',     fav: 0 }
   ];
   var HEARTS = [0, 10, 30, 60, 100]; // xp for each heart level, 0-4
   var PERK_LEVEL = 2, PIP_LEVEL = 2;
   var FRIEND_DIG = 0.1, FRIEND_BONE = 3, FRIEND_TALK = 5, FRIEND_GIFT = 8, FRIEND_PARTY = 10; // xp per second dug together, per bone, chat, gift, party
-  // strong: Theo hits this much harder; cheer: the miner swings this much faster; breath: oxygen tank ×; trapsense: dodge
+  // strong: Baron hits this much harder; cheer: the miner swings this much faster; breath: oxygen tank ×; trapsense: dodge
   // window ×; reach: pickup reach + cells; bones: fossil blocks take this much more damage from everyone
   var PERK = { strong: 1.5, cheer: 1.15, breath: 1.5, trapsense: 2, reach: 1, bones: 2 };
   var O2_MAX = 75;
@@ -830,7 +830,7 @@ var DTW = (function () {
     if (!upgradeAvailable(s, k) || !canAfford(s, c)) return false;
     pay(s, c); s.upgrades[k] = (s.upgrades[k] | 0) + 1; emit(s, { type: 'buy', key: k }); return true;
   }
-  // helpers the player may have: the friends, in order, whose world is open (and Pip once Theo is a good friend)
+  // helpers the player may have: the friends, in order, whose world is open (and Hale once Baron is a good friend)
   function friendAvailable(s, k) {
     var f = FRIENDS[k];
     if (!f || !s.unlocked[f.world]) return false;

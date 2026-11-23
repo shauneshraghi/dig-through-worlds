@@ -3,49 +3,55 @@
 // read aloud to a 6 to 9 year old. friends[k] goes with DTW.FRIENDS[k].
 var DTWStory = (function () {
   'use strict';
+  // the hero's name, used in the friends' lines
+  var HERO = 'Nim';
+  // a line that starts with 💨 is one of Baron's toots: ui.js plays a toot sound and a little green puff with it
   var friends = [
-    { name: 'Theo', who: 'Big kid from town, age 11', icon: '🪨',
-      about: 'Careful, kind and full of rock facts. He worries a bit, but he never gives up.',
-      perk: 'Strong Arm', perkText: 'Theo hits his blocks 50% harder.',
-      voice: { pitch: 0.85, rate: 0.95 },
-      meet: 'Hi! I am Theo. My grandpa was a digger. This was his pick! Can I help you dig?',
+    { name: 'Baron', who: "Nim's big brother, age 11", icon: '💨',
+      about: 'Strong, silly and proud of it. Baron tries to act cool, but his tummy always gives him away.',
+      perk: 'Big Brother Muscles', perkText: 'Baron hits his blocks 50% harder.',
+      voice: { pitch: 0.8, rate: 0.95 },
+      meet: 'Hey Nim! Mum says I have to help you dig. Fine. But I am in charge of the big rocks.',
+      wait: '',
       story: [
-        'Grandpa told me the forest is full of old bones. He said the best digs need a good friend.',
-        'I get scared of the dark sometimes. But your lamp is really bright. I feel brave with you.',
-        'Grandpa found a mammoth tooth once. He gave it to the museum. Now we are filling it up together!',
-        'Grandpa would be so proud of us. You are the best digging partner ever. Thanks for being my friend.'
+        'I am not scared of the dark. I just like to stay close to your lamp. For you. Not for me.',
+        '💨 Excuse me! That was the ground. Ground toots are very common down here. Ask any scientist.',
+        'Remember when you found that worm and cried because it was sad? I did not laugh. Okay, a little.',
+        'You are a really good digger, Nim. Better than me. Do not tell anyone I said that.'
       ],
-      chat: ['Did you know? Coal is made from very old plants!', 'Iron is my favourite. It makes strong tools.', 'Let me check the walls. Safety first!', 'I like the sound of a pick on stone. Clink, clink!', 'My sister Pip wants to dig too. She is really loud.'],
-      gift: 'Iron! Wow, thank you! I will keep this one forever.',
-      lines: { fossil: ['A bone! Careful now.', 'Look at that! A real fossil!'], trap: ['Oof! That made me dizzy.'], full: ['The bag is full! Time to go up.'], party: ['We did it! We did it!'], up: ['You are a great friend!'], hello: ['Hi! Ready to dig?', 'Good to see you!'] } },
-    { name: 'Pip', who: "Theo's little sister, age 5", icon: '🎀',
-      about: 'Loud, brave and bouncy. Everything is the BEST thing ever. She loves shiny things.',
-      perk: 'Cheer Squad', perkText: 'Pip cheers you on: you swing 15% faster.',
+      chat: ['💨 Oops. Beans for breakfast.', 'Watch this muscle! Okay, it is small. It is growing.', 'Did you hear that? It was not me. It was a mole.', 'I can carry two rocks at once. Three if nobody is looking.', 'Hale bossed me around all morning. Help.'],
+      gift: 'Iron? For me? That is so cool. I mean, thanks. It is fine. It is great!',
+      lines: { fossil: ['Whoa! A bone! I saw it first!', '💨 Sorry, I got excited. A bone!'], trap: ['Ugh, dizzy! And now I need the toilet.'], full: ['💨 The bag is full. And so am I. Up we go!'], party: ['💨 Party toot! Hooray!', 'We are the best diggers ever!'], up: ['You are an okay little sibling. A GREAT one, actually.'], hello: ['Hey Nim!', '💨 Hi. That was a hello toot.'] } },
+    { name: 'Hale', who: "Nim's little sister, age 5", icon: '🎀',
+      about: 'Full of hugs and full of orders. Hale loves everybody, and she will tell everybody what to do.',
+      perk: 'Bossy Boots', perkText: 'Hale tells you to hurry: you swing 15% faster.',
       voice: { pitch: 1.6, rate: 1.1 },
-      meet: 'I am Pip! I am five! Theo said I can dig too! Is that a worm? I love worms!',
+      meet: 'Nim! I am coming too! No, you can not say no. I already have my hat on. Hug first, then dig.',
+      wait: 'Hale wants to dig too! When Baron is your good friend (♥♥), he will bring her down.',
       story: [
-        'Theo says I am too little. But I can dig SO fast. Watch me!',
-        'I keep my shiny pebbles in my sock. This one is my best one. You can hold it.',
-        'When I grow up I want to be a digger like you. And a dinosaur. Both!',
-        'You are my best friend. Theo is my best brother. We are a team!'
+        'I love you, Nim. Now dig that one. No, THAT one. Good job!',
+        'Baron says I am bossy. I am not bossy. I am the boss. That is different.',
+        'When you went down the ladder alone, I was worried. So now I come. That is the rule.',
+        'You are my favourite. Do not tell Baron. Okay, tell him. He knows. Group hug!'
       ],
-      chat: ['I found a shiny! Oh wait, it is a pebble. Still shiny!', 'Dig dig dig dig dig!', 'Can we find a T. rex today? Please?', 'Copper is orange like my hair!', 'I am not tired. I am never tired!'],
-      gift: 'Copper! It is so shiny! I will put it in my sock!',
-      lines: { fossil: ['A BONE! A BONE!', 'Dinosaur! Is it a dinosaur?'], trap: ['Whoa! Everything is spinning!'], full: ['The bag is all full up!'], party: ['Yay yay yay!'], up: ['I love you! You are the best!'], hello: ['Hi hi hi!', 'Let us go dig!'] } },
-    { name: 'Marlo', who: 'Merkid from the Sunken Ocean', icon: '🐚',
-      about: 'Calm and dreamy. Marlo hums sea songs and can hold a breath for a very long time.',
-      perk: 'Bubble Breath', perkText: 'Marlo shares bubbles: your oxygen lasts 50% longer.',
-      voice: { pitch: 1.15, rate: 0.85 },
-      meet: 'Hello, land friend. I am Marlo. The sea floor hides many secrets. Shall we dig together?',
+      chat: ['Faster, Nim! Dig dig dig!', 'I made a rule. No sad faces in the pit.', 'Baron! Stop tooting! It is RUDE.', 'Can I have a hug? Thank you. Now get back to work.', 'Copper is my colour. It is the boss colour.'],
+      gift: 'Copper! You are the best! Hug! Okay, that is enough hug. Back to work.',
+      lines: { fossil: ['A bone! I said there was one there!', 'Good digging! I am proud of you!'], trap: ['Hey! Who put that trap there? Rude!'], full: ['The bag is full! Go up! Now, please!'], party: ['Yay! Everybody hug!'], up: ['I love you sooo much!'], hello: ['Nim! Over here!', 'Hug, then dig!'] } },
+    { name: 'Jon', who: 'Big friendly merman from the Sunken Ocean', icon: '🐟',
+      about: 'A huge, gentle grown-up who trips over his own tail. Jon is not very clever, but he is very kind.',
+      perk: 'Big Lungs', perkText: 'Jon blows extra bubbles: your oxygen lasts 50% longer.',
+      voice: { pitch: 0.6, rate: 0.8 },
+      meet: 'Oh, hello little diggers! I am Jon. I am very good at holding my breath. And bad at most other things. Can I help?',
+      wait: '',
       story: [
-        'My family sings to the whales at night. The songs help lost fish find home.',
-        'A long time ago, a giant turtle swam here. Her bones are still sleeping in the sand.',
-        'The Tide Pearl Crown belonged to the first merfolk queen. I am glad you will keep it safe.',
-        'You are welcome in the ocean any time. You are family now.'
+        'I tried to count all the fish once. I got to seven. Then I forgot what came after seven.',
+        'Sometimes I sit on a sea turtle by mistake. They do not mind. Turtles are very nice.',
+        'Nobody ever asked me to help before. They said I was too clumsy. You asked. That made me happy.',
+        'You are my best friends in the whole wet world. Even Baron. Even when he toots in the bubbles.'
       ],
-      chat: ['Listen. Can you hear the sea humming?', 'Bubbles are the ocean saying hello.', 'Sea glass looks like crystal. I collect both.', 'Sharks are not scary. They are just shy.', 'Breathe slowly. Like a sleepy fish.'],
-      gift: 'A crystal! It sparkles like moonlight on the waves. Thank you.',
-      lines: { fossil: ['Ahh, an old friend from the deep.', 'A sea bone. How lovely.'], trap: ['Oh! My head is going round.'], full: ['The bag is full. Let us swim up.'], party: ['Hooray! The whales will sing for us!'], up: ['My heart is happy, like a dolphin!'], hello: ['Hello, friend.', 'The tide is good today.'] } },
+      chat: ['Is it lunch? It feels like lunch.', 'I bumped my head on a rock. The rock is fine.', 'Crystals are so pretty. Like little frozen bubbles.', 'Whoops! Sorry. That was my tail.', 'Hale says I am a good boy. I like Hale.'],
+      gift: 'A crystal! Oh, it is so sparkly. I will try very hard not to lose it.',
+      lines: { fossil: ['Ooh, a bone! Is it mine? No? Okay.', 'Wow! A big old bone!'], trap: ['Uh oh. Everything is going round and round.'], full: ['The bag is full! I can carry you up if you like.'], party: ['Yaaay! I am so happy I could cry!'], up: ['You are so nice to me!'], hello: ['Hello, little friends!', 'Oh! Hi! I was having a nap.'] } },
     { name: 'Wren', who: 'Jungle kid from the Ruins', icon: '🌿',
       about: 'Wild, quick and fearless. Wren grew up in the old temple and talks to the monkeys.',
       perk: 'Trap Sense', perkText: 'Wren spots traps: you get twice as long to jump clear.',
@@ -55,7 +61,7 @@ var DTWStory = (function () {
         'The monkeys taught me to climb. The parrots taught me to whistle. You are teaching me to dig!',
         'The temple was built by people long ago. They loved the jaguar. Like me!',
         'Sometimes I am lonely in the big jungle. Not now. Now I have friends.',
-        'You are brave like a jaguar. I made you a jungle name. It means best friend.'
+        'You are brave like a jaguar, Nim. I made you a jungle name. It means best friend.'
       ],
       chat: ['Shh! A monkey is watching us.', 'Gold is the colour of jaguar eyes!', 'When a trap goes click, you jump!', 'I swing on vines. Whee!', 'Mud is good for hiding. And for fun.'],
       gift: 'Gold! Shiny like the jaguar idol! You are so nice!',
@@ -69,26 +75,27 @@ var DTWStory = (function () {
         'I trained for 3 years to be an astronaut. That is 1,095 days. I counted.',
         'My rover is called Sparky. It has 6 wheels and a little flag. I miss it.',
         'From the Moon, Earth looks like a blue marble. Your house is down there somewhere!',
-        'Mission report: I found the best friend in the whole galaxy. Mission complete!'
+        'Mission report: Nim is the best friend in the whole galaxy. Mission complete!'
       ],
       chat: ['On the Moon you weigh much less. Boing!', 'Iron is great for rocket parts.', 'Countdown to digging: 3, 2, 1, dig!', 'There is no wind on the Moon. Footprints stay forever!', 'I can see 10 stars. No, 11!'],
       gift: 'Iron! Perfect for fixing Sparky. Thank you, crew mate!',
       lines: { fossil: ['Fossil detected!', 'A space bone? Amazing!'], trap: ['Systems dizzy!'], full: ['Cargo bay full. Return to base!'], party: ['Mission success!'], up: ['Friendship level rising!'], hello: ['Nova reporting!', 'Ready for launch!'] } },
-    { name: 'Blip', who: 'Alien from Planet Glorp', icon: '👾',
-      about: 'Very polite and very curious. Blip thinks your hard hat is a crown and that coal is candy.',
-      perk: 'Bone Nose', perkText: 'Blip sniffs out fossils: everyone breaks bone blocks twice as fast.',
-      voice: { pitch: 1.9, rate: 1.25 },
-      meet: 'Greetings, Earth royal! I am Blip. Your crown is very shiny. May I dig with you, please?',
+    { name: 'Grog', who: 'Shy alien from Planet Glorp', icon: '👾',
+      about: 'Very quiet and very timid. Grog hides behind rocks, but once Grog trusts you, Grog is the kindest friend there is.',
+      perk: 'Quiet Nose', perkText: 'Grog quietly sniffs out fossils: everyone breaks bone blocks twice as fast.',
+      voice: { pitch: 1.4, rate: 0.75 },
+      meet: '...hello. I am Grog. Sorry. Is it okay if I dig... a little bit? Near you?',
+      wait: '',
       story: [
-        'On Glorp we say hello by wiggling. Wiggle wiggle! Now you try!',
-        'Earth has so many things. Dogs! Pizza! Socks! I love socks.',
-        'The Star Seed is very old. It can grow a tree of stars. Only a good friend can plant it.',
-        'On Glorp, a best friend gets a song. I made you one. Blip blip bloop! It means forever.'
+        '...you did not laugh at my antennas. Thank you. Most people laugh.',
+        'Loud noises scare me. Baron is very loud. But... his toots are a little bit funny.',
+        'On Glorp I had no friends. I talked to the goo. The goo did not talk back.',
+        'Nim... can I say something? You are my first friend. ...That is all. Sorry. Thank you.'
       ],
-      chat: ['Is coal candy? It looks like candy.', 'The goo is my cousin. Hello, cousin!', 'Thank you. Please. Thank you. Earth words are fun!', 'I have three hearts. They all like you.', 'Bloop! That means good morning.'],
-      gift: 'Coal! My favourite candy! Crunch crunch. Thank you, Earth royal!',
-      lines: { fossil: ['Blip blip! A bone!', 'Sniff sniff! Found it!'], trap: ['My antennas are spinning!'], full: ['The bag is full, please!'], party: ['Bloop bloop hooray!'], up: ['All three hearts are happy!'], hello: ['Wiggle wiggle!', 'Greetings!'] } }
+      chat: ['...hi.', '...I found a pebble. It is for you. If you want.', 'Hale hugged me. I did not know what to do. It was nice.', '...shh. The goo is sleeping.', '...coal tastes like candy. Do not tell anyone.'],
+      gift: '...for me? Coal? ...thank you. I will save it. Maybe I will eat it.',
+      lines: { fossil: ['...oh. A bone. Here.', '...sniff sniff. Found one.'], trap: ['...eek.'], full: ['...the bag is full. Sorry.'], party: ['...yay! ...YAY!'], up: ['...you are my friend. Thank you.'], hello: ['...hi.', '...oh. Hello.'] } }
   ];
   var HEART_NAMES = ['New friend', 'Pal', 'Good friend', 'Close friend', 'Best friend'];
-  return { friends: friends, HEART_NAMES: HEART_NAMES };
+  return { hero: HERO, friends: friends, HEART_NAMES: HEART_NAMES };
 })();
