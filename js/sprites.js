@@ -295,41 +295,65 @@ var DTWSprites = (function () {
              smear: striking ? { from: a[0] === 0.62 ? a[3] : K[3][3] } : null };
   }
   // ---------- the walk cycle ----------
-  // One cycle is two steps; cyc runs 0..1 over it. Each foot spends half the cycle planted, sliding back at a steady
-  // speed (STEP_X sprite pixels per step, so callers advance cyc by one per 2 * STEP_X pixels of ground covered and
-  // the feet do not skate), and half swinging forward, lifted and with the knee bent. The near leg plants at cyc 0,
-  // the far leg at cyc 0.5. Arms swing against the legs.
-  var STEP_X = 10, STRIDE = STEP_X / 2;
+  // Built from human gait, not drawn as poses. One cycle is two steps; cyc runs 0..1 over it; the near leg strikes
+  // the ground at cyc 0, the far leg at 0.5. Each foot is planted for ST (60%) of its cycle, sliding back at the
+  // body's speed (STEP_X sprite pixels per step, so callers advance cyc by one per 2 * STEP_X pixels of ground and
+  // the feet do not skate), then swings forward for 40%, lifted most early in the swing. Each leg is a thigh and a
+  // shin joined at a knee that only bends forward (two-bone IK), so the shin trails the knee as the foot swings
+  // through. The hips ride as high as the planted legs reach, so the body is lowest at heel strike, when both feet
+  // are down and spread, and highest as the legs pass. Each arm swings against the leg on its own side, about its
+  // shoulder, the elbow bending more as the arm comes forward.
+  // The camera sees a three-quarter view: facing on, the sprite looks down-right, its right side (screen left) is
+  // nearest, and forward runs right and half as much down the screen; facing away it looks up-right, its right side
+  // is at screen right, and forward runs up and a little right (proj). The far leg and arm stand a pixel higher, further off.
+  var STEP_X = 7, ST = 0.6, LEG = 7, THIGH = 3.5, SHIN = 3.6, STRIDE = ST * STEP_X, LIFT = 2.6, ARM_SWING = 0.45;
   function foot(p, gait) {
     var u = ((p % 1) + 1) % 1, A = STRIDE * gait;
-    if (u < 0.5) return { x: A * (1 - 4 * u), lift: 0 };
-    var s = (u - 0.5) * 2;
-    return { x: -A + 2 * A * ease(s), lift: Math.round(3 * gait * Math.sin(Math.PI * s)) };
+    if (u < ST) return { x: A * (1 - 2 * u / ST), lift: 0, down: true };
+    var s = (u - ST) / (1 - ST);
+    return { x: -A + 2 * A * ease(s), lift: LIFT * gait * Math.sin(Math.PI * Math.pow(s, 0.75)), down: false };
   }
-  // the body over one step: contact, down (the torso sinks a pixel), passing, up (the hips rise a pixel)
+  // the hips sink as far as the planted legs need to reach their feet
   function walkPose(cyc, gait) {
-    var u = (((cyc * 2) % 1) + 1) % 1, on = gait >= 0.3;
-    return { cyc: cyc, gait: gait, bob: on && u >= 0.625 && u < 0.875 ? -1 : 0, body: on && u >= 0.125 && u < 0.375 ? 1 : 0 };
+    var drop = 0;
+    [foot(cyc, gait), foot(cyc + 0.5, gait)].forEach(function (f) { if (f.down) drop = Math.max(drop, LEG - Math.sqrt(Math.max(0, LEG * LEG - f.x * f.x))); });
+    return { cyc: cyc, gait: gait, bob: Math.round(drop), body: 0 };
   }
-  // one leg, hip at (hx, hy) (the left of a 4-pixel-wide trouser leg), the boot sole on row gy; dx moves the foot
-  // forward, lift raises it and bends the knee forward. The far leg is a shade darker so crossed legs stay readable.
+  // the knee of a leg from the hip (0, 0) to the ankle (f, v), f forward and v down: it bends forward, never back
+  function knee(f, v) {
+    var d = Math.sqrt(f * f + v * v) || 1, a = Math.min(d, THIGH + SHIN) * THIGH / (THIGH + SHIN), k = Math.sqrt(Math.max(0, THIGH * THIGH - a * a));
+    return { f: f / d * a + v / d * k, v: v / d * a - f / d * k };
+  }
+  // a sagittal point (f forward, v down) seen from the camera: s is 1 facing on (the body drawn three-quarter, so
+  // forward is mostly across the screen), -1 facing away (the body drawn nearly from behind, so forward is mostly up)
+  function proj(x0, y0, f, v, s) { return s > 0 ? [x0 + 0.9 * f, y0 + v + 0.45 * f] : [x0 + 0.45 * f, y0 + v - 0.5 * f]; }
+  // one leg: the hip at (hx, hy) (its centre), the boot's lower row on gy; dx moves the foot forward, lift raises it.
+  // The thigh and shin go on as 4-pixel spans, outlined first so a leg in front reads against the one behind.
   var LEG_NEAR = ['b', 'B', 'B', 'n'], LEG_FAR = ['n', 'b', 'b', 'n'];
-  function leg(c, P, hx, hy, gy, dx, lift, near) {
-    var cols = near ? LEG_NEAR : LEG_FAR, by = gy - 1 - lift, n = by - hy, kb = lift > 0 ? Math.min(2, lift) : 0;
-    for (var r = 0; r < n; r++) {
-      var tt = (r + 0.5) / Math.max(1, n), x = Math.round(hx + dx * tt + kb * Math.sin(Math.PI * tt));
-      px(c, x - 1, hy + r, OUT); px(c, x + 4, hy + r, OUT);
-      for (var i = 0; i < 4; i++) px(c, x + i, hy + r, P[r === n - 1 ? (i === 0 || i === 3 ? 'n' : 'b') : cols[i]]);
-    }
-    var fx = Math.round(hx + dx);
-    px(c, fx - 1, by, OUT, 7, 2);
+  function leg(c, P, hx, hy, gy, dx, lift, near, s) {
+    var cols = near ? LEG_NEAR : LEG_FAR, av = gy - 2 - Math.round(lift) - hy, K = knee(dx, av);
+    var H = [hx, hy], Kp = proj(hx, hy, K.f, K.v, s), A = proj(hx, hy, dx, av, s);
+    A = [Math.round(A[0]), Math.round(A[1])];
+    var pts = [];
+    [[H, Kp], [Kp, A]].forEach(function (seg) {
+      var x0 = seg[0][0], y0 = seg[0][1], x1 = seg[1][0], y1 = seg[1][1], n = Math.max(1, Math.ceil(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) * 2));
+      for (var i = 0; i <= n; i++) pts.push([Math.round(x0 + (x1 - x0) * i / n - 1.5), Math.round(y0 + (y1 - y0) * i / n)]);
+    });
+    pts.forEach(function (q) { px(c, q[0] - 1, q[1], OUT, 6, 1); });
+    pts.forEach(function (q) { for (var i = 0; i < 4; i++) px(c, q[0] + i, q[1], P[cols[i]]); });
+    var fx = A[0] - 2, by = A[1] + 1; // the boot: heel under the ankle, toe forward
+    px(c, fx - 1, by - 1, OUT, 7, 3);
     px(c, fx, by, P[near ? 'T' : 't'], 4, 1); px(c, fx + 4, by, P.t);
     px(c, fx, by + 1, P[near ? 't' : 'v'], 3, 1); px(c, fx + 3, by + 1, P.v, 2, 1);
   }
-  // an arm hanging from the shoulder (sx, sy), the hand swung forward by dx
-  function arm(c, sx, sy, dx, sleeve, skin, w) {
-    var hx = sx + dx, hy = sy + 6 - (Math.abs(dx) > 2 ? 1 : 0);
-    line(c, sx, sy, hx, hy, sleeve, w); px(c, hx - (w > 2 ? 1 : 0), hy + 1, skin, w, 2);
+  // an arm from the shoulder (sx, sy) swung th radians forward (negative back), the elbow bent by flex more as it
+  // comes forward; ol: outlined, for the near arm laid over the body
+  function arm(c, sx, sy, th, sleeve, skin, w, s, ol) {
+    var flex = 0.15 + Math.max(0, th) * 0.6, e = proj(sx, sy, Math.sin(th) * 3.6, Math.cos(th) * 3.6, s);
+    var h = proj(e[0], e[1], Math.sin(th + flex) * 3.2, Math.cos(th + flex) * 3.2, s);
+    if (ol) { line(c, sx, sy, e[0], e[1], OUT, w + 2); line(c, e[0], e[1], h[0], h[1], OUT, w + 2); px(c, h[0] - (w > 2 ? 2 : 1), h[1], OUT, w + 2, 4); }
+    line(c, sx, sy, e[0], e[1], sleeve, w); line(c, e[0], e[1], h[0], h[1], sleeve, w);
+    px(c, h[0] - (w > 2 ? 1 : 0), h[1] + 1, skin, w > 2 ? 3 : 2, 2);
   }
 
   // ---------- the miner's rucksack: o.pack is the bag fill 0..1, drawn in five sizes; full it is stuffed and straining ----------
@@ -411,25 +435,30 @@ var DTWSprites = (function () {
     var c = cx, P = o.P || BASE, pose = o.pose, back = o.back, t = o.t || 0, hasPack = o.pack != null && o.pack !== false;
     if (o.pack === true) o.pack = 1;
     c.clearRect(0, 0, W, H);
-    var X0 = FX - 12, legY = FY - 7 + Math.round(pose.bob), Y = legY - 11 + Math.round(pose.body), X = X0 + Math.round(pose.lean);
+    var X0 = FX - 12, legY = FY - 9 + Math.round(pose.bob), Y = legY - 11 + Math.round(pose.body), X = X0 + Math.round(pose.lean);
     var look = o.look || null, bare = o.hair || look === 'mer' || look === 'alien' || look === 'wild';
     var head = bare ? (back ? HEAD_HAIR_BACK : HEAD_HAIR) : (back ? HEAD_MINER_BACK : HEAD_MINER);
     var Pl = P; if (!o.lampOn && !bare) { Pl = pal(P); Pl.L = '#cfc58a'; }
     if (pose.blink && !back) { Pl = Pl === P ? pal(P) : Pl; Pl.e = Pl.k; Pl.w = Pl.S; }
-    if (o.climb != null) return climber(o, P, Pl, X0, legY, head);
+    if (o.climb != null) return climber(o, P, Pl, X0, legY + 2, head);
     // legs: each foot follows the walk cycle (planted, then lifted and swung forward); in the air they spread
     var gait = pose.gait || 0, cyc = pose.cyc || 0, ap = Math.round(pose.air * 2), gy = FY - 2;
     var fN = foot(cyc, gait), fF = foot(cyc + 0.5, gait);
     var air = pose.air > 0.3, sw = o.swing || null, digging = sw != null && !air, st = digging ? sw.stance : 0;
     var behind = back && digging; // facing away, the pick and arms are behind the body
-    // arms swing against the legs: the near arm forward while the near foot is back
-    var aN = Math.round(-fN.x * 0.8), aF = Math.round(-fF.x * 0.8);
+    // each arm swings against the leg on its own side: forward as that foot goes back
+    var sv = back ? -1 : 1, Wv = gait * ARM_SWING, thN = Wv * Math.cos(2 * Math.PI * cyc + Math.PI), thF = -thN;
+    var aN = Math.round(Math.sin(thN) * 6);
+    // facing on the near (right) shoulder is at screen left; facing away at screen right. The far one sits a pixel higher.
+    var shN = back ? [X + 17, Y + 2] : [X + 6, Y + 2], shF = back ? [X + 6, Y + 1] : [X + 17, Y + 1];
+    var wave = o.arms === 'wave' && !digging, freeN = !(back && (inHandEarly() || wave)), freeF = !(!back && (inHandEarly() || wave));
+    function inHandEarly() { return o.carry && !sw && !air && !o.surface; }
     if (o.bone && !back) bone(c, X, Y, o.bone, false);                                    // strapped behind the pack
     if (hasPack && !back) packSide(c, X - 6, Y - 6, o.pack);
     var sw2 = o.twin && sw ? swing(sw.f + 0.5, sw.side) : null; // Twin Picks: the second pick half a cycle behind
     var O1 = { splash: o.splash, hand: o.twin ? 'near' : null }, O2 = { splash: o.splash, hand: 'far' };
     if (behind) { if (sw2) pickTool(c, X, Y, sw2, o.tier, P, t, O2); pickTool(c, X, Y, sw, o.tier, P, t, O1); }
-    else if (!digging && !air) arm(c, X + 4, Y + 2, aF, P.q, P.k, 2);                      // far arm, behind the body
+    else if (!digging && !air && freeF) arm(c, shF[0], shF[1], thF, P.q, P.k, 2, sv, false); // far arm, behind the body
     // not digging: in the mine the pick is in the near hand, held by its neck; on the plaza (o.surface) it is slung
     // on the back by a strap and both arms swing free
     var carry = o.carry && !sw && !air, stow = carry && o.surface, inHand = carry && !o.surface;
@@ -460,13 +489,15 @@ var DTWSprites = (function () {
     }
     if (stow && !back) slungPick(true);
     if (o.twin && !digging && !air && !back) slungPick(true, 6);                  // Twin Picks: the spare rides on the back
-    leg(c, P, X0 + 7, legY, gy, Math.round(fF.x) - ap - st, fF.lift, false);
-    leg(c, P, X0 + 13, legY, gy, Math.round(fN.x) + ap + st, fN.lift, true);
+    // the hips sit inside the shorts, two rows up; the near leg is on the near side and the far one a pixel higher
+    var hipN = back ? X0 + 15 : X0 + 9, hipF = back ? X0 + 9 : X0 + 15;
+    leg(c, P, hipF, legY - 3, gy - 1, fF.x - ap - st, fF.lift, false, sv);
+    leg(c, P, hipN, legY - 2, gy, fN.x + ap + st, fN.lift, true, sv);
     stamp(c, back ? TORSO_BACK : TORSO, P, X, Y);
     if (air) { px(c, X + 4, Y - 7, P.r, 2, 9); px(c, X + 20, Y - 7, P.r, 2, 9); px(c, X + 4, Y - 9, P.S, 2, 2); px(c, X + 20, Y - 9, P.S, 2, 2); }
     if ((hasPack || stow) && !back) line(c, X + 9, Y + 1, X + 11, Y + 8, PACK.k, 1); // shoulder strap
     // seen from behind the near arm goes on before the head and the pack, which cover it
-    if (back && !digging && !air && !inHand && o.arms !== 'wave') arm(c, X + 16, Y + 2, aN, P.r, P.S, 3);
+    if (back && !digging && !air && freeN) arm(c, shN[0], shN[1], thN, P.r, P.S, 3, sv, false);
     if (back && inHand) { line(c, X + 16, Y + 2, X + 21 + cg, Y + 5, P.r, 3); line(c, X + 16, Y + 2, X + 21 + cg, Y + 5, P.R, 2); }
     // facing on, the swing goes on before the head, so the pick passes behind it when raised and never across the face
     if (inHand && !back) handPick(true);
@@ -484,7 +515,7 @@ var DTWSprites = (function () {
       var hx = X + 19 + cg; line(c, X + 15, Y + 3, hx, Y + 7, P.r, 3); line(c, X + 15, Y + 3, hx, Y + 7, P.R, 2);
       px(c, hx - 1, Y + 7, P.S, 3, 3); px(c, hx - 1, Y + 9, P.s, 3, 1);
     }
-    else if (!back && !digging && !air) arm(c, X + 16, Y + 2, aN, P.r, P.S, 3);
+    if (!back && !digging && !air && freeN) arm(c, shN[0], shN[1], thN, P.r, P.S, 3, sv, true);
     outline(c, W, H, OUT);
     if (o.bowl) bowl(c, X + 13, Y - 8);
     // lx, ly: the centre of the helmet lamp (the L pixels of HEAD_MINER); facing away, the hat's front edge
