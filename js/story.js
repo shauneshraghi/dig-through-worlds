@@ -21,7 +21,7 @@ var DTWStory = (function () {
       ],
       chat: ['💨 Oops. Beans for breakfast.', 'Watch this muscle! Okay, it is small. It is growing.', 'Did you hear that? It was not me. It was a mole.', 'I can carry two rocks at once. Three if nobody is looking.', 'Hale bossed me around all morning. Help.'],
       gift: 'Iron? For me? That is so cool. I mean, thanks. It is fine. It is great!',
-      lines: { fossil: ['Whoa! A bone! I saw it first!', '💨 Sorry, I got excited. A bone!'], trap: ['Ugh, dizzy! And now I need the toilet.'], full: ['💨 The bag is full. And so am I. Up we go!'], party: ['💨 Party toot! Hooray!', 'We are the best diggers ever!'], up: ['You are an okay little brother. A GREAT one, actually.'], hello: ['Hey Nim!', '💨 Hi. That was a hello toot.'] } },
+      lines: { critter: ['💨 Shoo! Smell that, bat!', '💨 Take that, bony! Ha!', 'I am not scared. You are scared!'], fossil: ['Whoa! A bone! I saw it first!', '💨 Sorry, I got excited. A bone!'], trap: ['Ugh, dizzy! And now I need the toilet.'], full: ['💨 The bag is full. And so am I. Up we go!'], party: ['💨 Party toot! Hooray!', 'We are the best diggers ever!'], up: ['You are an okay little brother. A GREAT one, actually.'], hello: ['Hey Nim!', '💨 Hi. That was a hello toot.'] } },
     { name: 'Hale', who: "Nim's little sister, age 4", icon: '🎀',
       about: 'Full of hugs and full of orders. Hale loves everybody, and she will tell everybody what to do.',
       perk: 'Bossy Boots', perkText: 'Hale tells you to hurry: you swing 15% faster.',
@@ -36,7 +36,7 @@ var DTWStory = (function () {
       ],
       chat: ['Faster, Nim! Dig dig dig!', 'I made a rule. No sad faces in the pit.', 'Baron! Stop tooting! It is RUDE.', 'Can I have a hug? Thank you. Now get back to work.', 'Copper is my colour. It is the boss colour.'],
       gift: 'Copper! You are the best! Hug! Okay, that is enough hug. Back to work.',
-      lines: { fossil: ['A bone! I said there was one there!', 'Good digging! I am proud of you!'], trap: ['Hey! Who put that trap there? Rude!'], full: ['The bag is full! Go up! Now, please!'], party: ['Yay! Everybody hug!'], up: ['I love you sooo much!'], hello: ['Nim! Over here!', 'Hug, then dig!'] } },
+      lines: { critter: ['Hey! Go away! This is OUR pit!', 'No bats allowed! Shoo!', 'Bad bones! Say sorry!'], fossil: ['A bone! I said there was one there!', 'Good digging! I am proud of you!'], trap: ['Hey! Who put that trap there? Rude!'], full: ['The bag is full! Go up! Now, please!'], party: ['Yay! Everybody hug!'], up: ['I love you sooo much!'], hello: ['Nim! Over here!', 'Hug, then dig!'] } },
     { name: 'Jon', who: 'Big friendly merman from the Sunken Ocean', icon: '🐟',
       about: 'A huge, gentle grown-up who trips over his own tail. Jon is not very clever, but he is very kind.',
       perk: 'Big Lungs', perkText: 'Jon blows extra bubbles: your oxygen lasts 50% longer.',
@@ -51,7 +51,7 @@ var DTWStory = (function () {
       ],
       chat: ['Is it lunch? It feels like lunch.', 'I bumped my head on a rock. The rock is fine.', 'Crystals are so pretty. Like little frozen bubbles.', 'Whoops! Sorry. That was my tail.', 'Hale says I am a good boy. I like Hale.'],
       gift: 'A crystal! Oh, it is so sparkly. I will try very hard not to lose it.',
-      lines: { fossil: ['Ooh, a bone! Is it mine? No? Okay.', 'Wow! A big old bone!'], trap: ['Uh oh. Everything is going round and round.'], full: ['The bag is full! I can carry you up if you like.'], party: ['Yaaay! I am so happy I could cry!'], up: ['You are so nice to me!'], hello: ['Hello, little friends!', 'Oh! Hi! I was having a nap.'] } },
+      lines: { critter: ['Oops, I bumped my head. Hello, little bat!', 'Shoo, please! Sorry! Shoo!', 'Rattle rattle? I can rattle too!'], fossil: ['Ooh, a bone! Is it mine? No? Okay.', 'Wow! A big old bone!'], trap: ['Uh oh. Everything is going round and round.'], full: ['The bag is full! I can carry you up if you like.'], party: ['Yaaay! I am so happy I could cry!'], up: ['You are so nice to me!'], hello: ['Hello, little friends!', 'Oh! Hi! I was having a nap.'] } },
     { name: 'Wren', who: 'Jungle kid from the Ruins', icon: '🌿',
       about: 'Wild, quick and fearless. Wren grew up in the old temple and talks to the monkeys.',
       perk: 'Trap Sense', perkText: 'Wren spots traps: you get twice as long to jump clear.',
@@ -65,7 +65,7 @@ var DTWStory = (function () {
       ],
       chat: ['Shh! A monkey is watching us.', 'Gold is the colour of jaguar eyes!', 'When a trap goes click, you jump!', 'I swing on vines. Whee!', 'Mud is good for hiding. And for fun.'],
       gift: 'Gold! Shiny like the jaguar idol! You are so nice!',
-      lines: { fossil: ['A bone! Is it a big cat?', 'Ooh, a really old bone!'], trap: ['Click! Ow, I am dizzy!'], full: ['The bag is full! Let us climb up!'], party: ['Jaguar dance! Woo!'], up: ['You are the best friend in the jungle!'], hello: ['Hey hey!', 'Jungle time!'] } },
+      lines: { critter: ['I am not scared! Tap it!', 'Ha! Come here, bat! I am brave!', 'Shake those bones away!'], fossil: ['A bone! Is it a big cat?', 'Ooh, a really old bone!'], trap: ['Click! Ow, I am dizzy!'], full: ['The bag is full! Let us climb up!'], party: ['Jaguar dance! Woo!'], up: ['You are the best friend in the jungle!'], hello: ['Hey hey!', 'Jungle time!'] } },
     { name: 'Nova', who: 'Junior astronaut on the Moon', icon: '🚀',
       about: 'Smart and exact. Nova counts everything and dreams of flying to the stars.',
       perk: 'Moon Grabber', perkText: 'Nova catches bouncy finds: you pick up from 1 cell further.',
@@ -79,7 +79,7 @@ var DTWStory = (function () {
       ],
       chat: ['On the Moon you weigh much less. Boing!', 'Iron is great for rocket parts.', 'Countdown to digging: 3, 2, 1, dig!', 'There is no wind on the Moon. Footprints stay forever!', 'I can see 10 stars. No, 11!'],
       gift: 'Iron! Perfect for fixing Sparky. Thank you, crew mate!',
-      lines: { fossil: ['Fossil detected!', 'A space bone? Amazing!'], trap: ['Systems dizzy!'], full: ['Cargo bay full. Return to base!'], party: ['Mission success!'], up: ['Friendship level rising!'], hello: ['Nova reporting!', 'Ready for launch!'] } },
+      lines: { critter: ['Critter spotted. Tap to shoo!', 'Bat detected! Tap it!', 'Skeleton coming. Three taps!'], fossil: ['Fossil detected!', 'A space bone? Amazing!'], trap: ['Systems dizzy!'], full: ['Cargo bay full. Return to base!'], party: ['Mission success!'], up: ['Friendship level rising!'], hello: ['Nova reporting!', 'Ready for launch!'] } },
     { name: 'Grog', who: 'Shy alien from Planet Glorp', icon: '👾',
       about: 'Very quiet and very timid. Grog hides behind rocks, but once Grog trusts you, Grog is the kindest friend there is.',
       perk: 'Quiet Nose', perkText: 'Grog quietly sniffs out fossils: everyone breaks bone blocks twice as fast.',
@@ -94,7 +94,7 @@ var DTWStory = (function () {
       ],
       chat: ['...hi.', '...I found a pebble. It is for you. If you want.', 'Hale hugged me. I did not know what to do. It was nice.', '...shh. The goo is sleeping.', '...coal tastes like candy. Do not tell anyone.'],
       gift: '...for me? Coal? ...thank you. I will save it. Maybe I will eat it.',
-      lines: { fossil: ['...oh. A bone. Here.', '...sniff sniff. Found one.'], trap: ['...eek.'], full: ['...the bag is full. Sorry.'], party: ['...yay! ...YAY!'], up: ['...you are my friend. Thank you.'], hello: ['...hi.', '...oh. Hello.'] } }
+      lines: { critter: ['...eek. ...is it gone?', '...a bat. ...I will hide.', '...bones walking. ...nope.'], fossil: ['...oh. A bone. Here.', '...sniff sniff. Found one.'], trap: ['...eek.'], full: ['...the bag is full. Sorry.'], party: ['...yay! ...YAY!'], up: ['...you are my friend. Thank you.'], hello: ['...hi.', '...oh. Hello.'] } }
   ];
   var HEART_NAMES = ['New friend', 'Pal', 'Good friend', 'Close friend', 'Best friend'];
   return { hero: HERO, friends: friends, HEART_NAMES: HEART_NAMES };

@@ -2,6 +2,12 @@
 
 Settled by the user; treat them as decided and do not re-ask. Rebalance against the two-bot playthrough test (see `AGENTS.md`, Commands).
 
+## Cave critters, 2026-11-24
+
+- Light real-time cave creatures, with no menus and no fail state: bats that take ore or treasure lying on the floor (never a bone) and rattle-bones, a small friendly skeleton that bumps the miner dizzy for a moment. From layer 3 down, one about every 25 s of digging, at most two at once, never during a chest puzzle or the relic party.
+- A tap shoos a bat or hits rattle-bones (three hits scatter it); both drop a few coins. The miner on auto-mining or standing idle, and helpers beside it, swat rattle-bones themselves, so a hands-off player is never stuck.
+- Each world reskins the bat (forest bat, ocean jellyfish, green jungle bat, moon moth, glowing glorpfly); rattle-bones is a skeleton everywhere, tinted to the world. Friends say a line when one turns up.
+
 ## Helpers become friends, 2026-11-23
 
 - Helpers are six named friends with backstories and personalities, met in world order, with hearts, a perk each at two hearts, story parts told at the hut, daily chat and gifts. Claude drafts the names and stories; the user edits.

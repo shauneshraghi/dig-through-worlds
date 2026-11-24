@@ -367,6 +367,79 @@ var DTWRender = (function () {
       findGlow(l.item, q[0], q[1], 0.5 + (big ? 0.15 * Math.sin(time * 5 + i) : 0), 1);
     });
   }
+  // ---------- cave critters on a dig: the logic moves them (run.critters); here they flap, shuffle and puff ----------
+  // A bat flies over the blocks, so it is drawn over the pit with the loot; rattle-bones walks the floor and is
+  // sorted with the helpers. Each world gives the bat its own look; rattle-bones is a skeleton tinted to the world.
+  var CAVE_FLYER = { forest: 'cavebat', ocean: 'cavejelly', jungle: 'greenbat', moon: 'moonmoth', alien: 'glorpfly' };
+  var CAVE_GLOW = { ocean: '#7ad8ff', moon: '#e8f0ff', alien: '#9dff8a' };
+  var RATTLE_LOOK = { ocean: 'rattleSea', moon: 'rattleMoon', alien: 'rattleGlorp' };
+  var batShow = {}, critBoxes = [], cpuffs = [], puffT = 0;
+  function critterSprite(spr, x, y, sc, flip, rot) {
+    ctx.save(); ctx.imageSmoothingEnabled = false; ctx.translate(Math.round(x), Math.round(y));
+    if (rot) ctx.rotate(rot);
+    if (flip) ctx.scale(-1, 1);
+    ctx.drawImage(spr.cv, -Math.round(spr.fx * sc), -Math.round(spr.fy * sc), Math.round(spr.cv.width * sc), Math.round(spr.cv.height * sc));
+    ctx.restore();
+  }
+  function critBox(c, x, y0, y1, half) { critBoxes.push({ id: c.id, x: x, y0: y0, y1: y1, half: half }); }
+  function drawRattle(c, S) {
+    var id = D.WORLDS[S.world].id, spr, sc = TW / 23;
+    var moving = Math.hypot(c.tx + 0.5 - c.x, c.tz + 0.5 - c.z) > 0.02, frame = moving ? Math.floor(time * 7 + c.id) & 1 : (c.state === 'wind' ? Math.floor(time * 12) & 1 : Math.floor(time * 2 + c.id) & 1);
+    spr = DTWSprites.creature(RATTLE_LOOK[id] || 'rattle', frame);
+    var q = P(c.x, c.layer + 1, c.z), r = S.run, flip = r ? ((r.x + 0.5 - c.x) - (r.z + 0.5 - c.z)) < 0 : false;
+    var rot = Math.sin(time * 16 + c.id) * (c.state === 'wind' ? 0.12 : 0.04) + (c.hit > 0 ? Math.sin(time * 50) * c.hit * 0.8 : 0); // a little rattle, a big one when hit
+    var hop = moving ? Math.abs(Math.sin(time * 7 * Math.PI / 2 + c.id)) * TW * 0.04 : 0, sx = q[0] + (c.hit > 0 ? Math.sin(time * 70) * TW * 0.06 : 0);
+    ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.beginPath(); ctx.ellipse(q[0], q[1], hw * 0.3, hh * 0.3, 0, 0, 7); ctx.fill();
+    critterSprite(spr, sx, q[1] - hop, sc, flip, rot);
+    var ey = q[1] - hop - (spr.fy - 4) * sc; // the eye glints glow a little
+    glow(sx, ey, TW * 0.35, id === 'alien' ? '#ff7ef0' : id === 'moon' ? '#ffd23f' : '#7dfff0', 0.35);
+    critBox(c, q[0], q[1] - spr.fy * sc, q[1], spr.fx * sc);
+  }
+  function drawBats(S) {
+    var r = S.run, id = D.WORLDS[S.world].id, key = CAVE_FLYER[id] || 'cavebat', seen = {};
+    (r.critters || []).forEach(function (c) {
+      if (c.kind !== 'bat' || c.layer !== r.y) return;
+      seen[c.id] = 1;
+      var b = batShow[c.id] || (batShow[c.id] = { x: c.x, z: c.z, h: -0.25, flip: false });
+      var dx = c.x - b.x, dz = c.z - b.z; if (Math.abs(dx - dz) > 0.002) b.flip = (dx - dz) < 0; b.x = c.x; b.z = c.z;
+      var low = c.state === 'grab' && c.grab > 0, ht = low ? 0.4 : -0.25; b.h += (ht - b.h) * Math.min(1, 0.12); // dips down to the loot it is after
+      var jelly = key === 'cavejelly', rate = jelly ? 2.2 : key === 'moonmoth' ? 6 : 11, frame = Math.floor(time * rate + c.id * 0.5) & 1;
+      var bob = Math.sin(time * (jelly ? 2.2 : 6) + c.id) * 0.07, q = P(c.x, c.layer + b.h + bob, c.z), g0 = P(c.x, c.layer + 1, c.z);
+      var spr = DTWSprites.creature(key, frame), sc = TW / 22 * (jelly ? 1.05 : 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.beginPath(); ctx.ellipse(g0[0], g0[1], hw * 0.2, hh * 0.2, 0, 0, 7); ctx.fill();
+      if (c.item) drawSprite(findSprite(c.item), q[0], q[1] + TW * 0.2, findScale() * 0.8, 1); // what it took, hanging below it
+      critterSprite(spr, q[0], q[1], sc, b.flip, Math.sin(time * 3 + c.id) * 0.08);
+      if (CAVE_GLOW[id]) { glow(q[0], q[1] - spr.fy * sc * 0.5, TW * 0.6, CAVE_GLOW[id], 0.5); light(q[0], q[1] - spr.fy * sc * 0.5, TW * 2, 0.25, CAVE_GLOW[id]); }
+      critBox(c, q[0], q[1] - spr.fy * sc, q[1], spr.fx * sc);
+    });
+    for (var k in batShow) if (!seen[k]) delete batShow[k];
+  }
+  // a puff of dust and sparkles where a critter was chased off or fell apart (bone bits fly for rattle-bones)
+  function critterPuff(x, y, z, kind, big) {
+    cpuffs.push({ x: x, y: y, z: z, age: 0, big: !!big });
+    var col = kind === 'bones' ? '#f4ecd6' : '#d8c8b8';
+    for (var i = 0; i < (big ? 14 : 6); i++) parts.push({ x: x + (Math.random() - 0.5) * 0.3, y: y - 0.2, z: z + (Math.random() - 0.5) * 0.3, vx: (Math.random() - 0.5) * 3, vy: -1.5 - Math.random() * 3, vz: (Math.random() - 0.5) * 3, life: 0.5 + Math.random() * 0.4, c: col, s: 0.04 + Math.random() * 0.05 });
+  }
+  function drawPuffs(dt) {
+    for (var i = cpuffs.length - 1; i >= 0; i--) {
+      var p = cpuffs[i]; p.age += dt; if (p.age > 0.7) { cpuffs.splice(i, 1); continue; }
+      var a = p.age / 0.7, q = P(p.x, p.y - a * 0.3, p.z), rad = TW * (0.25 + 0.55 * a) * (p.big ? 1.3 : 1);
+      ctx.fillStyle = 'rgba(235,225,210,' + (0.5 * (1 - a)) + ')';
+      for (var k = 0; k < 5; k++) { var an = k * 1.26 + p.x * 3; ctx.beginPath(); ctx.arc(q[0] + Math.cos(an) * rad * 0.55, q[1] + Math.sin(an) * rad * 0.3, rad * 0.42, 0, 7); ctx.fill(); }
+      for (var s = 0; s < 4; s++) { var sa = s * 1.57 + a * 2; sparkle(q[0] + Math.cos(sa) * rad, q[1] + Math.sin(sa) * rad * 0.5 - TW * 0.1, TW * 0.08 * (1 - a), 1 - a, '#fff3b0'); }
+    }
+  }
+  // the critter under a pointer (client coordinates), or 0: a generous box round each sprite, so a small finger finds it
+  function critterAt(cx, cy) {
+    if (!cv) return 0;
+    var rc = cv.getBoundingClientRect(), k = vw / Math.max(1, rc.width), sx = (cx - rc.left) * k, sy = (cy - rc.top) * k, best = 0, bd = Infinity, pad = TW * 0.3;
+    critBoxes.forEach(function (b) {
+      if (sx < b.x - b.half - pad || sx > b.x + b.half + pad || sy < b.y0 - pad || sy > b.y1 + pad) return;
+      var d = Math.abs(sx - b.x) + Math.abs(sy - (b.y0 + b.y1) / 2);
+      if (d < bd) { bd = d; best = b.id; }
+    });
+    return best;
+  }
   // a faint ring at the miner's feet showing how far it picks finds up, once the magnet is upgraded
   function drawReach(r, S) {
     var m = S.upgrades.magnet; if (!m || S.mode !== 'dig') return;
@@ -1827,7 +1900,7 @@ var DTWRender = (function () {
     ox = Math.round((vw - view.right * vw / cssW) / 2 - f0[0] + (shakeT > 0 ? (Math.random() - 0.5) * TW * 0.08 : 0)); oy = Math.round(vh * cam.anchor - f0[1]);
     var viewTop = Math.max(0, Math.floor(disp.y + 0.001)), yBot = Math.min(D.DEPTH + 1, viewTop + VIEW_LAYERS);
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.imageSmoothingEnabled = false;
-    lights = []; padLabels = []; npcBowl = D.WORLDS[S.world].id === 'moon';
+    lights = []; padLabels = []; critBoxes = []; npcBowl = D.WORLDS[S.world].id === 'moon';
     if (post) { ectx.setTransform(1, 0, 0, 1, 0, 0); ectx.globalCompositeOperation = 'source-over'; ectx.fillStyle = '#000'; ectx.fillRect(0, 0, ecv.width, ecv.height); ectx.setTransform(0.5, 0, 0, 0.5, 0, 0); ectx.globalCompositeOperation = 'lighter'; }
     if (octx !== ctx) { octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, vw, vh); }
     var surfaceView = viewTop <= 1;
@@ -1864,7 +1937,11 @@ var DTWRender = (function () {
     // helper diggers stand in the miner's layer: those on the back diagonals are drawn with the miner,
     // the others in the front half, each after the cubes on its own diagonal
     var crew = S.mode === 'dig' && r ? helperSpots(S, g, r) : [];
-    function drawCrew(s0, s1) { crew.forEach(function (h) { var hs = Math.floor(h.x) + Math.floor(h.z); if (hs >= s0 && hs <= s1) drawHelper(h, S); }); }
+    var skel = S.mode === 'dig' && r && r.critters ? r.critters.filter(function (c) { return c.kind === 'bones' && c.layer === r.y; }) : [];
+    function drawCrew(s0, s1) {
+      crew.forEach(function (h) { var hs = Math.floor(h.x) + Math.floor(h.z); if (hs >= s0 && hs <= s1) drawHelper(h, S); });
+      skel.forEach(function (c) { var cs = Math.floor(c.x) + Math.floor(c.z); if (cs >= s0 && cs <= s1) drawRattle(c, S); });
+    }
     // part: 'back' draws the miner's layer up to its diagonal inside the pit (and all of it outside);
     // 'front' draws the rest of the pit, which must go over the miner and the walls above
     function layer(y, s0, s1, last, part) {
@@ -1930,6 +2007,8 @@ var DTWRender = (function () {
     // finds, particles and floating text on top
     if (r) drawReach(r, S);
     if (r && r.loot) drawLoot(r, S);
+    if (r && S.mode === 'dig' && r.critters) drawBats(S);
+    drawPuffs(Math.min(0.1, Math.max(0, time - (puffT || time)))); puffT = time;
     drawFinds();
     drawRoomFx();
     for (var sk = 0; sk < shocks.length; sk++) { // the Splash Pick's shock ring: a diamond spreading over the neighbouring blocks
@@ -2378,6 +2457,7 @@ var DTWRender = (function () {
     say: say, helperShown: function (k) { return !!talkAt[k] && time - talkAt[k].t < 0.25; },
     spawnBreak: spawnBreak, floatText: floatText, coinBurst: function () { burstT = 0.8; }, spawnFind: spawnFind, shake: function (t) { shakeT = Math.max(shakeT, t); },
     swingKick: function () { disp.boost = 1; },
+    critterAt: critterAt, critterPuff: critterPuff,
     // the point on the ground (y = 1) under a pointer, in plaza cells
     groundAt: function (cx, cy) {
       var rc = cv.getBoundingClientRect(), k = vw / Math.max(1, rc.width);

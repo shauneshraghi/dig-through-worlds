@@ -861,12 +861,13 @@ test('a save from the 100-layer pits keeps progress, banks its bag and digs fres
 });
 
 // Simple bots standing in for a 6–9 year old. The steering bot steers toward the nearest block in its layer (the miner
-// walks and digs at full pace only while steered), taps 3 times a second, dodges a trap after CHILD_REACT s, and heads home
+// walks and digs at full pace only while steered), taps 3 times a second, dodges a trap after CHILD_REACT s, taps a cave
+// critter CHILD_SHOO s after it turns up (and again after each tap till it is gone), and heads home
 // when the bag is full or every 2.5 minutes. The hands-off bot leaves auto-mining to it, never taps or dodges, goes home
 // only when it must, and hires helpers. Both take CHILD_LOCK s over each chest puzzle and spend on the cheapest upgrade
 // (bag and magnet weighted down). An upgrade they are short of materials for they buy at the exchange (buyMat) when the
 // coins stretch to that; mats.dug and mats.bought count the material units that went into purchases each way.
-const CHILD_LOCK = 30, CHILD_REACT = 0.6;
+const CHILD_LOCK = 30, CHILD_REACT = 0.6, CHILD_SHOO = 0.8;
 const costValue = c => c.coins + c.mats.reduce((a, n, t) => a + n * D.MAT_PRICE[t], 0);
 function shop(s, helpers = false, mats = { dug: 0, bought: 0 }) {
   for (let g = 0; g < 120; g++) {
@@ -913,19 +914,23 @@ function handIn(s) {
   s.hub = { x: -0.5, z: D.LADDER_Z + 0.5, input: null, path: null };
 }
 function botPlay(s, w, stats, handsOff = false) {
-  const dt = 0.1; let t = 0, acc = 0, lastHome = 0;
+  const dt = 0.1, shooAt = new Map(); let t = 0, acc = 0, lastHome = 0;
   D.startDig(s, w);
   while (!s.relics[w] && t < 3 * 3600) {
     if (s.mode === 'dig') {
       if (!handsOff) { acc += 3 * dt; while (acc >= 1) { D.tap(s); acc--; } }
       if (s.run.lock) { solveLock(s); t += CHILD_LOCK; }
       if (!handsOff && s.run.dodge > 0 && D.DODGE_WINDOW - s.run.dodge >= CHILD_REACT) D.dodge(s);
+      if (!handsOff) for (const c of (s.run.critters || []).slice()) { // tap a critter CHILD_SHOO s after it turns up, and again after each tap
+        if (c.t - (shooAt.get(c) || 0) >= CHILD_SHOO) { shooAt.set(c, c.t); D.shoo(s, c.id); stats.shoos = (stats.shoos || 0) + 1; }
+      }
       if (!handsOff) botSteer(s);
       if (s.run.bag.length >= D.bagCap(s)) { D.goHome(s); stats.fullBag++; }
       else if (!handsOff && t - lastHome > 150) D.goHome(s);
       else if (s.events.some(e => e.type === 'boneFull')) D.goHome(s); // blocked by a bone in hand: take it to the museum
     }
     s.events = []; D.step(s, dt); t += dt;
+    for (const e of s.events) if (e.type === 'critter' || e.type === 'rattled' || e.type === 'batStole') stats[e.type] = (stats[e.type] || 0) + 1;
     if (s.mode === 'surface' && !s.relics[w]) { lastHome = t; handIn(s); shop(s, handsOff, stats.mats); D.startDig(s, w); }
   }
   return t;
@@ -950,7 +955,7 @@ test('playthrough: steering, each world takes a kid-sized 10–20 minutes with p
     assert.ok(s.relics[w], `world ${w} relic`);
   }
   const dug = stats.mats.dug / (stats.mats.dug + stats.mats.bought);
-  console.log('steering bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| full-bag trips:', stats.fullBag, '| materials dug:', dug.toFixed(2));
+  console.log('steering bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| full-bag trips:', stats.fullBag, '| materials dug:', dug.toFixed(2), '| critters', stats.critter, 'shoos', stats.shoos, 'bumps', stats.rattled || 0, 'stolen', stats.batStole || 0);
   for (const m of mins) assert.ok(m >= 10 && m <= 20, `world took ${m.toFixed(1)} min`);
   assert.ok(stats.fullBag >= 8, `${stats.fullBag} trips home with a full bag`);
   assert.ok(dug >= 0.6, `only ${(100 * dug).toFixed(0)}% of materials were dug`);
@@ -960,7 +965,7 @@ test('playthrough: hands-off, a child who leaves auto-mining on and hires helper
   const s = D.newState(2024);
   const mins = [], stats = { fullBag: 0, mats: { dug: 0, bought: 0 } };
   for (let w = 0; w < 5; w++) { mins.push(botPlay(s, w, stats, true) / 60); assert.ok(s.relics[w], `world ${w} relic`); }
-  console.log('hands-off bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| helpers', s.workers.diggers);
+  console.log('hands-off bot minutes per world:', mins.map(m => m.toFixed(1)).join(', '), '| helpers', s.workers.diggers, '| critters', stats.critter, 'bumps', stats.rattled || 0, 'stolen', stats.batStole || 0);
   for (const m of mins) assert.ok(m <= 22, `world took ${m.toFixed(1)} min`);
 });
 

@@ -94,6 +94,10 @@ var DTWAudio = (function () {
       [72, 76, 79, 84].forEach(function (n) { tone(440 * Math.pow(2, (n - 69) / 12), 0.9, 'triangle', 0.08, t + 32 * b); });
     },
     pop: function () { tone(500 + Math.random() * 500, 0.06, 'square', 0.05, 0, 1.8); },
+    // cave critters: a bat's high double squeak, rattle-bones' dry clatter, and a soft poof when one is chased off
+    squeak: function () { var t = AC.currentTime; tone(2600, 0.06, 'sine', 0.07, t, 1.5); tone(3100, 0.07, 'sine', 0.06, t + 0.09, 0.7); },
+    rattle: function () { var t = AC.currentTime; for (var i = 0; i < 5; i++) tone(rnd(700, 1300), 0.035, 'square', 0.045, t + i * 0.045 + Math.random() * 0.015, 0.6); noise(0.18, 0.07, 2400); },
+    poof: function () { var t = AC.currentTime; noise(0.3, 0.16, 1100); tone(420, 0.22, 'sine', 0.09, t, 0.35); tone(880, 0.12, 'triangle', 0.06, t + 0.12, 1.4); },
     buy: function () { tone(660, 0.08, 'square', 0.1); tone(990, 0.12, 'square', 0.1, AC.currentTime + 0.06); },
     up: function () { tone(200, 0.6, 'triangle', 0.12, 0, 4); },
     down: function () { tone(500, 0.5, 'triangle', 0.1, 0, 0.3); },
@@ -106,7 +110,7 @@ var DTWAudio = (function () {
     pad2: function () { tone(784, 0.3, 'triangle', 0.14); }, pad3: function () { tone(1047, 0.3, 'triangle', 0.14); }
   };
   // Repeats inside GAP[n] seconds are dropped; PITCH names the effects that get a slight random pitch each time.
-  var GAP = { brk: 0.045, tap: 0.045, coin: 0.045, ding: 0.045, step: 0.045, click: 0.045, crack: 0.045 }, lastSfx = {};
+  var GAP = { rattle: 0.12, squeak: 0.3, poof: 0.08, brk: 0.045, tap: 0.045, coin: 0.045, ding: 0.045, step: 0.045, click: 0.045, crack: 0.045 }, lastSfx = {};
   var PITCH = { brk: 1, tap: 1, step: 1 };
   function sfx(n) {
     if (!AC || muted || !SFX[n]) return;

@@ -348,6 +348,13 @@
       else if (e.type === 'guestGift') guestGift(e);
       else if (e.type === 'trapWarn') { A.sfx('alert'); R.shake(0.15); }
       else if (e.type === 'dodged') { A.sfx('dodge'); minerFloat('💨', '#dff6ff'); }
+      else if (e.type === 'critter') critterCame(e);
+      else if (e.type === 'shooed') { A.sfx('poof'); R.critterPuff(e.x, e.y, e.z, e.kind); R.floatText(e.x, e.y - 0.3, e.z, 'Shoo!', '#fff3b0'); }
+      else if (e.type === 'scattered') { A.sfx('poof'); A.sfx('rattle'); R.critterPuff(e.x, e.y, e.z, e.kind, true); R.shake(0.12); }
+      else if (e.type === 'critterHit') { A.sfx('rattle'); R.critterPuff(e.x, e.y, e.z, e.kind); }
+      else if (e.type === 'critterGone') R.critterPuff(e.x, e.y, e.z, e.kind);
+      else if (e.type === 'rattled') { A.sfx('rattle'); A.sfx('no'); R.shake(0.2); }
+      else if (e.type === 'batStole') { A.sfx('squeak'); R.floatText(e.x, e.y - 0.3, e.z, 'Hey! My ' + e.name + '!', '#ffc0b0'); }
       else if (e.type === 'roomChest') {
         var rcx = e.i % D.N, rcz = Math.floor(e.i / D.N) % D.N, rcy = Math.floor(e.i / (D.N * D.N));
         if (R.roomChest) R.roomChest(rcx, rcy, rcz);
@@ -560,15 +567,24 @@
   function hush() { try { if (synth) synth.cancel(); } catch (e) {} }
   // a friend on screen says something now and then: k, or -1 for any helper on screen; urgent lines skip the wait
   var BARK_GAP = 14;
-  function bark(k, kind, urgent) {
+  function bark(k, kind, urgent, fits) {
     var now = performance.now() / 1000;
     if (!urgent && now - lastBark < BARK_GAP) return;
     var who = [];
     for (var i = 0; i < S.workers.diggers; i++) if ((k < 0 || i === k) && R.helperShown(i)) who.push(i);
     if (!who.length) return;
     var f = who[Math.floor(Math.random() * who.length)], ls = STORY.friends[f].lines[kind]; if (!ls) return;
+    if (fits) { ls = ls.filter(fits); if (!ls.length) return; }
     var line = ls[Math.floor(Math.random() * ls.length)];
     lastBark = now; R.say(f, line); if (isToot(line)) toot(f); if (!talkEl.classList.contains('show')) speak(f, line);
+  }
+  // a cave critter turns up: its sound, a one-time hint per kind (once each time the game is opened), and a friend says
+  // something about it (a line naming a bat is kept for bats, one about bones for rattle-bones)
+  var critterHints = {}, CRITTER_HINT = { bat: '🦇 Tap the bat to shoo it away!', bones: '💀 Tap the rattle-bones to scatter it!' };
+  function critterCame(e) {
+    A.sfx(e.kind === 'bat' ? 'squeak' : 'rattle');
+    if (!critterHints[e.kind]) { critterHints[e.kind] = true; toast(CRITTER_HINT[e.kind], 2800); }
+    bark(-1, 'critter', false, function (l) { return e.kind === 'bat' ? !/bon|skeleton|rattle/i.test(l) : !/\bbats?\b/i.test(l); });
   }
   // Baron's toots: a line starting with 💨 comes with a toot sound and, in the pit, a little green puff by him
   function isToot(line) { return line.indexOf('💨') === 0; }
@@ -871,6 +887,7 @@
   cv.addEventListener('pointerdown', function (e) {
     audio();
     if (S.mode === 'surface' && !splash) { var gp = R.groundAt(e.clientX, e.clientY); if (gp) D.hubWalkTo(S, gp[0], gp[1]); }
+    else if (S.mode === 'dig' && !S.run.lock && R.critterAt(e.clientX, e.clientY) && D.shoo(S, R.critterAt(e.clientX, e.clientY))) R.swingKick(); // a tap on a critter shoos it, before anything under it
     else if (S.mode === 'dig') {
       var c = R.cellAt(e.clientX, e.clientY, S.run.y);
       // the x = 0 wall projects onto floor cells with x < 0; up the wall z - x stays the same, so the ladder

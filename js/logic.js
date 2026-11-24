@@ -943,7 +943,7 @@ var DTW = (function () {
     s.world = w;
     var g = site(s, w);
     s.run = { x: g.deepestX, y: g.deepest, z: g.deepestZ, bag: [], loot: [], oxygen: O2_MAX, stun: 0, steer: 0, fallAcc: 0,
-              walkAcc: 0, path: null, manual: 0, stepCD: 0, state: 'idle', taps: 0, grid: g, elevT: Math.min(2, 0.5 + g.deepest * 0.015), relicTimer: 0, goo: {}, target: -1, goal: -1, face: 'e', crew: [] };
+              walkAcc: 0, path: null, manual: 0, stepCD: 0, state: 'idle', taps: 0, grid: g, elevT: Math.min(2, 0.5 + g.deepest * 0.015), relicTimer: 0, goo: {}, target: -1, goal: -1, face: 'e', crew: [], critters: [], critT: 0 };
     (g.bones || []).forEach(function (it, k) {
       s.run.loot.push({ x: g.deepestX + 0.3 + 0.2 * (k % 3), y: FLOOR_Y + g.deepest, z: g.deepestZ + 0.3 + 0.2 * (Math.floor(k / 3) % 3), layer: g.deepest, rest: true, item: it, age: 0, delay: 0.3, vx: 0, vy: 0, vz: 0 });
     });
@@ -1261,7 +1261,7 @@ var DTW = (function () {
   function goHome(s, reason) {
     if (s.mode !== 'dig') return;
     var r = s.run;
-    r.lock = null; r.dodge = 0;
+    r.lock = null; r.dodge = 0; r.critters = [];
     r.loot.forEach(function (l) { if (lootWaits(s, l)) leaveBone(s, l.item); else r.bag.push(l.item); }); r.loot = [];
     s.mode = 'up'; r.elevT = Math.min(3, 1 + r.y * 0.02);
     emit(s, { type: 'ascend', reason: reason || 'button' });
@@ -1324,7 +1324,7 @@ var DTW = (function () {
     delete r.goo[i];
     s.stats.digs++;
     emit(s, { type: 'break', x: bx, y: by, z: bz, tile: tt });
-    if (tt === TILE.RELIC && !r.party) { for (var pk = 0; pk < crewBones(s); pk++) addXp(s, pk, FRIEND_PARTY); r.party = { phase: 'jump', t: PARTY_JUMP }; r.lock = null; r.dodge = 0; emit(s, { type: 'party', world: w }); }
+    if (tt === TILE.RELIC && !r.party) { for (var pk = 0; pk < crewBones(s); pk++) addXp(s, pk, FRIEND_PARTY); r.party = { phase: 'jump', t: PARTY_JUMP }; r.lock = null; r.dodge = 0; clearCritters(s); emit(s, { type: 'party', world: w }); }
     if (!it) return;
     if (it.kind === 'relic') { collect(s, it); return; } // the relic is handed over at once
     // everything else drops on the floor of its cell and waits to be picked up; on the moon it bounces first
@@ -1451,6 +1451,197 @@ var DTW = (function () {
       if (g.hp[c.target] <= 0) { var done = c.target; c.target = -1; breakTile(s, done, c); if (r.path && r.path.target === done) r.path = null; }
     }
   }
+  // ---------- cave critters ----------
+  // From layer CRITTER_FROM down, every CRITTER_EVERY s of dig time a critter turns up, at most CRITTER_MAX at once, and
+  // none while a chest lock is open or at the relic party. A bat flies in over a pit wall to the nearest ore or treasure
+  // on the floor (never a bone), hovers BAT_GRAB s over it, takes it and flies off; with nothing to take it circles the
+  // miner for BAT_STAY s and leaves. Rattle-bones shuffles over open cells up to the miner, bumps him dizzy for
+  // RATTLE_STUN s, backs off and comes again, till RATTLE_HITS hits scatter it. A tap (shoo) chases a bat off or hits the
+  // bones and sends them back; the miner, when auto-mining or idle, and any helper beside it swat it once every
+  // CRITTER_SWAT s. Both drop a few coins. Critters are not saved, and going home clears them.
+  var CRITTER_FROM = 3, CRITTER_EVERY = 25, CRITTER_MAX = 2, CRITTER_SWAT = 1;
+  var BAT_SPEED = 2.5, BAT_GRAB = 1.5, BAT_STAY = 8, BAT_COINS = 5, BAT_Y = 0.3;
+  var RATTLE_SPEED = 1.2, RATTLE_STUN = 1.5, RATTLE_HITS = 3, RATTLE_WIND = 0.5, RATTLE_BACK = 3, RATTLE_REST = 1, RATTLE_COINS = 10;
+  var DV4 = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  function critterList(r) { return r.critters || (r.critters = []); }
+  function critterRoom(s) { var r = s.run; return s.mode === 'dig' && !r.lock && !r.party && r.y >= CRITTER_FROM && r.y <= DEPTH; }
+  function critterGone(r, c) { var k = r.critters.indexOf(c); if (k >= 0) r.critters.splice(k, 1); }
+  function critterEv(s, type, c, more) { var e = { type: type, id: c.id, kind: c.kind, x: c.x, y: c.y, z: c.z }; for (var k in more) e[k] = more[k]; emit(s, e); }
+  function openSteps(g, y, x0, z0) { // walking steps over the open cells of layer y from (x0, z0); -1 where it cannot go
+    var d = new Int16Array(NN).fill(-1), q = [z0 * N + x0]; d[q[0]] = 0;
+    for (var h = 0; h < q.length; h++) {
+      var c = q[h], cx = c % N, cz = (c - cx) / N;
+      for (var k = 0; k < 4; k++) {
+        var nx = cx + DV4[k][0], nz = cz + DV4[k][1], nc = nz * N + nx;
+        if (nx < 0 || nx >= N || nz < 0 || nz >= N || d[nc] >= 0 || !passable(g.t[y * NN + nc])) continue;
+        d[nc] = d[c] + 1; q.push(nc);
+      }
+    }
+    return d;
+  }
+  function spawnCritter(s, kind) {
+    var r = s.run, g = r.grid, y = r.y, c, id = (r.critId || 0) + 1;
+    if (kind === 'bat') { // in over one of the four pit walls
+      var side = Math.floor(rand(s) * 4), along = 0.5 + rand(s) * (N - 1);
+      c = { kind: 'bat', x: side === 0 ? 0 : side === 1 ? N : along, z: side === 2 ? 0 : side === 3 ? N : along, y: y + BAT_Y, state: 'in', grab: 0, stay: 0, loot: null, item: null };
+    } else { // on an open cell at least 3 steps from the miner that it can walk from
+      var d = openSteps(g, y, r.x, r.z), spots = [];
+      for (var k = 0; k < NN; k++) if (d[k] >= 3) spots.push(k);
+      if (!spots.length) return null;
+      var at = spots[Math.floor(rand(s) * spots.length)], cx = at % N, cz = (at - cx) / N;
+      c = { kind: 'bones', x: cx + 0.5, z: cz + 0.5, y: y + FLOOR_Y, cx: cx, cz: cz, tx: cx, tz: cz, state: 'come', wait: 0, back: 0, swat: 0 };
+    }
+    c.id = id; c.layer = y; c.hp = kind === 'bat' ? 1 : RATTLE_HITS; c.t = 0; c.hit = 0;
+    r.critId = id; critterList(r).push(c);
+    critterEv(s, 'critter', c);
+    return c;
+  }
+  function dropAt(s, c, it) { // floor loot on the open cell nearest a critter
+    var r = s.run, g = r.grid, y = r.y, best = r.z * N + r.x, bd = Infinity;
+    for (var k = 0; k < NN; k++) {
+      if (!passable(g.t[y * NN + k])) continue;
+      var ex = k % N + 0.5 - c.x, ez = Math.floor(k / N) + 0.5 - c.z, d = ex * ex + ez * ez;
+      if (d < bd) { bd = d; best = k; }
+    }
+    var bx = best % N, bz = (best - bx) / N;
+    r.loot.push({ x: Math.min(bx + 0.8, Math.max(bx + 0.2, c.x)), y: FLOOR_Y + y, z: Math.min(bz + 0.8, Math.max(bz + 0.2, c.z)), layer: y, rest: true, item: it, age: 0, delay: 0.3, vx: 0, vy: 0, vz: 0 });
+  }
+  function critterCoins(s, c, n) { dropAt(s, c, { kind: 'treasure', world: s.world, value: Math.max(1, Math.round(n * WORLDS[s.world].oreMult)) }); }
+  function hitBones(s, c, tapped) {
+    var r = s.run;
+    c.hp--; c.hit = 0.3;
+    if (c.hp <= 0) { critterGone(r, c); critterCoins(s, c, RATTLE_COINS); critterEv(s, 'scattered', c); return; }
+    critterEv(s, 'critterHit', c, { left: c.hp });
+    if (tapped) { c.state = 'back'; c.back = RATTLE_BACK; }
+  }
+  // a tap on a critter: a bat is chased off (dropping coins and whatever it took), rattle-bones takes a hit
+  function shoo(s, id) {
+    if (s.mode !== 'dig' || !s.run.critters) return false;
+    var r = s.run, c = null;
+    for (var k = 0; k < r.critters.length; k++) if (r.critters[k].id === id) c = r.critters[k];
+    if (!c) return false;
+    if (c.kind === 'bones') { hitBones(s, c, true); return true; }
+    critterGone(r, c);
+    if (c.item) dropAt(s, c, c.item);
+    critterCoins(s, c, BAT_COINS); critterEv(s, 'shooed', c);
+    return true;
+  }
+  function flyTo(c, x, z, sp, dt) { // move toward (x, z); the distance still to go
+    var ex = x - c.x, ez = z - c.z, d = Math.sqrt(ex * ex + ez * ez), m = Math.min(d, sp * dt);
+    if (d > 1e-9) { c.x += ex / d * m; c.z += ez / d * m; }
+    return d - m;
+  }
+  function batAim(s, c) { // the nearest ore or treasure on the floor of the bat's layer that no other bat is after
+    var r = s.run, best = null, bd = Infinity;
+    r.loot.forEach(function (l) {
+      if (l.layer !== c.layer || (l.item.kind !== 'ore' && l.item.kind !== 'treasure')) return;
+      if (r.critters.some(function (o) { return o !== c && o.loot === l; })) return;
+      var ex = l.x - c.x, ez = l.z - c.z, d = ex * ex + ez * ez;
+      if (d < bd) { bd = d; best = l; }
+    });
+    return best;
+  }
+  function stepBat(s, c, dt) {
+    var r = s.run;
+    if (c.layer !== r.y) { c.state = 'leave'; c.loot = null; }
+    if (c.state === 'leave') { // out over the nearest wall
+      if (c.ox == null) {
+        var e = [c.x, N - c.x, c.z, N - c.z], m = e.indexOf(Math.min.apply(null, e));
+        c.ox = m === 0 ? -1 : m === 1 ? N + 1 : c.x; c.oz = m === 2 ? -1 : m === 3 ? N + 1 : c.z;
+      }
+      if (flyTo(c, c.ox, c.oz, BAT_SPEED, dt) <= 0) critterGone(r, c);
+      return;
+    }
+    if (c.loot && r.loot.indexOf(c.loot) < 0) { c.loot = null; c.grab = 0; } // picked up first
+    if (!c.loot) c.loot = batAim(s, c);
+    if (c.loot) {
+      c.state = 'grab';
+      if (flyTo(c, c.loot.x, c.loot.z, BAT_SPEED, dt) > 0.05) { c.grab = 0; return; }
+      c.grab += dt;
+      if (c.grab >= BAT_GRAB) {
+        r.loot.splice(r.loot.indexOf(c.loot), 1); c.item = c.loot.item; c.loot = null; c.state = 'leave';
+        critterEv(s, 'batStole', c, { item: c.item, name: itemName(c.item) });
+      }
+      return;
+    }
+    c.state = 'circle'; c.stay += dt;
+    var a = c.t * 1.6 + c.id * 2;
+    flyTo(c, r.x + 0.5 + Math.cos(a) * 1.1, r.z + 0.5 + Math.sin(a) * 1.1, BAT_SPEED, dt);
+    if (c.stay >= BAT_STAY) c.state = 'leave';
+  }
+  function beside(ax, az, bx, bz) { return Math.abs(ax - bx) + Math.abs(az - bz) <= 1; }
+  function swatter(s, c) { // the miner (auto-mining or idle) or a helper standing beside the bones
+    var r = s.run, cx = Math.floor(c.x), cz = Math.floor(c.z);
+    var miner = r.stun <= 0 && !(r.dodge > 0) && ((s.auto !== false && !(r.manual > 0)) || r.state === 'idle');
+    if (miner && beside(r.x, r.z, cx, cz)) return true;
+    return (r.crew || []).some(function (h) { return h && !(h.stun > 0) && beside(h.x, h.z, cx, cz); });
+  }
+  function bonesStep(g, r, c) { // the first step of the shortest walk over open cells to a cell beside the miner
+    var y = r.y, start = c.cz * N + c.cx, prev = new Int16Array(NN).fill(-1), q = [start];
+    prev[start] = start;
+    for (var h = 0; h < q.length; h++) {
+      var p = q[h], px = p % N, pz = (p - px) / N;
+      if (p !== start && beside(px, pz, r.x, r.z)) { while (prev[p] !== start) p = prev[p]; return [p % N, (p - p % N) / N]; }
+      for (var k = 0; k < 4; k++) {
+        var nx = px + DV4[k][0], nz = pz + DV4[k][1], nc = nz * N + nx;
+        if (nx < 0 || nx >= N || nz < 0 || nz >= N || prev[nc] >= 0 || (nx === r.x && nz === r.z) || !passable(g.t[y * NN + nc])) continue;
+        prev[nc] = p; q.push(nc);
+      }
+    }
+    return null;
+  }
+  function awayCell(g, r, c) { // an open neighbouring cell further from the miner
+    var best = null, bd = Math.abs(c.cx - r.x) + Math.abs(c.cz - r.z);
+    for (var k = 0; k < 4; k++) {
+      var nx = c.cx + DV4[k][0], nz = c.cz + DV4[k][1];
+      if (nx < 0 || nx >= N || nz < 0 || nz >= N || !passable(g.t[idx(nx, r.y, nz)])) continue;
+      var d = Math.abs(nx - r.x) + Math.abs(nz - r.z);
+      if (d > bd) { bd = d; best = [nx, nz]; }
+    }
+    return best;
+  }
+  function stepBones(s, c, dt) {
+    var r = s.run, g = r.grid;
+    if (c.layer !== r.y) { critterGone(r, c); critterEv(s, 'critterGone', c); return; } // left behind on a cleared layer
+    c.swat = Math.max(0, c.swat - dt);
+    if (c.swat <= 0 && swatter(s, c)) { c.swat = CRITTER_SWAT; hitBones(s, c, false); if (c.hp <= 0) return; }
+    if (flyTo(c, c.tx + 0.5, c.tz + 0.5, RATTLE_SPEED, dt) > 0) return;
+    c.cx = c.tx; c.cz = c.tz;
+    var near = beside(c.cx, c.cz, r.x, r.z);
+    if (c.state === 'rest') { c.wait -= dt; if (c.wait <= 0) c.state = 'come'; return; }
+    if (c.state === 'back') {
+      var nb = c.back > 0 && awayCell(g, r, c);
+      if (nb) { c.tx = nb[0]; c.tz = nb[1]; c.back--; } else { c.state = 'rest'; c.wait = RATTLE_REST; }
+      return;
+    }
+    if (c.state === 'wind') {
+      if (near) {
+        c.wait -= dt;
+        if (c.wait <= 0) {
+          if (r.stun <= 0 && !(r.dodge > 0)) { r.stun = RATTLE_STUN; r.taps = 0; emit(s, { type: 'rattled', id: c.id, x: r.x, y: r.y, z: r.z }); }
+          c.state = 'back'; c.back = RATTLE_BACK;
+        }
+        return;
+      }
+      c.state = 'come';
+    }
+    if (near) { c.state = 'wind'; c.wait = RATTLE_WIND; return; }
+    var st = bonesStep(g, r, c);
+    if (st) { c.tx = st[0]; c.tz = st[1]; }
+  }
+  function stepCritters(s, dt) {
+    var r = s.run, list = critterList(r);
+    if (critterRoom(s)) {
+      r.critT = (r.critT || 0) + dt;
+      if (r.critT >= CRITTER_EVERY) { r.critT -= CRITTER_EVERY; if (list.length < CRITTER_MAX) spawnCritter(s, rand(s) < 0.5 ? 'bat' : 'bones'); }
+    }
+    for (var k = list.length - 1; k >= 0; k--) {
+      var c = list[k]; if (!c) continue;
+      c.t += dt; c.hit = Math.max(0, c.hit - dt);
+      if (c.kind === 'bat') stepBat(s, c, dt); else stepBones(s, c, dt);
+    }
+  }
+  function clearCritters(s) { var r = s.run; (r.critters || []).forEach(function (c) { critterEv(s, 'critterGone', c); }); r.critters = []; }
   // Splash Pick: a miner strike also hits the blocks around its target in the same layer, two cells out
   function splash(s, tgt, dmg, hit) {
     var r = s.run, g = r.grid, y = Math.floor(tgt / NN), x = tgt % N, z = Math.floor(tgt / N) % N;
@@ -1503,7 +1694,9 @@ var DTW = (function () {
       }
     }
     stepLoot(s, dt);
+    var dazed = r.stun > 0;
     if (r.party) { stepParty(s, dt); return; }
+    stepCritters(s, dt);
     if (r.dodge > 0) { // a cracked trap is about to go off: the miner freezes; no dodge in time and it dazes
       r.dodge -= dt; r.taps = 0; r.state = 'idle';
       if (r.dodge <= 0) { r.dodge = 0; r.stun = 2; s.stats.trapsSprung++; emit(s, { type: 'trap' }); }
@@ -1618,9 +1811,9 @@ var DTW = (function () {
       if (r.stun <= 0 && s.mode === 'dig') stepCrew(s, dt, hit);
     }
     if (s.mode === 'dig') pickLoot(s, dt);
-    for (var k in r.goo) {
+    for (var k in r.goo) { // goo heals while nobody drills it, but not while the miner is dazed
       var gi = +k;
-      if (hit[gi]) continue;
+      if (hit[gi] || dazed || r.stun > 0) continue;
       var mx = maxHp(w, TILE.GOO, Math.floor(gi / NN));
       g.hp[gi] = Math.min(mx, g.hp[gi] + mx * 0.4 * dt);
       if (g.hp[gi] >= mx) delete r.goo[k];
@@ -1726,5 +1919,7 @@ var DTW = (function () {
     drillDamage: drillDamage, hitRate: hitRate, site: site, _teleport: _teleport, _setTile: _setTile, _setFossil: _setFossil, fossilAt: fossilAt, fossilForm: fossilForm, _clearLayer: _clearLayer,
     HUB: HUB, HUB_STATIONS: HUB_STATIONS, HUB_SPEED: HUB_SPEED, LADDER_Z: LADDER_Z, LADDER_REACH: LADDER_REACH, LADDER_DOWN: LADDER_DOWN, CLIMB_PUSH: CLIMB_PUSH, hubCell: hubCell, hubWalkable: hubWalkable,
     PLINTH_CH: PLINTH_CH, WINGS: WINGS, hubStation: hubStation, hubNearExhibit: hubNearExhibit, hubInput: hubInput, hubWalkTo: hubWalkTo, hubPath: hubPath,
+    CRITTER_FROM: CRITTER_FROM, CRITTER_EVERY: CRITTER_EVERY, CRITTER_MAX: CRITTER_MAX, CRITTER_SWAT: CRITTER_SWAT, BAT_GRAB: BAT_GRAB, BAT_STAY: BAT_STAY, BAT_COINS: BAT_COINS,
+    RATTLE_SPEED: RATTLE_SPEED, RATTLE_STUN: RATTLE_STUN, RATTLE_HITS: RATTLE_HITS, RATTLE_COINS: RATTLE_COINS, shoo: shoo, _critterNow: function (s, kind) { return s.mode === 'dig' && critterRoom(s) ? spawnCritter(s, kind) : null; },
     topLayer: topLayer, layerHasBlocks: layerHasBlocks, diggable: diggable };
 })();
