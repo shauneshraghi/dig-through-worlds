@@ -794,7 +794,7 @@ var DTW = (function () {
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
       museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false, quiz: null, quizT: 0, guest: null, guestT: 0, guestN: 0,
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
-      stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }, friends: newFriends()
+      stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }, friends: newFriends(), speak: false
     };
     return s;
   }
@@ -1840,7 +1840,7 @@ var DTW = (function () {
     var digging = s.run && s.mode !== 'surface', left = [];
     var bag = digging ? s.run.bag.concat(s.run.loot.filter(function (l) { if (lootWaits(s, l)) { left.push(l.item); return false; } return true; }).map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 6, friends: friendList(s), voice: s.voice !== false, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 6, friends: friendList(s), speak: s.speak === true, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0,
         bones: (g.bones || []).concat(digging && s.run.grid === g ? left : []) }; })
@@ -1851,7 +1851,7 @@ var DTW = (function () {
       var o = JSON.parse(str);
       if (!o || [1, 2, 3, 4, 5, 6].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
-      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats', 'golden', 'voice'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
+      ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats', 'golden', 'speak'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
       if (!Array.isArray(s.mats) || s.mats.length !== 5) s.mats = emptyMats();
       s.friends = newFriends();
       (Array.isArray(o.friends) ? o.friends : []).forEach(function (f, k) {

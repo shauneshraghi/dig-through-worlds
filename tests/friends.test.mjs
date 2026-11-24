@@ -116,3 +116,12 @@ test('friends are saved, and an old save keeps every helper it hired', () => {
   const u = D.deserialize(JSON.stringify(old));
   assert.equal(u.workers.diggers, 2); assert.equal(u.friends.length, 6); assert.equal(u.friends[0].xp, 0);
 });
+
+test('read aloud is off unless switched on, and an older save that had it on loads with it off', () => {
+  const s = D.newState(1);
+  assert.equal(!!s.speak, false);
+  assert.equal(D.deserialize(D.serialize(s)).speak, false);
+  s.speak = true; assert.equal(D.deserialize(D.serialize(s)).speak, true);
+  const old = JSON.parse(D.serialize(D.newState(1))); delete old.speak; old.voice = true;
+  assert.equal(D.deserialize(JSON.stringify(old)).speak, false);
+});

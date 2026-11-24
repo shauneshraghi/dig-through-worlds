@@ -135,7 +135,7 @@
       .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; })).join('');
     return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(), S.golden ? 'g' + D.WORLDS.map(function (w, wi) { return [0, 1, 2].map(function (c) { return D.goldFound(S, wi, c); }).join(''); }).join() : '',
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind,
-      station === 'helpers' ? D.dayNum(S) + ':' + S.friends.map(function (f) { return [Math.floor(f.xp), f.talk, f.gift, f.told].join(','); }).join('|') : '', S.voice !== false].join(';');
+      station === 'helpers' ? D.dayNum(S) + ':' + S.friends.map(function (f) { return [Math.floor(f.xp), f.talk, f.gift, f.told].join(','); }).join('|') : '', S.speak === true].join(';');
   }
   // a price as chips: coins, then each material needed with a dot in its colour; a chip is dimmed when the player is short of it
   function dot(t) { return '<i class="dot" style="background:' + D.MATS[t].color + '"></i>'; }
@@ -275,10 +275,10 @@
       sw.className = 'row nav'; sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on);
       sw.innerHTML = '<span class="ic">' + (on ? '🔊' : '🔇') + '</span><span class="txt"><b>Sound</b><small>' + (on ? 'On' : 'Off') + '</small></span><span class="switch' + (on ? ' on' : '') + '"><i></i></span>';
       sw.onclick = function () { audio(); setMute(!A.isMuted()); }; body.appendChild(sw);
-      var von = S.voice !== false, vs = document.createElement('button');
+      var von = S.speak === true, vs = document.createElement('button');
       vs.className = 'row nav'; vs.setAttribute('role', 'switch'); vs.setAttribute('aria-checked', von);
       vs.innerHTML = '<span class="ic">🗣️</span><span class="txt"><b>Read aloud</b><small>' + (von ? 'Friends talk out loud' : 'Off') + '</small></span><span class="switch' + (von ? ' on' : '') + '"><i></i></span>';
-      vs.onclick = function () { audio(); S.voice = S.voice === false; if (S.voice === false) hush(); else speak(0, 'Hi! I will read for you.'); save(); lastPanelKey = ''; }; body.appendChild(vs);
+      vs.onclick = function () { audio(); S.speak = !S.speak; if (!S.speak) hush(); else speak(0, 'Hi! I will read for you.'); save(); lastPanelKey = ''; }; body.appendChild(vs);
       restartRows();
     }
     function restartRows() {
@@ -557,7 +557,7 @@
   }
   if (synth) { pickVoice(); try { synth.addEventListener('voiceschanged', pickVoice); } catch (e) {} }
   function speak(k, text, force) {
-    if (!synth || (!force && (S.voice === false || A.isMuted()))) return;
+    if (!synth || (!force && (!S.speak || A.isMuted()))) return;
     try {
       var u = new SpeechSynthesisUtterance(text.replace(/[^\w\s.,!?'’-]/g, ' ')), v = (STORY.friends[k] || STORY.friends[0]).voice;
       u.pitch = v.pitch; u.rate = v.rate * 0.95; u.lang = 'en-US'; if (enVoice) u.voice = enVoice;
