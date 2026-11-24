@@ -419,8 +419,9 @@ var DTWRender = (function () {
     crewPos.length = out.length;
     return out;
   }
-  // Baron is Nim's big brother, Hale the little sister, Jon a big grown-up merman; the rest are drawn at 0.85 of the miner's size
-  var HELPER_SCALE = [0.95, 0.68, 1.12, 0.85, 0.85, 0.85];
+  // sizes against Nim (1): Baron, his big brother, is taller, Hale, the little sister, shorter, and Jon, a grown-up
+  // merman, tallest; the rest are drawn at 0.85
+  var HELPER_SCALE = [1.12, 0.72, 1.3, 0.85, 0.85, 0.85];
   // speech bubbles: what a friend says floats over their head on the overlay (say), anchored where it was last drawn
   var talkB = {}, talkAt = {};
   function drawHelper(h, S) {
