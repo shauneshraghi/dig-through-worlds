@@ -3,11 +3,11 @@
 // read aloud to a 6 to 9 year old. friends[k] goes with DTW.FRIENDS[k].
 var DTWStory = (function () {
   'use strict';
-  // the hero's name, used in the friends' lines
+  // the hero: Nim, a 6 year old boy; his name is used in the friends' lines
   var HERO = 'Nim';
   // a line that starts with 💨 is one of Baron's toots: ui.js plays a toot sound and a little green puff with it
   var friends = [
-    { name: 'Baron', who: "Nim's big brother, age 11", icon: '💨',
+    { name: 'Baron', who: "Nim's big brother, age 9", icon: '💨',
       about: 'Strong, silly and proud of it. Baron tries to act cool, but his tummy always gives him away.',
       perk: 'Big Brother Muscles', perkText: 'Baron hits his blocks 50% harder.',
       voice: { pitch: 0.8, rate: 0.95 },
@@ -21,8 +21,8 @@ var DTWStory = (function () {
       ],
       chat: ['💨 Oops. Beans for breakfast.', 'Watch this muscle! Okay, it is small. It is growing.', 'Did you hear that? It was not me. It was a mole.', 'I can carry two rocks at once. Three if nobody is looking.', 'Hale bossed me around all morning. Help.'],
       gift: 'Iron? For me? That is so cool. I mean, thanks. It is fine. It is great!',
-      lines: { fossil: ['Whoa! A bone! I saw it first!', '💨 Sorry, I got excited. A bone!'], trap: ['Ugh, dizzy! And now I need the toilet.'], full: ['💨 The bag is full. And so am I. Up we go!'], party: ['💨 Party toot! Hooray!', 'We are the best diggers ever!'], up: ['You are an okay little sibling. A GREAT one, actually.'], hello: ['Hey Nim!', '💨 Hi. That was a hello toot.'] } },
-    { name: 'Hale', who: "Nim's little sister, age 5", icon: '🎀',
+      lines: { fossil: ['Whoa! A bone! I saw it first!', '💨 Sorry, I got excited. A bone!'], trap: ['Ugh, dizzy! And now I need the toilet.'], full: ['💨 The bag is full. And so am I. Up we go!'], party: ['💨 Party toot! Hooray!', 'We are the best diggers ever!'], up: ['You are an okay little brother. A GREAT one, actually.'], hello: ['Hey Nim!', '💨 Hi. That was a hello toot.'] } },
+    { name: 'Hale', who: "Nim's little sister, age 4", icon: '🎀',
       about: 'Full of hugs and full of orders. Hale loves everybody, and she will tell everybody what to do.',
       perk: 'Bossy Boots', perkText: 'Hale tells you to hurry: you swing 15% faster.',
       voice: { pitch: 1.6, rate: 1.1 },
