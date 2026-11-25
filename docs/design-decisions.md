@@ -21,7 +21,7 @@ Settled by the user; treat them as decided and do not re-ask. Rebalance against 
 - Playthrough test: two bots at 30 s per chest. The steering bot takes 10–20 minutes a world; the hands-off bot (buys helpers) takes at most 22.
 - Hands-off play is supported but slower; cheaper helpers carry it.
 - Chests every 4 layers; late puzzles are capped (pipes 4×4, ice 4 pushes, path 7 gems). Jungle treasure-room chests have no puzzle: an opening animation and sound, then the contents plus a bonus gem.
-- Traps look cracked. With auto-mining on the miner dodges them by himself (too hard for a child to catch in time); with it off, a 1 s tap-anywhere dodge, and an idle miner is dazed. Helpers are still dazed; the auto-target order is unchanged.
+- Traps look cracked. With auto-mining on the miner dodges them by himself (too hard for a child to catch in time); with it off, a 2 s tap-anywhere dodge, and an idle miner is dazed. Helpers are still dazed; the auto-target order is unchanged.
 - Materials come mostly from digging (about 70%), through bigger ore stacks per tier rather than more ore blocks.
 - Splash Pick and Twin Picks cost about a third of their first price, with no goal bar.
 - Bones stay guaranteed (each creature is buried twice).

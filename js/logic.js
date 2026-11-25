@@ -207,7 +207,7 @@ var DTW = (function () {
   // units of material in one ore block's stack, by world index and tier (coal..crystal); a stack is one bag item
   // (upgrade prices need coal and copper in bulk at high levels, and late worlds hold little of them, so their stacks are big)
   var ORE_STACK = [[4, 2, 1, 1, 1], [20, 8, 3, 1, 1], [60, 25, 5, 2, 1], [200, 80, 10, 3, 1], [400, 150, 15, 4, 1]];
-  var DODGE_WINDOW = 1; // seconds a cracked trap warns before it dazes the miner; DTW.dodge in time avoids the daze
+  var DODGE_WINDOW = 2; // seconds a cracked trap warns before it dazes the miner; DTW.dodge in time avoids the daze
   var WORKERS = {
     diggers: { name: 'Helper Digger', base: 50, mult: 2.5, max: 6, text: 'Digs blocks next to you' },
     staff:   { name: 'Museum Guide',  base: 100, mult: 2.5, max: 5, text: '+30% visitor coins' }

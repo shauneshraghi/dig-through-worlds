@@ -656,7 +656,7 @@ test('jungle: with auto-mining on, the miner dodges a cracked trap by itself and
 });
 
 test('jungle: a cracked trap warns for DODGE_WINDOW s; a dodge in time avoids the daze, a tap of the Faster button does not', () => {
-  assert.equal(D.DODGE_WINDOW, 1);
+  assert.equal(D.DODGE_WINDOW, 2);
   const s = digAt(2, 3, 10, 3, { drill: 25 }); D.setAuto(s, false);
   D._setTile(s, 4, 10, 3, T.TRAP); D._setTile(s, 2, 10, 3, T.TRAP);
   assert.equal(D.dodge(s), false, 'nothing to dodge yet');
