@@ -633,14 +633,26 @@ test('ocean: a bubble pocket in a neighbouring block refills oxygen', () => {
   assert.equal(at(s.run.grid, 4, 30, 2), T.AIR);
 });
 
-test('jungle: breaking a trap stuns for about two seconds', () => {
-  const s = digAt(2, 3, 10, 3, { drill: 12 });
+test('jungle: breaking a trap stuns for about two seconds (auto-mining off)', () => {
+  const s = digAt(2, 3, 10, 3, { drill: 12 }); D.setAuto(s, false);
   D._setTile(s, 3, 11, 3, T.TRAP);
   let stunnedFor = 0;
   for (let i = 0; i < 2000 && !s.stats.trapsSprung; i++) { D.tap(s); D.step(s, 0.05); }
   assert.equal(s.stats.trapsSprung, 1);
   for (let i = 0; i < 200 && s.run.stun > 0; i++) { stunnedFor += 0.05; D.step(s, 0.05); } // the first stun only
   assert.ok(stunnedFor > 1.5 && stunnedFor < 2.5, `stunned ${stunnedFor}s`);
+});
+
+test('jungle: with auto-mining on, the miner dodges a cracked trap by itself and is never dazed', () => {
+  const s = digAt(2, 3, 10, 3, { drill: 25 });
+  assert.notEqual(s.auto, false);
+  D._setTile(s, 4, 10, 3, T.TRAP);
+  D.steer(s, 'e'); run(s, 0.05);
+  assert.ok(s.events.some(e => e.type === 'trapWarn'), 'the trap still warns');
+  assert.ok(s.events.some(e => e.type === 'dodged'), 'and is dodged at once');
+  assert.ok(!(s.run.dodge > 0));
+  run(s, 2);
+  assert.equal(s.run.stun, 0); assert.equal(s.stats.trapsSprung, 0);
 });
 
 test('jungle: a cracked trap warns for DODGE_WINDOW s; a dodge in time avoids the daze, a tap of the Faster button does not', () => {

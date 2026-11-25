@@ -1315,7 +1315,10 @@ var DTW = (function () {
     }
     else if (tt === TILE.CHEST) it = chestLoot(s, w, by, smashed);
     else if (tt === TILE.TRAP && helper) { helper.stun = 2; emit(s, { type: 'trap', helper: true, friend: r.crew.indexOf(helper) }); }
-    else if (tt === TILE.TRAP) { r.dodge = dodgeWindow(s); emit(s, { type: 'trapWarn', x: bx, y: by, z: bz }); } // the miner may still dodge it
+    else if (tt === TILE.TRAP) { // the miner may still dodge it; with auto-mining on he always does, by himself
+      emit(s, { type: 'trapWarn', x: bx, y: by, z: bz });
+      if (s.auto !== false) emit(s, { type: 'dodged', auto: true }); else r.dodge = dodgeWindow(s);
+    }
     else if (tt === TILE.RELIC) {
       var have = s.relics[w] || r.bag.some(function (b) { return b.kind === 'relic'; });
       it = have ? { kind: 'treasure', world: w, value: Math.round(100 * WORLDS[w].oreMult) } : { kind: 'relic', world: w };
