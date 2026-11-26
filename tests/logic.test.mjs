@@ -155,6 +155,7 @@ const icePlan = L => {
 // solve whatever puzzle the chest holds, as a careful player would
 const solveLock = s => {
   const L = s.run.lock;
+  if (L.kind === 'learn') { let taps = 0; while (s.run.lock) { const q = s.run.lock.q; D.lockTap(s, q.opts.indexOf(q.answer)); taps++; } return taps; }
   if (L.kind === 'pins') { const plan = lockPlan(L); for (const k of plan) D.lockTap(s, k); return plan.length; }
   if (L.kind === 'pairs') { // perfect memory: flip each pair by looking up the matching card
     let taps = 0;
@@ -1240,8 +1241,8 @@ test('simon: watch the gems, then tap them back in order; a wrong tap replays th
   }
 });
 
-test('chests hold seven kinds of puzzle and never the same kind twice in a row', () => {
-  const s = digAt(1, 3, 10, 3); D.setAuto(s, false);
+test('chests hold eight kinds of puzzle and never the same kind twice in a row (learning chests off)', () => {
+  const s = digAt(1, 3, 10, 3); D.setAuto(s, false); D.learnSet(s, { mix: 0 });
   const kinds = [];
   for (let k = 0; k < 40; k++) {
     D._setTile(s, 4, 10, 3, T.CHEST); D._teleport(s, 3, 10, 3); D.steer(s, 'e'); run(s, 2);

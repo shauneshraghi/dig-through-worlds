@@ -22,6 +22,7 @@
 
   // ---------- helpers ----------
   function $(id) { return document.getElementById(id); }
+  function esc(t) { return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   // the control buttons' icons: one drawn set (24-unit strokes in the text colour), so they look the same on every
   // device instead of each system's emoji
   var ICONS = {
@@ -61,8 +62,8 @@
   // a short float at the miner (pit) in place of a toast
   function minerFloat(text, color) { var r = S.run; if (S.mode === 'dig' && r) R.floatText(r.x, r.y - 0.2, r.z, text, color); }
   var station = null, lastPanelKey = '';
-  var STATION_TITLE = { shop: '🛒 Shop', helpers: '👷 Helpers', museum: '🏛️ Museum', worlds: '🗺️ Worlds', menu: '☰ Menu' };
-  var STATION_TAB = { shop: 'up', helpers: 'he', museum: 'mu', worlds: 'wo', dig: '', menu: 'me' };
+  var STATION_TITLE = { shop: '🛒 Shop', helpers: '👷 Helpers', museum: '🏛️ Museum', worlds: '🗺️ Worlds', stories: '📖 Stories', grown: '🔐 Grown-ups', menu: '☰ Menu' };
+  var STATION_TAB = { shop: 'up', helpers: 'he', museum: 'mu', worlds: 'wo', stories: 'st', grown: 'gr', dig: '', menu: 'me' };
   // the ☰ button opens the menu anywhere on the plaza; from it any station's panel can be opened
   var menuOpen = false, menuPick = null;
   var WIDE = window.matchMedia('(min-aspect-ratio: 1/1) and (min-width: 700px)');
@@ -135,7 +136,7 @@
       .concat(Object.keys(D.CREW_UPGRADES).map(function (k) { return D.canAfford(S, D.upgradeCost(S, k)) ? 1 : 0; })).join('');
     return [station, S.world, afford, station === 'shop' ? S.coins + ':' + S.mats.join() + ':' + S.matBought.join() + ':' + xferN : S.mats.join(), station === 'museum' ? D.museumIncome(S).toFixed(1) : '', JSON.stringify(S.upgrades), JSON.stringify(S.workers), S.unlocked.join(), S.relics.join(), S.golden ? 'g' + D.WORLDS.map(function (w, wi) { return [0, 1, 2].map(function (c) { return D.goldFound(S, wi, c); }).join(''); }).join() : '',
       S.museum.map(function (m) { return m.pieces.join(); }).join('|'), D.topLayer(D.site(S, S.world)), confirmKind,
-      station === 'helpers' ? D.dayNum(S) + ':' + S.friends.map(function (f) { return [Math.floor(f.xp), f.talk, f.gift, f.told].join(','); }).join('|') : '', S.speak === true].join(';');
+      station === 'helpers' ? D.dayNum(S) + ':' + S.friends.map(function (f) { return [Math.floor(f.xp), f.talk, f.gift, f.told].join(','); }).join('|') : '', S.speak === true, station === 'grown' || station === 'stories' ? [grownOk, delArm, !!pendingLoad, JSON.stringify(S.learn)].join(':') : ''].join(';');
   }
   // a price as chips: coins, then each material needed with a dot in its colour; a chip is dimmed when the player is short of it
   function dot(t) { return '<i class="dot" style="background:' + D.MATS[t].color + '"></i>'; }
@@ -170,6 +171,7 @@
   function renderPanel() {
     if (!station) return;
     if (confirmKind && lastPanelKey) return;
+    var ae = document.activeElement; if (lastPanelKey && ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && $('tabBody').contains(ae)) return;
     var k = panelKey(); if (k === lastPanelKey) return; lastPanelKey = k;
     var wd = D.WORLDS[S.world], g = D.site(S, S.world), top = D.topLayer(g), tab = STATION_TAB[station], dig = station === 'dig';
     $('sTitle').textContent = dig ? wd.name + (S.relics[S.world] ? ' ✓' : '') : STATION_TITLE[station];
@@ -264,9 +266,11 @@
         gb.textContent = '🌟 Dig again for golden bones'; gb.onclick = goGolden; body.appendChild(gb);
       }
       restartRows();
-    } else if (tab === 'me') {
+    } else if (tab === 'st') storyRows(body);
+    else if (tab === 'gr') grownRows(body);
+    else if (tab === 'me') {
       // each station is one big row to tap, with a chevron; sound is a switch
-      ['shop', 'helpers', 'museum', 'worlds'].forEach(function (key) {
+      ['shop', 'helpers', 'museum', 'worlds', 'stories', 'grown'].forEach(function (key) {
         var t = STATION_TITLE[key].split(' '), b = document.createElement('button');
         b.className = 'row nav'; b.innerHTML = '<span class="ic">' + t[0] + '</span><span class="txt"><b>' + t.slice(1).join(' ') + '</b></span>' + icon('next');
         b.onclick = function () { menuPick = key; }; body.appendChild(b);
@@ -547,7 +551,7 @@
     $('talkText').textContent = line; $('talkNext').textContent = talkPages.length > 1 ? 'Next ▸' : 'OK';
     speak(talkK, line);
   }
-  function talkClose() { talkEl.classList.remove('show'); talkPages = []; hush(); lastPanelKey = ''; }
+  function talkClose() { talkEl.classList.remove('show'); talkPages = []; hush(); lastPanelKey = ''; if (storyId) { D.storyRead(S, storyId); storyId = null; save(); } }
   $('talkNext').onclick = function () { audio(); talkPages.shift(); talkShow(); };
   $('talkAgain').onclick = function () { audio(); speak(talkK, $('talkText').textContent, true); };
   // read-aloud: each friend has a voice (pitch and speed) from story.js; nothing is read while the sound is off
@@ -622,6 +626,140 @@
   $('endGold').onclick = function () { audio(); goGolden(); };
   $('endLater').onclick = function () { endingEl.classList.remove('show'); };
 
+  // ---------- stories and the grown-ups' page ----------
+  // Stories: the built-in social stories and a grown-up's own, told in the talk box by a friend. The grown-ups' page
+  // sits behind a sum a young child cannot do yet (grownOk, not saved) and holds the learning settings, progress,
+  // own stories, the backup and app install.
+  var LESS = typeof DTWLessons !== 'undefined' ? DTWLessons : null, storyId = null, grownOk = false, gateQ = null, delArm = null;
+  var P = typeof DTWPwa !== 'undefined' ? DTWPwa : null;
+  function storyOpen(t) {
+    storyId = t.id; talkK = t.who; talkPages = t.pages.slice();
+    var pic = $('talkPic'); pic.innerHTML = ''; pic.appendChild(portrait(t.who, 3));
+    $('talkName').innerHTML = esc(t.title) + ' <span class="tag">📖 ' + esc(STORY.friends[t.who].name) + ' reads</span>';
+    talkEl.classList.add('show'); talkShow();
+  }
+  function storyRows(body) {
+    var list = D.storyList(S);
+    if (!list.length) { var e = document.createElement('p'); e.className = 'small'; e.textContent = 'No stories yet.'; body.appendChild(e); return; }
+    list.forEach(function (t) {
+      var d = document.createElement('button'); d.className = 'row nav story';
+      var ic = document.createElement('span'); ic.className = 'ic'; ic.appendChild(portrait(t.who, 1));
+      var n = S.learn.read[t.id] | 0, tx = document.createElement('span'); tx.className = 'txt';
+      tx.innerHTML = '<b>' + esc(t.title) + '</b><small>' + (t.own ? '✏️ Made for you · ' : '') + STORY.friends[t.who].name + ' reads it with you' + (n ? ' · read ' + n + (n > 1 ? ' times' : ' time') : '') + '</small>';
+      d.appendChild(ic); d.appendChild(tx); d.insertAdjacentHTML('beforeend', icon('next'));
+      d.onclick = function () { audio(); storyOpen(t); };
+      body.appendChild(d);
+    });
+  }
+  function el(tag, cls, html) { var e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
+  function noKeys(inp) { inp.addEventListener('keydown', function (e) { e.stopPropagation(); }); return inp; }
+  function seg(labels, cur, onPick) { // a row of buttons, one picked
+    var g = el('div', 'seg');
+    labels.forEach(function (l, i) { var b = el('button', 'btn small' + (i === cur ? ' go' : ' glass'), esc(l)); b.onclick = function () { audio(); onPick(i); lastPanelKey = ''; save(); }; g.appendChild(b); });
+    return g;
+  }
+  function grownRows(body) {
+    if (!grownOk) {
+      if (!gateQ) { var a = 12 + Math.floor(Math.random() * 8), b = 3 + Math.floor(Math.random() * 7); gateQ = { a: a, b: b }; }
+      body.appendChild(el('p', 'small', 'This page is for grown-ups. What is ' + gateQ.a + ' × ' + gateQ.b + '?'));
+      var box = el('div', 'gate'), inp = noKeys(el('input')); inp.type = 'text'; inp.inputMode = 'numeric'; inp.autocomplete = 'off'; inp.placeholder = 'answer';
+      var go = el('button', 'btn small go', 'OK');
+      go.onclick = function () { if (+inp.value.trim() === gateQ.a * gateQ.b) { grownOk = true; gateQ = null; lastPanelKey = ''; } else { A.sfx('no'); inp.value = ''; gateQ = null; lastPanelKey = ''; } };
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') go.onclick(); });
+      box.appendChild(inp); box.appendChild(go); body.appendChild(box);
+      return;
+    }
+    var l = S.learn, names = (LESS && LESS.skillNames) || {};
+    body.appendChild(el('div', 'xhead', '<b>Learning chests</b>'));
+    body.appendChild(el('p', 'small', 'How many chests ask a question instead of a puzzle. Smashing a chest still skips it, for a few coins.'));
+    body.appendChild(seg(['Off', 'Some', 'Half', 'Most'], l.mix, function (i) { D.learnSet(S, { mix: i }); }));
+    body.appendChild(seg(['1st grade', '2nd grade'], l.grade - 1, function (i) { D.learnSet(S, { grade: i + 1 }); }));
+    [['verb', '📖', 'Past-tense verbs', 'dig, dug; find, found'], ['plural', '🦴', 'Irregular plurals', 'tooth, teeth; mouse, mice'], ['talk', '💬', 'Talking with friends', 'greetings, expected behaviour, topic, turns, feelings, idioms'], ['read', '🔮', 'What happens next', 'read a short scene and guess what comes next'], ['math', '🔢', 'Math facts', l.grade === 1 ? 'adding and taking away within 20' : 'within 100, plus and minus 10']].forEach(function (o) {
+      var on = !!l.subj[o[0]], sw = el('button', 'row nav');
+      sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on);
+      sw.innerHTML = '<span class="ic">' + o[1] + '</span><span class="txt"><b>' + o[2] + '</b><small>' + o[3] + '</small></span><span class="switch' + (on ? ' on' : '') + '"><i></i></span>';
+      sw.onclick = function () { audio(); var p = {}; p[o[0]] = !on; D.learnSet(S, { subj: p }); save(); lastPanelKey = ''; };
+      body.appendChild(sw);
+    });
+    // progress: right first time out of all questions, per subject and per talking skill
+    body.appendChild(el('div', 'xhead', '<b>Progress</b>'));
+    var st = D.learnStats(S), keys = D.LEARN_SUBJ.filter(function (k) { return st[k]; }).concat(Object.keys(st).filter(function (k) { return D.LEARN_SUBJ.indexOf(k) < 0; }).sort());
+    if (!keys.length) body.appendChild(el('p', 'small', 'No answers yet. Results show here after a few learning chests.'));
+    else {
+      var tb = '<table class="prog"><tr><th></th><th>right first time</th></tr>';
+      keys.forEach(function (k) {
+        var x = st[k], n = x.r + x.m, sub = D.LEARN_SUBJ.indexOf(k) < 0;
+        tb += '<tr' + (sub ? ' class="sub"' : '') + '><td>' + esc(names[k] || k) + '</td><td>' + x.r + ' / ' + n + ' <span class="pct">' + Math.round(100 * x.r / n) + '%</span></td></tr>';
+      });
+      body.appendChild(el('div', '', tb + '</table>'));
+    }
+    var tr = D.learnTricky(S).slice(0, 12);
+    if (tr.length) {
+      body.appendChild(el('p', 'small', '<b>Still tricky</b> (asked more often until answered right twice):'));
+      body.appendChild(el('ul', 'tricky', tr.map(function (t) { return '<li>' + esc(t.text) + ' <span class="small">missed ' + t.m + '</span></li>'; }).join('')));
+    }
+    // own stories
+    body.appendChild(el('div', 'xhead', '<b>Your own stories</b>'));
+    body.appendChild(el('p', 'small', 'Write a social story for something coming up (a dentist visit, a fire drill, a new teacher). One page per line, from the child\'s point of view. It shows under 📖 Stories.'));
+    S.learn.stories.forEach(function (t) {
+      var r = el('div', 'row'), tx = el('div', 'txt', '<b>' + esc(t.title) + '</b><small>' + t.pages.length + ' pages · ' + STORY.friends[t.who].name + '</small>');
+      var del = el('button', 'btn small ' + (delArm === t.id ? 'danger' : 'ghost'), delArm === t.id ? 'Tap again' : 'Delete');
+      del.onclick = function () { if (delArm === t.id) { D.removeStory(S, t.id); delArm = null; save(); } else delArm = t.id; lastPanelKey = ''; };
+      r.appendChild(tx); r.appendChild(del); body.appendChild(r);
+    });
+    var form = el('div', 'sform'), ti = noKeys(el('input')); ti.type = 'text'; ti.placeholder = 'Title, e.g. Going to the dentist'; ti.maxLength = 60;
+    var who = noKeys(el('select'));
+    STORY.friends.forEach(function (f, k) { var o = el('option', '', esc(f.name) + ' reads it'); o.value = k; who.appendChild(o); });
+    var ta = noKeys(el('textarea')); ta.rows = 6; ta.placeholder = 'Tomorrow I am going to the dentist.\nThe dentist will look at my teeth.\nI can hold Jon\'s hand if I feel worried.';
+    var add = el('button', 'btn small go', 'Add story');
+    add.onclick = function () { var t = D.addStory(S, ti.value, +who.value, ta.value); if (!t) { A.sfx('no'); return; } save(); toast('📖 Story added!', 1400); ti.value = ta.value = ''; lastPanelKey = ''; };
+    form.appendChild(ti); form.appendChild(who); form.appendChild(ta); form.appendChild(add); body.appendChild(form);
+    backupRows(body);
+    body.appendChild(el('div', 'xhead', '<b>Play as an app</b>'));
+    if (P && P.isStandalone()) body.appendChild(el('p', 'small', '✓ Running as an installed app.'));
+    else if (P && P.canInstall()) { var ib = el('button', 'btn small go', 'Install the app'); ib.onclick = function () { P.install().then(function () { lastPanelKey = ''; }); }; body.appendChild(ib); }
+    else body.appendChild(el('p', 'small', (P && P.installHint()) || 'Use your browser menu to add this page to the home screen.') );
+    var lk = el('button', 'btn small ghost', '🔐 Lock this page'); lk.style.marginTop = '10px';
+    lk.onclick = function () { grownOk = false; menuPick = null; lastPanelKey = ''; }; body.appendChild(lk);
+  }
+  // ---- backup: the save as a short code or a file, to carry the game to another phone or computer
+  function saveName() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; }; return 'dig-through-worlds-save-' + d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + '.txt'; }
+  var pendingLoad = null;
+  function backupRows(body) {
+    body.appendChild(el('div', 'xhead', '<b>Move to another device</b>'));
+    if (!P) { body.appendChild(el('p', 'small', 'Backup is not available here.')); return; }
+    body.appendChild(el('p', 'small', 'Save the game as a file (or copy its code), send it to the other device, and load it there. Loading replaces the game on that device.'));
+    var row1 = el('div', 'resets'), fb = el('button', 'btn small blue', '💾 Save to a file'), cb = el('button', 'btn small glass', '📋 Copy code');
+    fb.onclick = function () { P.packSave(D.serialize(S)).then(function (code) { return P.shareFile(saveName(), code).then(function (ok) { if (!ok) P.download(saveName(), code); }); }).catch(function () { toast('Could not save the file.', 1800); }); };
+    cb.onclick = function () { P.packSave(D.serialize(S)).then(P.copyText).then(function (ok) { toast(ok ? '📋 Code copied. Paste it on the other device.' : 'Could not copy.', 2200); }); };
+    row1.appendChild(fb); row1.appendChild(cb); body.appendChild(row1);
+    var row2 = el('div', 'sform'), file = el('input'); file.type = 'file'; file.accept = '.txt,text/plain'; file.style.display = 'none';
+    var ob = el('button', 'btn small glass', '📂 Load a file'); ob.onclick = function () { file.click(); };
+    file.onchange = function () { if (file.files[0]) P.readFile(file.files[0]).then(tryLoad); };
+    var ta = noKeys(el('textarea')); ta.rows = 2; ta.placeholder = 'or paste a code (starts with DTW)';
+    var lb = el('button', 'btn small glass', 'Load code'); lb.onclick = function () { tryLoad(ta.value); };
+    row2.appendChild(file); row2.appendChild(ob); row2.appendChild(ta); row2.appendChild(lb); body.appendChild(row2);
+    if (pendingLoad) {
+      var box = el('div', 'confirm'), inp = noKeys(el('input'));
+      box.appendChild(el('p', '', 'This save has ' + D.WORLDS.filter(function (_, w) { return pendingLoad.unlocked[w]; }).length + ' world(s) open and ' + fmt(pendingLoad.coins) + ' coins. Loading it replaces this game. Type yes to load it.'));
+      inp.type = 'text'; inp.placeholder = 'type yes'; inp.autocomplete = 'off'; inp.autocapitalize = 'off';
+      var go = el('button', 'btn small danger', 'Load it'), no = el('button', 'btn small glass', 'Cancel'); go.disabled = true;
+      inp.oninput = function () { go.disabled = inp.value.trim().toLowerCase() !== 'yes'; };
+      no.onclick = function () { pendingLoad = null; lastPanelKey = ''; };
+      go.onclick = function () {
+        if (inp.value.trim().toLowerCase() !== 'yes') return;
+        S = pendingLoad; pendingLoad = null; S.mode = 'surface'; S.run = null; NOSAVE = false; save(); setAutoBtn(); lastPanelKey = ''; toast('✅ Game loaded!', 1800);
+      };
+      box.appendChild(inp); var bb = el('div', 'resets'); bb.appendChild(no); bb.appendChild(go); box.appendChild(bb); body.appendChild(box);
+    }
+  }
+  function tryLoad(code) {
+    P.unpackSave(String(code || '')).then(function (json) {
+      var s2 = D.deserialize(json);
+      if (!s2) throw new Error('bad save');
+      pendingLoad = s2; lastPanelKey = '';
+    }).catch(function () { A.sfx('no'); toast('That is not a Dig Through Worlds save.', 2200); });
+  }
   // ---------- the chest puzzle ----------
   // Shown while the logic holds a puzzle open (run.lock). Pins: one column per pin, the key's tooth over the pin to tap.
   // Pairs: a grid of face-down cards. Simon: four gems that light up in turn, then wait for the player.
@@ -635,6 +773,7 @@
     pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!', 'Tap a pipe to turn it. Make the water reach every green outlet!'],
     odd: ['🔎 An odd-one-out chest!', 'Find the one that is different.'],
     ice: ['🧊 An ice chest!', 'Tap an arrow next to the ice block. It slides until it hits a rock or the edge. Get it into the hole!'],
+    learn: { verb: ['📖 A word chest!', 'Which word fits? It already happened.'], plural: ['🦴 A word chest!', 'Which word means more than one?'], talk: ['💬 A talking chest!', ''], read: ['🔮 A story chest!', ''], math: ['🔢 A number chest!', 'Tap the answer.'] },
     path: ['💎 A gem-trail chest!', 'Tap the gems in order, 1, 2, 3…', 'Remember the numbers! Look…', 'The numbers are hidden. Tap the gems in order!']
   };
   var SLIDE_ICONS = ['🍎', '🍊', '🍋', '🍐', '🍇', '🍓', '🍒', '🥝', '🍑', '🍍', '🥥', '🍉', '🥕', '🌽', '🍄'];
@@ -721,6 +860,27 @@
       L.rocks.forEach(function (r, j) { html += '<div class="ic' + (r ? ' rock' : '') + (j === L.goal ? ' hole' : '') + '">' + (r ? '🪨' : '') + '</div>'; });
       html += '<div id="iceBlock" class="iceblk" data-at="' + at0 + '" style="' + pos() + '">🧊</div><div id="iceArrows" class="iceArrows">' + arrows(0.1) + '</div></div>' +
         '<button class="iceagain" data-k="4" aria-label="Start again">↺ Start again</button>';
+    } else if (kind === 'learn') {
+      var q = L.q, waiting = L.wait > 0, lastBad = L.out.length ? L.out[L.out.length - 1] : -1;
+      key = 'le|' + L.i + '|' + L.round + '|' + q.id + '|' + L.out.join() + '|' + waiting;
+      if (key === lockKey) return;
+      var said = L.subj === 'talk' || L.subj === 'read';
+      T0 = LOCK_TEXT.learn[L.subj]; hint = said ? q.ask : T0[1];
+      var newQ = lockKey.indexOf('le|' + L.i + '|' + L.round + '|' + q.id + '|') !== 0;
+      var qt = esc(q.text).replace('___', '<span class="blank">' + (L.subj === 'math' ? '' : '___') + '</span>');
+      html = '<div class="lq ' + L.subj + '">' + (q.who >= 0 ? '<span class="lpic"></span>' : '') + '<p class="lqt">' + qt + '</p></div>';
+      html += '<div class="lopts' + (said ? ' long' : '') + '">';
+      q.opts.forEach(function (o, j) {
+        var out = L.out.indexOf(j) >= 0;
+        html += '<button class="lo' + (out ? ' out' : '') + (out && j === lastBad && waiting ? ' bad' : '') + '" data-k="' + j + '"' + (out ? ' disabled' : '') + '>' + esc(o) + '</button>';
+      });
+      html += '</div>';
+      var tip = L.hint ? (said ? (q.why[lastBad] || '') : q.tip) : '';
+      html += '<p class="ltip' + (tip ? ' on' : '') + '">' + (tip ? '💡 ' + esc(tip) : '&nbsp;') + '</p>';
+      html += '<div class="dots">' + Array.apply(null, Array(L.rounds)).map(function (_, j) { return '<i' + (j < L.round ? ' class="on"' : '') + '></i>'; }).join('') + '</div>';
+      var who = q.who >= 0 ? q.who : 0;
+      if (newQ) speak(who, q.text.replace('___', 'blank') + (q.ask ? ' ' + q.ask : ''));
+      else if (tip && waiting) speak(who, tip);
     } else if (kind === 'odd') {
       key = 'od|' + L.i + '|' + L.round + '|' + L.cards.join('') + '|' + L.bad;
       if (key === lockKey) return;
@@ -777,6 +937,7 @@
     lockKey = key;
     $('lockTitle').textContent = T0[0]; $('lockHint').textContent = hint;
     $('lockBoard').innerHTML = html;
+    var lp = $('lockBoard').querySelector('.lpic'); if (lp) lp.appendChild(portrait(L.q.who, 2));
     if (kind === 'slide') { // tiles glide from their old cell to the new one
       var tl = $('lockBoard').querySelectorAll('.tile'), old = prevTiles;
       if (old) for (var q = 0; q < tl.length; q++) {
@@ -935,7 +1096,7 @@
   // so the joystick never got its hold. Pointer events still fire with the touch defaults blocked.
   ['touchstart', 'touchmove'].forEach(function (ev) { cv.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
   cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
-  document.addEventListener('selectstart', function (e) { if (e.target.tagName !== 'INPUT') e.preventDefault(); });
+  document.addEventListener('selectstart', function (e) { if (!/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) e.preventDefault(); });
   // the Faster button: a press is one extra swing, and holding it keeps swinging at FAST_TPS swings a second.
   // The held swings are counted on the game clock in advance(), so slow frames do not lose any.
   var FAST_TPS = 7, fastHeld = false, fastAcc = 0, bFast = $('bFast');
@@ -955,7 +1116,7 @@
   var KEYS = { arrowup: 'up', w: 'up', arrowright: 'right', d: 'right', arrowdown: 'down', s: 'down', arrowleft: 'left', a: 'left' };
   window.addEventListener('keydown', function (e) {
     if (splash) { startGame(); return; }
-    if (e.target.tagName === 'INPUT') return; // typing in the reset box
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return; // typing in a box on a panel
     var k = e.key.toLowerCase();
     if (k === ' ' && S.mode === 'dig' && S.run.dodge > 0) { if (!e.repeat) tryDodge(); e.preventDefault(); return; }
     var ICE_KEY = { arrowup: 0, w: 0, arrowright: 1, d: 1, arrowdown: 2, s: 2, arrowleft: 3, a: 3, r: 4 };
@@ -1015,6 +1176,7 @@
   window.addEventListener('resize', function () { R.resize(); });
   setMute(A.isMuted()); setAutoBtn(); advance(0); requestAnimationFrame(frame);
 
+  try { if (typeof DTWPwa !== 'undefined') DTWPwa.register(); } catch (e) {}
   window.__game = {
     D: D, get s() { return S; },
     // advance the game frame by frame (works while the tab is throttled), drawing once at the end

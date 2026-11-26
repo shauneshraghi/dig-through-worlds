@@ -2,6 +2,16 @@
 
 Settled by the user; treat them as decided and do not re-ask. Rebalance against the two-bot playthrough test (see `AGENTS.md`, Commands).
 
+## Learning chests, stories and backup, 2026-11-26
+
+- The player (Nim's real-life counterpart) is a strong first-grade reader whose speech-language goals are irregular past-tense verbs, social stories and pragmatic language; his SLP's take-home work adds reading comprehension (what will happen next), expected vs unexpected behaviour and greeting others. Learning content follows those goals first; math facts are included too.
+- Learning goes into the chest puzzles (where the dig already pauses), not new interruptions: by default half the chests are learning chests, settable off, some, half or most on a grown-up page behind a sum. Grade 1 or 2. Smash stays as the way out.
+- A miss is never punished: a tip or a kind why, a short wait, the wrong answer greyed out, same question. Missed items come back more often (Leitner boxes).
+- Social stories follow Carol Gray's style and are never quizzes or rewarded: they are read from a Stories menu, told by a friend. Grown-ups can write their own (one page per line).
+- Read aloud is not forced (he reads well); with it on, learning questions are read too.
+- No screen-time reminder: the parent manages time.
+- The game installs as an app (manifest, service worker, icons) and plays offline. A save moves between devices as a file or a pasted code (no server sync).
+
 ## Cave critters, 2026-11-24
 
 - Light real-time cave creatures, with no menus and no fail state: bats that take ore or treasure lying on the floor (never a bone) and rattle-bones, a small friendly skeleton that bumps the miner dizzy for a moment. From layer 3 down, one about every 25 s of digging, at most two at once, never during a chest puzzle or the relic party.

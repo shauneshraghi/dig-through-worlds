@@ -794,7 +794,7 @@ var DTW = (function () {
       upgrades: { drill: 0, speed: 0, bag: 0, magnet: 0, splash: 0, twin: 0, crewDrill: 0, crewSpeed: 0 }, workers: { diggers: 0, staff: 0 }, pile: 0, mats: emptyMats(), matBought: emptyMats(),
       museum: WORLDS.map(function () { return { pieces: emptyPieces(), gold: emptyPieces() }; }), golden: false, quiz: null, quizT: 0, guest: null, guestT: 0, guestN: 0,
       sites: [null, null, null, null, null], world: 0, mode: 'surface', run: null, events: [], hub: hubHome(), auto: true, carry: [],
-      stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }, friends: newFriends(), speak: false
+      stats: { trapsSprung: 0, timePlayed: 0, digs: 0 }, friends: newFriends(), speak: false, learn: newLearn()
     };
     return s;
   }
@@ -981,9 +981,14 @@ var DTW = (function () {
   // ---------- chest locks ----------
   function openLock(s, i) {
     var r = s.run, w = s.world, last = LOCK_KINDS.indexOf(r.lastLock), kind = forceKind, nk = LOCK_KINDS.length;
+    var subj = null;
+    if (kind === 'learn' || (!kind && LEARN_MIX[learnOf(s).mix] > 0 && learnSubjects(s).length && rand(s) < LEARN_MIX[learnOf(s).mix])) {
+      subj = learnSubject(s); kind = subj ? 'learn' : null;
+    }
     if (!kind) kind = last < 0 ? LOCK_KINDS[Math.floor(rand(s) * nk)] : LOCK_KINDS[(last + 1 + Math.floor(rand(s) * (nk - 1))) % nk];
-    r.lastLock = kind;
-    if (kind === 'pairs') {
+    if (kind !== 'learn') r.lastLock = kind;
+    if (kind === 'learn') openLearn(s, i, subj);
+    else if (kind === 'pairs') {
       var cards = [];
       for (var c = 0; c < PAIRS[w]; c++) cards.push(c, c);
       for (var j = cards.length - 1; j > 0; j--) { var q = Math.floor(rand(s) * (j + 1)), t = cards[j]; cards[j] = cards[q]; cards[q] = t; }
@@ -1182,7 +1187,11 @@ var DTW = (function () {
     var L = s.mode === 'dig' && s.run.lock;
     if (!L || k < 0) return false;
     var solved = false;
-    if (L.kind === 'pairs') {
+    if (L.kind === 'learn') {
+      var lt = learnTap(s, L, k);
+      if (lt === null) return false;
+      solved = lt;
+    } else if (L.kind === 'pairs') {
       if (k >= L.cards.length || L.wait > 0 || L.done[k] || L.up.indexOf(k) >= 0) return false;
       L.up.push(k); L.taps++;
       emit(s, { type: 'pin', k: k });
@@ -1257,6 +1266,185 @@ var DTW = (function () {
     s.run.lock = null; breakTile(s, L.i, null, true);
     emit(s, { type: 'smashed', i: L.i });
     return true;
+  }
+  // ---------- learning chests and stories ----------
+  // A 'learn' chest asks LEARN_ROUNDS[subj] questions, three answers each: 'verb' (irregular past tense), 'plural'
+  // (irregular plurals), 'talk' (what to say: pragmatic language) and 'read' (a short scene: what will happen next?), whose words are in js/lessons.js (DTWLessons), and
+  // 'math', made here for the grade. A miss shows a tip, waits LEARN_WAIT s and takes that answer out; the question stays.
+  // Each item keeps a box (b, 0 to 4, Leitner style: right first time moves it up, a miss sends it back to 0) and counts
+  // (r, m) in s.learn.items; low boxes are asked more often (LEARN_WEIGHT; items never seen weigh LEARN_NEW). A grown-up
+  // sets s.learn.mix (the share of chests that are learning chests, LEARN_MIX), the grade and the subjects.
+  var LEARN_SUBJ = ['verb', 'plural', 'talk', 'read', 'math'], LEARN_ROUNDS = { verb: 3, plural: 3, talk: 2, read: 2, math: 3 };
+  var LEARN_MIX = [0, 0.25, 0.5, 0.75], LEARN_WAIT = 1.2, LEARN_WEIGHT = [8, 4, 2, 1, 0.5], LEARN_NEW = 3, STORY_PAGES = 16, STORY_CHARS = 240;
+  function lessons() { return typeof DTWLessons !== 'undefined' && DTWLessons ? DTWLessons : null; }
+  function newLearn() { return { mix: 2, grade: 1, subj: { verb: true, plural: true, talk: true, read: true, math: true }, items: {}, stats: {}, last: null, stories: [], read: {}, n: 0 }; }
+  function learnOf(s) { if (!s.learn) s.learn = newLearn(); return s.learn; }
+  function learnSet(s, o) {
+    var l = learnOf(s);
+    if (o.grade != null) l.grade = o.grade === 2 ? 2 : 1;
+    if (o.mix != null) l.mix = Math.max(0, Math.min(LEARN_MIX.length - 1, Math.round(+o.mix) || 0));
+    if (o.subj) LEARN_SUBJ.forEach(function (k) { if (k in o.subj) l.subj[k] = !!o.subj[k]; });
+  }
+  function learnPool(s, subj) { // the lesson items of a subject at the grade (second grade gets both grades)
+    var L = lessons(), g = learnOf(s).grade, list = L && (subj === 'verb' ? L.verbs : subj === 'plural' ? L.plurals : subj === 'talk' ? L.talk : subj === 'read' ? L.read : null);
+    return (list || []).filter(function (it) { return (it.grade || 1) <= g; });
+  }
+  function learnSubjects(s) {
+    var l = learnOf(s);
+    return LEARN_SUBJ.filter(function (k) { return l.subj[k] && (k === 'math' || learnPool(s, k).length > 0); });
+  }
+  function learnSubject(s) { // the next subject: any switched on, not the last one when there is a choice
+    var ks = learnSubjects(s), l = learnOf(s);
+    if (!ks.length) return null;
+    if (ks.length > 1) ks = ks.filter(function (k) { return k !== l.last; });
+    return ks[Math.floor(rand(s) * ks.length)];
+  }
+  function shuffleOpts(s, opts) { for (var j = opts.length - 1; j > 0; j--) { var q = Math.floor(rand(s) * (j + 1)), t = opts[j]; opts[j] = opts[q]; opts[q] = t; } return opts; }
+  function itemWeight(s, id) { var it = learnOf(s).items[id]; return it ? LEARN_WEIGHT[Math.max(0, Math.min(4, it.b | 0))] : LEARN_NEW; }
+  function weighted(s, ids) {
+    var tot = 0, ws = ids.map(function (id) { var w = itemWeight(s, id); tot += w; return w; }), r = rand(s) * tot;
+    for (var k = 0; k < ids.length; k++) { r -= ws[k]; if (r < 0) return k; }
+    return ids.length - 1;
+  }
+  // ---- math facts: an id like '7+5', '12-4' or '7+?=10' is the whole question
+  function mathEval(f) {
+    var m = /^(\d+)([+-])(\d+|\?)(?:=(\d+))?$/.exec(f);
+    if (!m) return NaN;
+    var a = +m[1], b = +m[3];
+    if (m[3] === '?') return m[2] === '+' ? +m[4] - a : a - +m[4];
+    return m[2] === '+' ? a + b : a - b;
+  }
+  function ri(s, lo, hi) { return lo + Math.floor(rand(s) * (hi - lo + 1)); }
+  function mathFact(s, g) {
+    var t = Math.floor(rand(s) * 4), a, b;
+    if (g === 1) {
+      if (t === 0) { a = ri(s, 1, 10); b = ri(s, 1, 10); return a + '+' + b; }
+      if (t === 1) { a = ri(s, 5, 20); b = ri(s, 1, Math.min(10, a)); return a + '-' + b; }
+      if (t === 2) { a = ri(s, 1, 9); return a + '+?=10'; }
+      a = ri(s, 2, 10); b = ri(s, a + 1, 20); return a + '+?=' + b;
+    }
+    if (t === 0) { a = ri(s, 11, 70); b = ri(s, 5, 99 - a); return a + '+' + b; }
+    if (t === 1) { a = ri(s, 20, 99); b = ri(s, 5, a - 1); return a + '-' + b; }
+    if (t === 2) { a = ri(s, 1, 9) * 10 + ri(s, 0, 9); return a < 90 && (rand(s) < 0.5 || a < 10) ? a + '+10' : a + '-10'; }
+    a = ri(s, 2, 18); b = ri(s, a + 2, 20); return a + '+?=' + b;
+  }
+  function mathQ(s, f) {
+    var v = mathEval(f), m = /^(\d+)([+-])(\d+|\?)(?:=(\d+))?$/.exec(f), opts = [v], near = [1, -1, 2, -2, 10, -10, 3, -3];
+    if (Math.max(v, +m[1], m[3] === '?' ? +m[4] : +m[3]) <= 20) near = [1, -1, 2, -2, 3, -3];
+    shuffleOpts(s, near);
+    for (var k = 0; k < near.length && opts.length < 3; k++) { var o = v + near[k]; if (o >= 0 && opts.indexOf(o) < 0) opts.push(o); }
+    var text = m[3] === '?' ? m[1] + ' ' + m[2] + ' ? = ' + m[4] : m[1] + ' ' + m[2] + ' ' + m[3] + ' = ?';
+    var tip = m[3] === '?' ? 'Start at ' + m[1] + ' and count up to ' + m[4] + '.' : m[2] === '+' ? 'Start at ' + m[1] + ' and count on ' + m[3] + '.' : 'Start at ' + m[1] + ' and count back ' + m[3] + '.';
+    if (m[3] === '10') tip = m[2] === '+' ? 'Plus 10: the tens go up by one.' : 'Take away 10: the tens go down by one.';
+    return { id: 'math:' + f, subj: 'math', skill: 'math', text: text, opts: shuffleOpts(s, opts.map(String)), answer: String(v), tip: tip, who: -1 };
+  }
+  // the next question of a subject, avoiding the ids in used
+  function learnPick(s, subj, used) {
+    if (subj === 'math') {
+      var l = learnOf(s), g = l.grade, missed = Object.keys(l.items).filter(function (id) {
+        return id.indexOf('math:') === 0 && (l.items[id].b | 0) < 2 && used.indexOf(id) < 0 && mathFits(id.slice(5), g);
+      });
+      if (missed.length && rand(s) < 0.5) return mathQ(s, missed[weighted(s, missed)].slice(5));
+      for (var tries = 0; tries < 20; tries++) { var f = mathFact(s, g); if (used.indexOf('math:' + f) < 0) return mathQ(s, f); }
+      return mathQ(s, f);
+    }
+    var pool = learnPool(s, subj).filter(function (it) { return used.indexOf(subj + ':' + it.id) < 0; });
+    if (!pool.length) pool = learnPool(s, subj);
+    if (!pool.length) return null;
+    var it = pool[weighted(s, pool.map(function (p) { return subj + ':' + p.id; }))], q = { id: subj + ':' + it.id, subj: subj, skill: subj, text: it.text, who: -1 };
+    if (subj === 'verb') { q.answer = it.past; q.opts = [it.past].concat(it.wrong); q.tip = 'Today I ' + it.base + '. Yesterday I ' + it.past + '.'; q.why = [];
+    } else if (subj === 'plural') { q.answer = it.many; q.opts = [it.many].concat(it.wrong); q.tip = 'One ' + it.one + ', two ' + it.many + '.'; q.why = [];
+    } else {
+      q.skill = it.skill; q.who = it.who == null ? -1 : it.who; q.ask = it.ask; q.answer = it.opts[0];
+      var why = {}; it.opts.forEach(function (o, k) { why[o] = (it.why && it.why[k]) || ''; });
+      q.opts = it.opts.slice(); q.tip = ''; shuffleOpts(s, q.opts);
+      q.why = q.opts.map(function (o) { return why[o]; });
+      return q;
+    }
+    shuffleOpts(s, q.opts);
+    return q;
+  }
+  function mathFits(f, g) { var m = f.match(/\d+/g), v = mathEval(f); return !!m && !isNaN(v) && Math.max.apply(null, m.map(Number).concat([v])) <= (g === 1 ? 20 : 100); }
+  function openLearn(s, i, subj) {
+    var L = { i: i, kind: 'learn', subj: subj, round: 0, rounds: LEARN_ROUNDS[subj], wait: 0, bad: -1, taps: 0, used: [] };
+    learnOf(s).last = subj; s.run.lock = L; dealLearn(s, L);
+  }
+  function dealLearn(s, L) {
+    L.q = learnPick(s, L.subj, L.used); L.used.push(L.q.id); L.miss = false; L.hint = false; L.out = []; L.bad = -1;
+  }
+  function learnMark(s, q, right) { // a question finished: right first time, or missed on the way
+    var l = learnOf(s), it = l.items[q.id] || (l.items[q.id] = { b: 0, r: 0, m: 0 });
+    if (right) { it.r++; it.b = Math.min(4, (it.b | 0) + 1); } else { it.m++; it.b = 0; }
+    [q.subj].concat(q.skill !== q.subj ? [q.skill] : []).forEach(function (k) { var st = l.stats[k] || (l.stats[k] = { r: 0, m: 0 }); if (right) st.r++; else st.m++; });
+    emit(s, { type: 'learned', subj: q.subj, id: q.id, right: right });
+  }
+  function learnTap(s, L, k) { // true when the chest is solved
+    if (k >= L.q.opts.length || L.wait > 0 || L.out.indexOf(k) >= 0) return null;
+    L.taps++;
+    if (L.q.opts[k] === L.q.answer) {
+      learnMark(s, L.q, !L.miss); L.round++; emit(s, { type: 'match' });
+      if (L.round < L.rounds) { dealLearn(s, L); return false; }
+      return true;
+    }
+    L.miss = true; L.hint = true; L.bad = k; L.out.push(k); L.wait = LEARN_WAIT; emit(s, { type: 'miss' });
+    return false;
+  }
+  function learnStats(s) { return JSON.parse(JSON.stringify(learnOf(s).stats)); }
+  function learnTricky(s) { // items missed and not yet answered right twice since, worst first
+    var l = learnOf(s), L = lessons(), out = [];
+    Object.keys(l.items).forEach(function (id) {
+      var it = l.items[id]; if (!it.m || it.b >= 2) return;
+      var p = id.indexOf(':'), subj = id.slice(0, p), key = id.slice(p + 1), text = key;
+      if (subj === 'math') text = key.replace(/([+\-=])/g, ' $1 ') + (key.indexOf('?') < 0 ? ' = ' + mathEval(key) : ' (' + mathEval(key) + ')');
+      else {
+        var list = L && (subj === 'verb' ? L.verbs : subj === 'plural' ? L.plurals : subj === 'read' ? L.read : L.talk), f = (list || []).filter(function (x) { return x.id === key; })[0];
+        if (f) text = subj === 'verb' ? f.base + ' → ' + f.past : subj === 'plural' ? f.one + ' → ' + f.many : f.text;
+      }
+      out.push({ id: id, subj: subj, text: text, r: it.r, m: it.m });
+    });
+    return out.sort(function (a, b) { return b.m - a.m; });
+  }
+  // ---- stories: the built-in social stories (DTWLessons.stories) and a grown-up's own (s.learn.stories)
+  function storyList(s) {
+    var L = lessons();
+    return ((L && L.stories) || []).map(function (t) { return { id: t.id, who: t.who, title: t.title, pages: t.pages, own: false }; })
+      .concat(learnOf(s).stories.map(function (t) { return { id: t.id, who: t.who, title: t.title, pages: t.pages, own: true }; }));
+  }
+  function cleanStory(title, who, pages) {
+    pages = (pages || []).map(function (p) { return String(p).trim().slice(0, STORY_CHARS); }).filter(Boolean).slice(0, STORY_PAGES);
+    if (!pages.length) return null;
+    return { title: String(title || '').trim().slice(0, 60) || 'My story', who: Math.max(0, Math.min(FRIENDS.length - 1, who | 0)), pages: pages };
+  }
+  function addStory(s, title, who, text) {
+    var t = cleanStory(title, who, String(text || '').split(/\r?\n/)), l = learnOf(s);
+    if (!t) return null;
+    t.id = 'own' + (++l.n); l.stories.push(t);
+    return { id: t.id, who: t.who, title: t.title, pages: t.pages, own: true };
+  }
+  function removeStory(s, id) {
+    var l = learnOf(s), n = l.stories.length;
+    l.stories = l.stories.filter(function (t) { return t.id !== id; });
+    return l.stories.length < n;
+  }
+  function storyRead(s, id) { var l = learnOf(s); l.read[id] = (l.read[id] | 0) + 1; }
+  function loadLearn(o) {
+    var l = newLearn();
+    if (!o || typeof o !== 'object') return l;
+    if (o.grade === 2) l.grade = 2;
+    if (typeof o.mix === 'number' && o.mix >= 0 && o.mix < LEARN_MIX.length) l.mix = o.mix | 0;
+    if (o.subj && typeof o.subj === 'object') LEARN_SUBJ.forEach(function (k) { if (k in o.subj) l.subj[k] = !!o.subj[k]; });
+    var clean = function (src) { var d = {}; if (src && typeof src === 'object' && !Array.isArray(src)) Object.keys(src).forEach(function (k) { var v = src[k]; if (v && typeof v === 'object') d[k] = { b: Math.max(0, Math.min(4, v.b | 0)), r: v.r | 0, m: v.m | 0 }; }); return d; };
+    l.items = clean(o.items); l.stats = {};
+    var st = clean(o.stats); Object.keys(st).forEach(function (k) { l.stats[k] = { r: st[k].r, m: st[k].m }; });
+    if (o.read && typeof o.read === 'object') Object.keys(o.read).forEach(function (k) { l.read[k] = o.read[k] | 0; });
+    l.n = o.n | 0;
+    (Array.isArray(o.stories) ? o.stories : []).forEach(function (t) {
+      if (!t || !Array.isArray(t.pages)) return;
+      var c = cleanStory(t.title, t.who, t.pages); if (!c) return;
+      c.id = typeof t.id === 'string' ? t.id : 'own' + (++l.n); l.stories.push(c);
+    });
+    if (LEARN_SUBJ.indexOf(o.last) >= 0) l.last = o.last;
+    return l;
   }
   function goHome(s, reason) {
     if (s.mode !== 'dig') return;
@@ -1843,7 +2031,7 @@ var DTW = (function () {
     var digging = s.run && s.mode !== 'surface', left = [];
     var bag = digging ? s.run.bag.concat(s.run.loot.filter(function (l) { if (lootWaits(s, l)) { left.push(l.item); return false; } return true; }).map(function (l) { return l.item; })) : [];
     return JSON.stringify({
-      v: 6, friends: friendList(s), speak: s.speak === true, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
+      v: 7, learn: learnOf(s), friends: friendList(s), speak: s.speak === true, golden: !!s.golden, auto: s.auto !== false, carry: s.carry, pile: (s.pile || 0) + (s.pileHold || 0), seed: s.seed, rng: s.rng, coins: s.coins, mats: s.mats, unlocked: s.unlocked, relics: s.relics, upgrades: s.upgrades,
       workers: s.workers, museum: s.museum, world: s.world, stats: s.stats, bag: bag,
       sites: s.sites.map(function (g) { return g && { t: Array.from(g.t), v: Array.from(g.v), deepest: g.deepest, deepestX: g.deepestX, deepestZ: g.deepestZ, gen: g.gen || 0,
         bones: (g.bones || []).concat(digging && s.run.grid === g ? left : []) }; })
@@ -1852,10 +2040,11 @@ var DTW = (function () {
   function deserialize(str) {
     try {
       var o = JSON.parse(str);
-      if (!o || [1, 2, 3, 4, 5, 6].indexOf(o.v) < 0) return null;
+      if (!o || [1, 2, 3, 4, 5, 6, 7].indexOf(o.v) < 0) return null;
       var s = newState(o.seed);
       ['rng', 'coins', 'unlocked', 'relics', 'upgrades', 'workers', 'museum', 'world', 'stats', 'auto', 'carry', 'pile', 'mats', 'golden', 'speak'].forEach(function (k) { if (o[k] != null) s[k] = o[k]; });
       if (!Array.isArray(s.mats) || s.mats.length !== 5) s.mats = emptyMats();
+      s.learn = loadLearn(o.learn);
       s.friends = newFriends();
       (Array.isArray(o.friends) ? o.friends : []).forEach(function (f, k) {
         if (k < FRIENDS.length && f) s.friends[k] = { xp: +f.xp || 0, talk: f.talk == null ? -1 : f.talk | 0, gift: f.gift == null ? -1 : f.gift | 0, told: f.told | 0 };
@@ -1911,6 +2100,8 @@ var DTW = (function () {
   }
 
   return {
+    LEARN_MIX: LEARN_MIX, LEARN_SUBJ: LEARN_SUBJ, learnSet: learnSet, learnStats: learnStats, learnTricky: learnTricky, learnSubjects: learnSubjects, storyList: storyList, addStory: addStory, removeStory: removeStory, storyRead: storyRead,
+    _learnPick: learnPick, _learnSubject: learnSubject, _mathEval: mathEval,
     MATS: MATS, MAT_PRICE: MAT_PRICE, GEM: GEM, canAfford: canAfford, sellMat: sellMat, buyMat: buyMat, matBuyPrice: matBuyPrice, bank: bank,
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,
