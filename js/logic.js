@@ -1269,24 +1269,36 @@ var DTW = (function () {
   }
   // ---------- learning chests and stories ----------
   // A 'learn' chest asks LEARN_ROUNDS[subj] questions, three answers each: 'verb' (irregular past tense), 'plural'
-  // (irregular plurals), 'talk' (what to say: pragmatic language) and 'read' (a short scene: what will happen next?), whose words are in js/lessons.js (DTWLessons), and
-  // 'math', made here for the grade. A miss shows a tip, waits LEARN_WAIT s and takes that answer out; the question stays.
+  // (irregular plurals), 'grammar' (fill the blank: pronouns, place words, is/are, not), 'talk' (what to say: pragmatic language),
+  // 'feel' (feelings, the size of a problem, calming down), 'read' (a short scene: what will happen next?), 'wh' (who, what, where, when,
+  // why about a scene), 'seq' (what comes first, next, last) and 'vocab' (word groups, opposites, same, two meanings), whose words are in
+  // js/lessons.js (DTWLessons), and 'math', made here for the grade (sums and differences, place value, which is biggest, clocks, word problems). A miss shows a tip, waits LEARN_WAIT s and takes that answer out; the question stays.
   // Each item keeps a box (b, 0 to 4, Leitner style: right first time moves it up, a miss sends it back to 0) and counts
   // (r, m) in s.learn.items; low boxes are asked more often (LEARN_WEIGHT; items never seen weigh LEARN_NEW). A grown-up
   // sets s.learn.mix (the share of chests that are learning chests, LEARN_MIX), the grade and the subjects.
-  var LEARN_SUBJ = ['verb', 'plural', 'talk', 'read', 'math'], LEARN_ROUNDS = { verb: 3, plural: 3, talk: 2, read: 2, math: 3 };
+  // The subjects named on the grown-ups page are the child's speech-language goals first (focus: verb and talk, asked LEARN_FOCUS times as often).
+  var LEARN_SUBJ = ['verb', 'plural', 'grammar', 'talk', 'feel', 'read', 'wh', 'seq', 'vocab', 'math'];
+  var LEARN_ROUNDS = { verb: 3, plural: 3, grammar: 3, talk: 2, feel: 2, read: 2, wh: 2, seq: 2, vocab: 3, math: 3 };
+  var LEARN_KEY = { verb: 'verbs', plural: 'plurals', grammar: 'grammar', talk: 'talk', feel: 'feel', read: 'read', wh: 'wh', seq: 'seq', vocab: 'vocab' }; // subject -> DTWLessons list
+  var LEARN_FOCUS = 3, FOCUS_DEFAULT = ['verb', 'talk', 'read'];
   var LEARN_MIX = [0, 0.25, 0.5, 0.75], LEARN_WAIT = 1.2, LEARN_WEIGHT = [8, 4, 2, 1, 0.5], LEARN_NEW = 3, STORY_PAGES = 16, STORY_CHARS = 240;
   function lessons() { return typeof DTWLessons !== 'undefined' && DTWLessons ? DTWLessons : null; }
-  function newLearn() { return { mix: 2, grade: 1, subj: { verb: true, plural: true, talk: true, read: true, math: true }, items: {}, stats: {}, last: null, stories: [], read: {}, n: 0 }; }
+  function newLearn() {
+    var subj = {}, focus = {};
+    LEARN_SUBJ.forEach(function (k) { subj[k] = true; });
+    FOCUS_DEFAULT.forEach(function (k) { focus[k] = true; });
+    return { mix: 2, grade: 1, subj: subj, focus: focus, items: {}, stats: {}, last: null, stories: [], read: {}, n: 0 };
+  }
   function learnOf(s) { if (!s.learn) s.learn = newLearn(); return s.learn; }
   function learnSet(s, o) {
     var l = learnOf(s);
     if (o.grade != null) l.grade = o.grade === 2 ? 2 : 1;
     if (o.mix != null) l.mix = Math.max(0, Math.min(LEARN_MIX.length - 1, Math.round(+o.mix) || 0));
     if (o.subj) LEARN_SUBJ.forEach(function (k) { if (k in o.subj) l.subj[k] = !!o.subj[k]; });
+    if (o.focus) { if (!l.focus) l.focus = {}; LEARN_SUBJ.forEach(function (k) { if (k in o.focus) l.focus[k] = !!o.focus[k]; }); }
   }
   function learnPool(s, subj) { // the lesson items of a subject at the grade (second grade gets both grades)
-    var L = lessons(), g = learnOf(s).grade, list = L && (subj === 'verb' ? L.verbs : subj === 'plural' ? L.plurals : subj === 'talk' ? L.talk : subj === 'read' ? L.read : null);
+    var L = lessons(), g = learnOf(s).grade, list = L && LEARN_KEY[subj] && L[LEARN_KEY[subj]];
     return (list || []).filter(function (it) { return (it.grade || 1) <= g; });
   }
   function learnSubjects(s) {
@@ -1297,7 +1309,11 @@ var DTW = (function () {
     var ks = learnSubjects(s), l = learnOf(s);
     if (!ks.length) return null;
     if (ks.length > 1) ks = ks.filter(function (k) { return k !== l.last; });
-    return ks[Math.floor(rand(s) * ks.length)];
+    var foc = l.focus || {}, ws = ks.map(function (k) { return foc[k] ? LEARN_FOCUS : 1; }), tot = 0, r;
+    ws.forEach(function (w) { tot += w; });
+    r = rand(s) * tot;
+    for (var j = 0; j < ks.length; j++) { r -= ws[j]; if (r < 0) return ks[j]; }
+    return ks[ks.length - 1];
   }
   function shuffleOpts(s, opts) { for (var j = opts.length - 1; j > 0; j--) { var q = Math.floor(rand(s) * (j + 1)), t = opts[j]; opts[j] = opts[q]; opts[q] = t; } return opts; }
   function itemWeight(s, id) { var it = learnOf(s).items[id]; return it ? LEARN_WEIGHT[Math.max(0, Math.min(4, it.b | 0))] : LEARN_NEW; }
@@ -1306,16 +1322,40 @@ var DTW = (function () {
     for (var k = 0; k < ids.length; k++) { r -= ws[k]; if (r < 0) return k; }
     return ids.length - 1;
   }
-  // ---- math facts: an id like '7+5', '12-4' or '7+?=10' is the whole question
-  function mathEval(f) {
-    var m = /^(\d+)([+-])(\d+|\?)(?:=(\d+))?$/.exec(f);
-    if (!m) return NaN;
-    var a = +m[1], b = +m[3];
-    if (m[3] === '?') return m[2] === '+' ? +m[4] - a : a - +m[4];
-    return m[2] === '+' ? a + b : a - b;
+  // ---- math questions: the id is the whole question. '7+5', '12-4', '7+?=10' (arithmetic); 't:4,7' (4 tens, 7 ones),
+  // 'h:3,4,7' (hundreds, tens, ones); 'c:47,74,44' (which is the biggest); 'k:3:30' (a clock); 'w:<template>:<a>,<b>' (a word problem
+  // from DTWLessons.mathWords). Skills: math, place, time, story.
+  var MATH_ARITH = /^(\d+)([+-])(\d+|\?)(?:=(\d+))?$/;
+  function mathWordList() { var L = lessons(); return (L && L.mathWords) || []; }
+  function mathWord(id) { return mathWordList().filter(function (w) { return w.id === id; })[0] || null; }
+  function clockStr(h, m) { return h + ':' + (m < 10 ? '0' : '') + m; }
+  function mathParse(f) {
+    var m = MATH_ARITH.exec(f);
+    if (m) return { kind: 'a', m: m };
+    if ((m = /^t:(\d),(\d)$/.exec(f))) return { kind: 't', t: +m[1], o: +m[2] };
+    if ((m = /^h:(\d),(\d),(\d)$/.exec(f))) return { kind: 'h', h: +m[1], t: +m[2], o: +m[3] };
+    if ((m = /^c:(\d+),(\d+),(\d+)$/.exec(f))) return { kind: 'c', n: [+m[1], +m[2], +m[3]] };
+    if ((m = /^k:(\d+):(\d\d)$/.exec(f))) return { kind: 'k', h: +m[1], mi: +m[2] };
+    if ((m = /^w:([^:,]+):(\d+),(\d+)$/.exec(f))) return { kind: 'w', id: m[1], a: +m[2], b: +m[3] };
+    return null;
+  }
+  function mathEval(f) { // the answer: a number, or 'H:MM' for a clock; NaN for a bad id
+    var p = mathParse(f);
+    if (!p) return NaN;
+    if (p.kind === 'a') {
+      var m = p.m, a = +m[1], b = +m[3];
+      if (m[3] === '?') return m[2] === '+' ? +m[4] - a : a - +m[4];
+      return m[2] === '+' ? a + b : a - b;
+    }
+    if (p.kind === 't') return p.t * 10 + p.o;
+    if (p.kind === 'h') return p.h * 100 + p.t * 10 + p.o;
+    if (p.kind === 'c') return Math.max.apply(null, p.n);
+    if (p.kind === 'k') return clockStr(p.h, p.mi);
+    var w = mathWord(p.id);
+    return w ? (w.op === '-' ? p.a - p.b : p.a + p.b) : NaN;
   }
   function ri(s, lo, hi) { return lo + Math.floor(rand(s) * (hi - lo + 1)); }
-  function mathFact(s, g) {
+  function mathFact(s, g) { // an arithmetic fact for the grade
     var t = Math.floor(rand(s) * 4), a, b;
     if (g === 1) {
       if (t === 0) { a = ri(s, 1, 10); b = ri(s, 1, 10); return a + '+' + b; }
@@ -1328,15 +1368,86 @@ var DTW = (function () {
     if (t === 2) { a = ri(s, 1, 9) * 10 + ri(s, 0, 9); return a < 90 && (rand(s) < 0.5 || a < 10) ? a + '+10' : a + '-10'; }
     a = ri(s, 2, 18); b = ri(s, a + 2, 20); return a + '+?=' + b;
   }
-  function mathQ(s, f) {
-    var v = mathEval(f), m = /^(\d+)([+-])(\d+|\?)(?:=(\d+))?$/.exec(f), opts = [v], near = [1, -1, 2, -2, 10, -10, 3, -3];
-    if (Math.max(v, +m[1], m[3] === '?' ? +m[4] : +m[3]) <= 20) near = [1, -1, 2, -2, 3, -3];
+  function mathId(s, g) { // the next math question: about half arithmetic, the rest place value or biggest, word problems, clocks
+    if (rand(s) < 0.5) return mathFact(s, g);
+    var kinds = ['place', 'time'], words = mathWordList().filter(function (w) { return (w.grade || 1) <= g; }), a, b;
+    if (words.length) kinds.push('story');
+    var kind = kinds[Math.floor(rand(s) * kinds.length)];
+    if (kind === 'time') return 'k:' + ri(s, 1, 12) + ':' + (g === 1 ? (rand(s) < 0.5 ? '00' : '30') : (function (m) { return (m < 10 ? '0' : '') + m; })(5 * ri(s, 0, 11)));
+    if (kind === 'story') {
+      var w = words[Math.floor(rand(s) * words.length)];
+      var lo = w.min || 1; // a template may need both numbers at least min (so "1 gems" never shows)
+      if (w.op === '-') { a = g === 1 ? ri(s, 5, 20) : ri(s, 20, 99); b = ri(s, lo, g === 1 ? Math.min(10, a - 1) : a - 5); }
+      else if (g === 1) { a = ri(s, lo, 10); b = ri(s, lo, 10); } else { a = ri(s, Math.max(11, lo), 70); b = ri(s, Math.max(5, lo), 99 - a); }
+      return 'w:' + w.id + ':' + a + ',' + b;
+    }
+    var pick = rand(s) * (g === 2 ? 3 : 2); // place value, hundreds (second grade), or which is biggest
+    if (pick < 1) return 't:' + ri(s, 1, 9) + ',' + ri(s, 1, 9);
+    if (pick < 2 && g === 2) return 'h:' + ri(s, 1, 9) + ',' + ri(s, 0, 9) + ',' + ri(s, 1, 9);
+    var n;
+    if (g === 1) {
+      var d1 = ri(s, 1, 9), d2 = ri(s, 1, 9), d3 = ri(s, 0, 9);
+      while (d2 === d1) d2 = ri(s, 1, 9);
+      while (d3 === d2) d3 = ri(s, 0, 9);
+      n = [d1 * 10 + d2, d2 * 10 + d1, d1 * 10 + d3];
+    } else {
+      var ds = [], x;
+      while (ds.length < 3) { x = ri(s, 1, 9); if (ds.indexOf(x) < 0) ds.push(x); }
+      n = [ds[0] * 100 + ds[1] * 10 + ds[2], ds[0] * 100 + ds[2] * 10 + ds[1], ds[1] * 100 + ds[0] * 10 + ds[2]];
+    }
+    return 'c:' + shuffleOpts(s, n).join(',');
+  }
+  function numOpts(s, v, first, near, lim) { // the answer and two different wrong numbers, first the likely slips, then near ones
+    var opts = [v];
     shuffleOpts(s, near);
-    for (var k = 0; k < near.length && opts.length < 3; k++) { var o = v + near[k]; if (o >= 0 && opts.indexOf(o) < 0) opts.push(o); }
-    var text = m[3] === '?' ? m[1] + ' ' + m[2] + ' ? = ' + m[4] : m[1] + ' ' + m[2] + ' ' + m[3] + ' = ?';
-    var tip = m[3] === '?' ? 'Start at ' + m[1] + ' and count up to ' + m[4] + '.' : m[2] === '+' ? 'Start at ' + m[1] + ' and count on ' + m[3] + '.' : 'Start at ' + m[1] + ' and count back ' + m[3] + '.';
-    if (m[3] === '10') tip = m[2] === '+' ? 'Plus 10: the tens go up by one.' : 'Take away 10: the tens go down by one.';
-    return { id: 'math:' + f, subj: 'math', skill: 'math', text: text, opts: shuffleOpts(s, opts.map(String)), answer: String(v), tip: tip, who: -1 };
+    first.concat(near).forEach(function (o) { if (opts.length < 3 && o >= 0 && o <= lim && opts.indexOf(o) < 0) opts.push(o); });
+    return shuffleOpts(s, opts.map(String));
+  }
+  function ones(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+  function mathQ(s, f) {
+    var p = mathParse(f), v = mathEval(f), q = { id: 'math:' + f, subj: 'math', skill: 'math', who: -1, answer: String(v), tip: '' }, near;
+    if (p.kind === 'a' || p.kind === 'w') {
+      var w = p.kind === 'w' ? mathWord(p.id) : null, a, b, op, big;
+      if (w) { a = p.a; b = p.b; op = w.op === '-' ? '-' : '+'; big = Math.max(a, b, v); } else { a = +p.m[1]; op = p.m[2]; b = p.m[3] === '?' ? +p.m[4] : +p.m[3]; big = Math.max(v, a, b); }
+      near = [1, -1, 2, -2, 10, -10, 3, -3];
+      if (big <= 20) near = [1, -1, 2, -2, 3, -3];
+      q.opts = numOpts(s, v, [], near.map(function (d) { return v + d; }), 1e9);
+      if (w) {
+        q.skill = 'story'; q.text = w.text.replace(/\{a\}/g, a).replace(/\{b\}/g, b); q.ask = w.ask || '';
+        q.tip = op === '+' ? 'Start at ' + a + ' and count on ' + b + '.' : 'Start at ' + a + ' and count back ' + b + '.';
+      } else {
+        var m = p.m;
+        q.text = m[3] === '?' ? m[1] + ' ' + m[2] + ' ? = ' + m[4] : m[1] + ' ' + m[2] + ' ' + m[3] + ' = ?';
+        q.tip = m[3] === '?' ? 'Start at ' + m[1] + ' and count up to ' + m[4] + '.' : m[2] === '+' ? 'Start at ' + m[1] + ' and count on ' + m[3] + '.' : 'Start at ' + m[1] + ' and count back ' + m[3] + '.';
+        if (m[3] === '10') q.tip = m[2] === '+' ? 'Plus 10: the tens go up by one.' : 'Take away 10: the tens go down by one.';
+      }
+    } else if (p.kind === 't') {
+      q.skill = 'place'; q.text = ones(p.t, 'ten', 'tens') + ' and ' + ones(p.o, 'one', 'ones') + ' = ?';
+      q.opts = numOpts(s, v, p.o * 10 + p.t !== v ? [p.o * 10 + p.t] : [], [v + 10, v - 10, v + 1, v - 1], 99);
+      q.tip = ones(p.t, 'ten', 'tens') + ' is ' + p.t * 10 + '. ' + p.t * 10 + ' and ' + p.o + ' more is ' + v + '.';
+    } else if (p.kind === 'h') {
+      q.skill = 'place'; q.text = ones(p.h, 'hundred', 'hundreds') + ', ' + ones(p.t, 'ten', 'tens') + ' and ' + ones(p.o, 'one', 'ones') + ' = ?';
+      var sw = p.h * 100 + p.o * 10 + p.t;
+      q.opts = numOpts(s, v, sw !== v ? [sw] : [], [v + 100, v - 100, v + 10, v - 10], 999);
+      q.tip = ones(p.h, 'hundred', 'hundreds') + ' is ' + p.h * 100 + '. ' + ones(p.t, 'ten', 'tens') + ' is ' + p.t * 10 + '. ' + p.h * 100 + ' and ' + p.t * 10 + ' and ' + p.o + ' more is ' + v + '.';
+    } else if (p.kind === 'c') {
+      q.skill = 'place'; q.text = 'Which number is the biggest?'; q.opts = shuffleOpts(s, p.n.map(String));
+      q.tip = p.n.some(function (n) { return n >= 100; }) ? 'Look at the hundreds first. More hundreds is bigger.' : 'Look at the tens first. More tens is bigger.';
+    } else {
+      q.skill = 'time'; q.text = 'What time is it?'; q.clock = [p.h, p.mi];
+      // wrong times: the hands swapped (only where the swap reads on a five-minute clock, so not for o'clock and half past, which stay
+      // within :00 and :30), the same hour with the other minute hand, an hour off
+      var H = p.h, M = p.mi, hp = function (x) { return ((x + 11) % 12) + 1; }, first = [], cands = [];
+      if (M !== 0 && M !== 30) { first.push(clockStr(hp(M / 5), (H % 12) * 5)); cands.push(clockStr(H, M === 15 ? 45 : M === 45 ? 15 : (M + 30) % 60)); }
+      else cands.push(clockStr(H, M === 0 ? 30 : 0));
+      cands.push(clockStr(hp(H + 1), M), clockStr(hp(H - 1), M));
+      q.opts = [q.answer];
+      shuffleOpts(s, cands);
+      first.concat(cands).forEach(function (o) { if (q.opts.length < 3 && q.opts.indexOf(o) < 0) q.opts.push(o); });
+      shuffleOpts(s, q.opts);
+      q.tip = M === 30 ? 'The short hand shows the hour. The long hand on 6 means half past.' : M === 0 ? 'The short hand shows the hour. The long hand on 12 means o\'clock.' : 'The short hand shows the hour. The long hand on ' + M / 5 + ' means ' + M + ' minutes past.';
+    }
+    return q;
   }
   // the next question of a subject, avoiding the ids in used
   function learnPick(s, subj, used) {
@@ -1345,7 +1456,7 @@ var DTW = (function () {
         return id.indexOf('math:') === 0 && (l.items[id].b | 0) < 2 && used.indexOf(id) < 0 && mathFits(id.slice(5), g);
       });
       if (missed.length && rand(s) < 0.5) return mathQ(s, missed[weighted(s, missed)].slice(5));
-      for (var tries = 0; tries < 20; tries++) { var f = mathFact(s, g); if (used.indexOf('math:' + f) < 0) return mathQ(s, f); }
+      for (var tries = 0; tries < 20; tries++) { var f = mathId(s, g); if (used.indexOf('math:' + f) < 0) return mathQ(s, f); }
       return mathQ(s, f);
     }
     var pool = learnPool(s, subj).filter(function (it) { return used.indexOf(subj + ':' + it.id) < 0; });
@@ -1355,16 +1466,28 @@ var DTW = (function () {
     if (subj === 'verb') { q.answer = it.past; q.opts = [it.past].concat(it.wrong); q.tip = 'Today I ' + it.base + '. Yesterday I ' + it.past + '.'; q.why = [];
     } else if (subj === 'plural') { q.answer = it.many; q.opts = [it.many].concat(it.wrong); q.tip = 'One ' + it.one + ', two ' + it.many + '.'; q.why = [];
     } else {
-      q.skill = it.skill; q.who = it.who == null ? -1 : it.who; q.ask = it.ask; q.answer = it.opts[0];
+      q.skill = it.skill; q.who = it.who == null ? -1 : it.who; q.ask = it.ask || ''; q.answer = it.opts[0];
       var why = {}; it.opts.forEach(function (o, k) { why[o] = (it.why && it.why[k]) || ''; });
-      q.opts = it.opts.slice(); q.tip = ''; shuffleOpts(s, q.opts);
+      q.tip = it.tip || '';
+      if (Array.isArray(it.show) && it.show.length === it.opts.length && it.opts.every(function (o) { return it.show.indexOf(o) >= 0; })) q.opts = it.show.slice(); // a scale (small, medium, big) stays in order
+      else { q.opts = it.opts.slice(); shuffleOpts(s, q.opts); }
       q.why = q.opts.map(function (o) { return why[o]; });
       return q;
     }
     shuffleOpts(s, q.opts);
     return q;
   }
-  function mathFits(f, g) { var m = f.match(/\d+/g), v = mathEval(f); return !!m && !isNaN(v) && Math.max.apply(null, m.map(Number).concat([v])) <= (g === 1 ? 20 : 100); }
+  function mathFits(f, g) { // a saved id still suits the grade (second grade keeps first-grade items)
+    var p = mathParse(f), v = mathEval(f), lim = g === 1 ? 20 : 100;
+    if (!p || (typeof v === 'number' && isNaN(v))) return false;
+    if (p.kind === 'a') return Math.max.apply(null, f.match(/\d+/g).map(Number).concat([v])) <= lim;
+    if (p.kind === 't') return true;
+    if (p.kind === 'h') return g === 2;
+    if (p.kind === 'c') return Math.max.apply(null, p.n) <= (g === 1 ? 99 : 999);
+    if (p.kind === 'k') return p.h >= 1 && p.h <= 12 && p.mi % 5 === 0 && p.mi < 60 && (g === 2 || p.mi === 0 || p.mi === 30);
+    var w = mathWord(p.id);
+    return !!w && (w.grade || 1) <= g && Math.max(p.a, p.b, v) <= lim && p.b >= (w.min || 1) && p.a >= (w.min || 1) && (w.op === '-' ? p.b <= p.a : p.a <= (g === 1 ? 10 : 99) && p.b <= (g === 1 ? 10 : 99));
+  }
   function openLearn(s, i, subj) {
     var L = { i: i, kind: 'learn', subj: subj, round: 0, rounds: LEARN_ROUNDS[subj], wait: 0, bad: -1, taps: 0, used: [] };
     learnOf(s).last = subj; s.run.lock = L; dealLearn(s, L);
@@ -1390,15 +1513,26 @@ var DTW = (function () {
     return false;
   }
   function learnStats(s) { return JSON.parse(JSON.stringify(learnOf(s).stats)); }
+  function mathText(key) { // a math id as words for the grown-ups' list
+    var p = mathParse(key), v = mathEval(key);
+    if (!p) return key;
+    if (p.kind === 'a') return key.replace(/([+\-=])/g, ' $1 ') + (key.indexOf('?') < 0 ? ' = ' + v : ' (' + v + ')');
+    if (p.kind === 't') return p.t + ' tens and ' + p.o + ' ones = ' + v;
+    if (p.kind === 'h') return p.h + ' hundreds, ' + p.t + ' tens and ' + p.o + ' ones = ' + v;
+    if (p.kind === 'c') return 'Biggest of ' + p.n.join(', ') + ': ' + v;
+    if (p.kind === 'k') return 'Clock at ' + v;
+    var w = mathWord(p.id);
+    return w ? w.text.replace(/\{a\}/g, p.a).replace(/\{b\}/g, p.b) + ' ' + (w.ask || '') + ' (' + v + ')' : p.a + ', ' + p.b;
+  }
   function learnTricky(s) { // items missed and not yet answered right twice since, worst first
     var l = learnOf(s), L = lessons(), out = [];
     Object.keys(l.items).forEach(function (id) {
       var it = l.items[id]; if (!it.m || it.b >= 2) return;
       var p = id.indexOf(':'), subj = id.slice(0, p), key = id.slice(p + 1), text = key;
-      if (subj === 'math') text = key.replace(/([+\-=])/g, ' $1 ') + (key.indexOf('?') < 0 ? ' = ' + mathEval(key) : ' (' + mathEval(key) + ')');
+      if (subj === 'math') text = mathText(key);
       else {
-        var list = L && (subj === 'verb' ? L.verbs : subj === 'plural' ? L.plurals : subj === 'read' ? L.read : L.talk), f = (list || []).filter(function (x) { return x.id === key; })[0];
-        if (f) text = subj === 'verb' ? f.base + ' → ' + f.past : subj === 'plural' ? f.one + ' → ' + f.many : f.text;
+        var list = L && LEARN_KEY[subj] && L[LEARN_KEY[subj]], f = (list || []).filter(function (x) { return x.id === key; })[0];
+        if (f) text = subj === 'verb' ? f.base + ' → ' + f.past : subj === 'plural' ? f.one + ' → ' + f.many : f.opts && String(f.text).indexOf('___') >= 0 ? f.text.replace('___', f.opts[0]) : f.text;
       }
       out.push({ id: id, subj: subj, text: text, r: it.r, m: it.m });
     });
@@ -1443,6 +1577,7 @@ var DTW = (function () {
       var c = cleanStory(t.title, t.who, t.pages); if (!c) return;
       c.id = typeof t.id === 'string' ? t.id : 'own' + (++l.n); l.stories.push(c);
     });
+    if (o.focus && typeof o.focus === 'object' && !Array.isArray(o.focus)) { l.focus = {}; LEARN_SUBJ.forEach(function (k) { if (k in o.focus) l.focus[k] = !!o.focus[k]; }); }
     if (LEARN_SUBJ.indexOf(o.last) >= 0) l.last = o.last;
     return l;
   }
@@ -2100,8 +2235,8 @@ var DTW = (function () {
   }
 
   return {
-    LEARN_MIX: LEARN_MIX, LEARN_SUBJ: LEARN_SUBJ, learnSet: learnSet, learnStats: learnStats, learnTricky: learnTricky, learnSubjects: learnSubjects, storyList: storyList, addStory: addStory, removeStory: removeStory, storyRead: storyRead,
-    _learnPick: learnPick, _learnSubject: learnSubject, _mathEval: mathEval,
+    LEARN_MIX: LEARN_MIX, LEARN_SUBJ: LEARN_SUBJ, LEARN_FOCUS: LEARN_FOCUS, LEARN_ROUNDS: LEARN_ROUNDS, learnSet: learnSet, learnStats: learnStats, learnTricky: learnTricky, learnSubjects: learnSubjects, storyList: storyList, addStory: addStory, removeStory: removeStory, storyRead: storyRead,
+    _learnPick: learnPick, _learnSubject: learnSubject, _mathEval: mathEval, _mathQ: mathQ, _mathId: mathId, _mathFits: mathFits,
     MATS: MATS, MAT_PRICE: MAT_PRICE, GEM: GEM, canAfford: canAfford, sellMat: sellMat, buyMat: buyMat, matBuyPrice: matBuyPrice, bank: bank,
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,

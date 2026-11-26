@@ -674,12 +674,18 @@
     body.appendChild(el('p', 'small', 'How many chests ask a question instead of a puzzle. Smashing a chest still skips it, for a few coins.'));
     body.appendChild(seg(['Off', 'Some', 'Half', 'Most'], l.mix, function (i) { D.learnSet(S, { mix: i }); }));
     body.appendChild(seg(['1st grade', '2nd grade'], l.grade - 1, function (i) { D.learnSet(S, { grade: i + 1 }); }));
-    [['verb', '📖', 'Past-tense verbs', 'dig, dug; find, found'], ['plural', '🦴', 'Irregular plurals', 'tooth, teeth; mouse, mice'], ['talk', '💬', 'Talking with friends', 'greetings, expected behaviour, topic, turns, feelings, idioms'], ['read', '🔮', 'What happens next', 'read a short scene and guess what comes next'], ['math', '🔢', 'Math facts', l.grade === 1 ? 'adding and taking away within 20' : 'within 100, plus and minus 10']].forEach(function (o) {
-      var on = !!l.subj[o[0]], sw = el('button', 'row nav');
+    var SUBJ = { verb: ['📖', 'Past-tense verbs', 'dig, dug; find, found'], plural: ['🦴', 'Irregular plurals', 'tooth, teeth; mouse, mice'], grammar: ['✏️', 'Grammar', 'he, she, they; in, on, under; was, were'], talk: ['💬', 'Talking with friends', 'greetings, expected behaviour, topic, turns, feelings, idioms'], feel: ['💛', 'Feelings', 'how others feel, size of the problem, calming down'], read: ['🔮', 'What happens next', 'read a short scene and guess what comes next'], wh: ['❓', 'Who, what, where, when, why', 'questions about a short scene'], seq: ['🪜', 'Order of events', 'first, next, last; steps of a routine'], vocab: ['🧩', 'Word meanings', 'groups, odd one out, opposites, same meaning'], math: ['🔢', 'Math', l.grade === 1 ? 'adding and taking away within 20, tens and ones, telling time, story problems' : 'within 100, hundreds, tens and ones, time to 5 minutes, story problems'] };
+    body.appendChild(el('p', 'small', 'Tap ★ to focus a subject: it comes up about 3 times as often. Past-tense verbs, talking with friends and what happens next start focused, for the speech goals.'));
+    D.LEARN_SUBJ.forEach(function (k) {
+      var o = SUBJ[k] || ['📖', k, ''], on = !!l.subj[k], fo = !!(l.focus && l.focus[k]), r = el('div', 'lrow');
+      var sw = el('button', 'row nav');
       sw.setAttribute('role', 'switch'); sw.setAttribute('aria-checked', on);
-      sw.innerHTML = '<span class="ic">' + o[1] + '</span><span class="txt"><b>' + o[2] + '</b><small>' + o[3] + '</small></span><span class="switch' + (on ? ' on' : '') + '"><i></i></span>';
-      sw.onclick = function () { audio(); var p = {}; p[o[0]] = !on; D.learnSet(S, { subj: p }); save(); lastPanelKey = ''; };
-      body.appendChild(sw);
+      sw.innerHTML = '<span class="ic">' + o[0] + '</span><span class="txt"><b>' + o[1] + '</b><small>' + o[2] + '</small></span><span class="switch' + (on ? ' on' : '') + '"><i></i></span>';
+      sw.onclick = function () { audio(); var p = {}; p[k] = !on; D.learnSet(S, { subj: p }); save(); lastPanelKey = ''; };
+      var fb = el('button', 'focus' + (fo ? ' on' : ''), '★'); fb.setAttribute('aria-label', 'Focus ' + o[1]); fb.title = 'Focus: asked about 3 times as often';
+      fb.setAttribute('aria-pressed', fo); fb.disabled = !on;
+      fb.onclick = function () { audio(); var p = {}; p[k] = !fo; D.learnSet(S, { focus: p }); save(); lastPanelKey = ''; };
+      r.appendChild(sw); r.appendChild(fb); body.appendChild(r);
     });
     // progress: right first time out of all questions, per subject and per talking skill
     body.appendChild(el('div', 'xhead', '<b>Progress</b>'));
@@ -773,7 +779,7 @@
     pipes: ['🚰 A plumbing chest!', 'Tap a pipe to turn it. Make the water run from the left to the right!', 'Tap a pipe to turn it. Make the water reach every green outlet!'],
     odd: ['🔎 An odd-one-out chest!', 'Find the one that is different.'],
     ice: ['🧊 An ice chest!', 'Tap an arrow next to the ice block. It slides until it hits a rock or the edge. Get it into the hole!'],
-    learn: { verb: ['📖 A word chest!', 'Which word fits? It already happened.'], plural: ['🦴 A word chest!', 'Which word means more than one?'], talk: ['💬 A talking chest!', ''], read: ['🔮 A story chest!', ''], math: ['🔢 A number chest!', 'Tap the answer.'] },
+    learn: { verb: ['📖 A word chest!', 'Which word fits? It already happened.'], plural: ['🦴 A word chest!', 'Which word means more than one?'], grammar: ['✏️ A word chest!', 'Which word fits?'], talk: ['💬 A talking chest!', ''], feel: ['💛 A feelings chest!', ''], read: ['🔮 A story chest!', ''], wh: ['❓ A question chest!', ''], seq: ['🪜 A what-comes-next chest!', ''], vocab: ['🧩 A word chest!', ''], math: ['🔢 A number chest!', 'Tap the answer.'] },
     path: ['💎 A gem-trail chest!', 'Tap the gems in order, 1, 2, 3…', 'Remember the numbers! Look…', 'The numbers are hidden. Tap the gems in order!']
   };
   var SLIDE_ICONS = ['🍎', '🍊', '🍋', '🍐', '🍇', '🍓', '🍒', '🥝', '🍑', '🍍', '🥥', '🍉', '🥕', '🌽', '🍄'];
@@ -789,6 +795,15 @@
     if (k === L.inlet * L.n) s += '<rect x="0" y="14" width="8" height="12" rx="3" fill="#46c2ff"/>';
     if (k % L.n === L.n - 1 && L.outlets.indexOf(Math.floor(k / L.n)) >= 0) s += '<circle cx="35" cy="20" r="5" fill="#4fd36b" stroke="#fff" stroke-width="1.5"/>';
     return s + '</svg>';
+  }
+  // an analogue clock: numbers 1 to 12, a short thick hour hand (moved on by the minutes) and a long minute hand
+  function clockSvg(h, m) {
+    var ha = ((h % 12) + m / 60) * 30, ma = m * 6, s = '<svg class="clock" viewBox="0 0 150 150" role="img" aria-label="A clock">' +
+      '<circle cx="75" cy="75" r="70" fill="#fffaf0" stroke="#a88a5a" stroke-width="6"/>';
+    for (var i = 0; i < 60; i++) { var a = i * Math.PI / 30, r1 = i % 5 ? 64 : 60; s += '<line x1="' + (75 + 66 * Math.sin(a)).toFixed(1) + '" y1="' + (75 - 66 * Math.cos(a)).toFixed(1) + '" x2="' + (75 + r1 * Math.sin(a)).toFixed(1) + '" y2="' + (75 - r1 * Math.cos(a)).toFixed(1) + '" stroke="#3a2510" stroke-width="' + (i % 5 ? 1 : 2) + '"/>'; }
+    for (var n = 1; n <= 12; n++) { var b = n * Math.PI / 6; s += '<text x="' + (75 + 48 * Math.sin(b)).toFixed(1) + '" y="' + (75 - 48 * Math.cos(b) + 6).toFixed(1) + '" text-anchor="middle" font-size="17" font-weight="700" font-family="sans-serif" fill="#3a2510">' + n + '</text>'; }
+    return s + '<line x1="75" y1="75" x2="75" y2="42" stroke="#3a2510" stroke-width="7" stroke-linecap="round" transform="rotate(' + ha + ' 75 75)"/>' +
+      '<line x1="75" y1="75" x2="75" y2="20" stroke="#c0392b" stroke-width="4" stroke-linecap="round" transform="rotate(' + ma + ' 75 75)"/><circle cx="75" cy="75" r="5" fill="#3a2510"/></svg>';
   }
   var lastL = null, prevTiles = null, prevUp = [], prevDone = []; // prevDone: matched cards already shown, which stay still
   // the solved chest's frame lingers a moment: it pops and glows, and the ice block drops into its hole
@@ -864,22 +879,23 @@
       var q = L.q, waiting = L.wait > 0, lastBad = L.out.length ? L.out[L.out.length - 1] : -1;
       key = 'le|' + L.i + '|' + L.round + '|' + q.id + '|' + L.out.join() + '|' + waiting;
       if (key === lockKey) return;
-      var said = L.subj === 'talk' || L.subj === 'read';
-      T0 = LOCK_TEXT.learn[L.subj]; hint = said ? q.ask : T0[1];
+      var said = !!q.ask || q.opts.some(function (o) { return String(o).length > 14; }), scene = q.text.length > 44;
+      T0 = LOCK_TEXT.learn[L.subj] || ['📖 A learning chest!', '']; hint = q.ask || T0[1] || 'Tap the answer.';
       var newQ = lockKey.indexOf('le|' + L.i + '|' + L.round + '|' + q.id + '|') !== 0;
       var qt = esc(q.text).replace('___', '<span class="blank">' + (L.subj === 'math' ? '' : '___') + '</span>');
-      html = '<div class="lq ' + L.subj + '">' + (q.who >= 0 ? '<span class="lpic"></span>' : '') + '<p class="lqt">' + qt + '</p></div>';
+      html = '<div class="lq ' + L.subj + (scene ? ' scene' : '') + '">' + (q.who >= 0 ? '<span class="lpic"></span>' : '') + '<p class="lqt">' + qt + '</p></div>';
+      if (q.clock) html += clockSvg(q.clock[0], q.clock[1]);
       html += '<div class="lopts' + (said ? ' long' : '') + '">';
       q.opts.forEach(function (o, j) {
         var out = L.out.indexOf(j) >= 0;
         html += '<button class="lo' + (out ? ' out' : '') + (out && j === lastBad && waiting ? ' bad' : '') + '" data-k="' + j + '"' + (out ? ' disabled' : '') + '>' + esc(o) + '</button>';
       });
       html += '</div>';
-      var tip = L.hint ? (said ? (q.why[lastBad] || '') : q.tip) : '';
+      var tip = L.hint ? ((q.why && q.why[lastBad]) || q.tip || '') : '';
       html += '<p class="ltip' + (tip ? ' on' : '') + '">' + (tip ? '💡 ' + esc(tip) : '&nbsp;') + '</p>';
       html += '<div class="dots">' + Array.apply(null, Array(L.rounds)).map(function (_, j) { return '<i' + (j < L.round ? ' class="on"' : '') + '></i>'; }).join('') + '</div>';
       var who = q.who >= 0 ? q.who : 0;
-      if (newQ) speak(who, q.text.replace('___', 'blank') + (q.ask ? ' ' + q.ask : ''));
+      if (newQ) speak(who, (q.clock ? 'What time is it?' : q.text.replace(/___/g, 'blank') + (q.ask ? ' ' + q.ask.replace(/___/g, 'blank') : '')));
       else if (tip && waiting) speak(who, tip);
     } else if (kind === 'odd') {
       key = 'od|' + L.i + '|' + L.round + '|' + L.cards.join('') + '|' + L.bad;

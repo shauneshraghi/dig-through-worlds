@@ -1,5 +1,9 @@
 // Dig Through Worlds: learning content (DTWLessons). Words only, no logic. Irregular past-tense verbs, irregular
-// plurals, talk scenarios (pragmatic language) and social stories, all set in Nim's world with his friends.
+// plurals, grammar (pronouns, position words, is/was, not), talk scenarios (pragmatic language), feelings (how others
+// feel, size of the problem, calming down), what happens next, WH questions, order of events, word meanings, math word
+// problem templates and social stories, set in Nim's world and in everyday life. See docs/learning-curriculum.md.
+// grammar, feel, wh, seq, vocab share the talk shape (opts[0] best, why per option) and may carry a tip shown on a miss.
+// mathWords: { id, grade, op, text, ask, min? } with {a} and {b} filled in by the game.
 // friends by index, as in js/story.js: 0 Baron, 1 Hale, 2 Jon, 3 Wren, 4 Nova, 5 Grog.
 // verbs and plurals: text has one ___ for the answer; wrong holds two forms that are never correct there.
 // talk: opts[0] is the best answer (the game shuffles); why[k] says kindly why opts[k] does not fit (why[0] is '').
@@ -663,6 +667,2601 @@ var DTWLessons = (function () {
     ] }
   ];
 
+  // grammar, math word problems and new social stories (fragment)
+  var grammar = [
+    {
+      "id": "p1-hale",
+      "who": 1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Hale is my sister. ___ is four years old.",
+      "opts": [
+        "She",
+        "He",
+        "They"
+      ],
+      "why": [
+        "",
+        "Hale is a girl, so we use she, not he.",
+        "They is for more than one. Hale is only one girl."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-baron",
+      "who": 0,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Baron is my big brother. ___ likes to dig big rocks.",
+      "opts": [
+        "He",
+        "She",
+        "They"
+      ],
+      "why": [
+        "",
+        "Baron is a boy, so we use he, not she.",
+        "They is for more than one. Baron is only one boy."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-both",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Baron and Hale are in the pit. ___ are digging for bones.",
+      "opts": [
+        "They",
+        "He",
+        "She"
+      ],
+      "why": [
+        "",
+        "There are two kids, Baron and Hale. He is only for one boy.",
+        "There are two kids. She is only for one girl."
+      ],
+      "tip": "Use they for more than one."
+    },
+    {
+      "id": "p1-nova",
+      "who": 4,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nova has a rocket. ___ flies to the moon.",
+      "opts": [
+        "She",
+        "He",
+        "They"
+      ],
+      "why": [
+        "",
+        "Nova is a girl, so we use she, not he.",
+        "Nova is one person, so we do not use they."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-grog",
+      "who": 5,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Grog is shy. ___ does not like loud noise.",
+      "opts": [
+        "He",
+        "She",
+        "They"
+      ],
+      "why": [
+        "",
+        "Grog is a boy, so we use he, not she.",
+        "Grog is one alien. They is for more than one."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-jon",
+      "who": 2,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Jon swims in the ocean. ___ is a big, kind merman.",
+      "opts": [
+        "He",
+        "She",
+        "They"
+      ],
+      "why": [
+        "",
+        "Jon is a man, so we use he, not she.",
+        "Jon is only one merman, so we do not use they."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-teacher",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "My teacher is Miss Lee. ___ reads us a story after lunch.",
+      "opts": [
+        "She",
+        "He",
+        "They"
+      ],
+      "why": [
+        "",
+        "Miss Lee is a woman, so we use she.",
+        "Miss Lee is only one person, so we do not use they."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-dad",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Dad makes pancakes on Saturday. ___ makes the best pancakes.",
+      "opts": [
+        "He",
+        "She",
+        "They"
+      ],
+      "why": [
+        "",
+        "Dad is a man, so we use he.",
+        "Dad is one person, so we do not use they."
+      ],
+      "tip": "Use she for a girl. Use he for a boy."
+    },
+    {
+      "id": "p1-friends",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "My friends Sam and Ty came to my birthday. ___ brought me presents.",
+      "opts": [
+        "They",
+        "He",
+        "She"
+      ],
+      "why": [
+        "",
+        "Sam and Ty are two friends. He is for one boy.",
+        "Sam and Ty are two friends. She is for one girl."
+      ],
+      "tip": "Use they for more than one."
+    },
+    {
+      "id": "p1-give-me",
+      "who": 0,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nim says, \"Give it to ___, please.\"",
+      "opts": [
+        "me",
+        "I",
+        "you"
+      ],
+      "why": [
+        "",
+        "Nim is asking for it for himself, so he says me. You means the other person.",
+        "We say I at the start of a sentence. After the word to, we say me."
+      ],
+      "tip": "Use I to start a sentence about me. Use me after words like to, for and with."
+    },
+    {
+      "id": "p1-found",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nim says, \"___ found a bone!\"",
+      "opts": [
+        "I",
+        "Me",
+        "You"
+      ],
+      "why": [
+        "",
+        "The word me comes after words like to or for. Nim is the one who found it, so he says I.",
+        "Nim found the bone himself. You means the person he is talking to."
+      ],
+      "tip": "Use I to start a sentence about me. Use me after words like to, for and with."
+    },
+    {
+      "id": "p1-help-me",
+      "who": 1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Hale says, \"Baron, please help ___ dig.\"",
+      "opts": [
+        "me",
+        "I",
+        "you"
+      ],
+      "why": [
+        "",
+        "Hale is asking for help for herself, so she says me.",
+        "After the word help, we say me. I goes at the start of a sentence."
+      ],
+      "tip": "Use I to start a sentence about me. Use me after words like to, for and with."
+    },
+    {
+      "id": "p1-with-me",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nim asks Baron, \"Do you want to play with ___?\"",
+      "opts": [
+        "me",
+        "I",
+        "him"
+      ],
+      "why": [
+        "",
+        "After the word with, we say me.",
+        "Nim is talking about himself. Him would mean a different boy."
+      ],
+      "tip": "Use I to start a sentence about me. Use me after words like to, for and with."
+    },
+    {
+      "id": "p1-pickup",
+      "who": 0,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Hale is little. Baron picks ___ up.",
+      "opts": [
+        "her",
+        "she",
+        "him"
+      ],
+      "why": [
+        "",
+        "She goes at the start of a sentence. After picks, we say her.",
+        "Hale is a girl, so we say her, not him."
+      ],
+      "tip": "Use him or her after a word like to, for or with. Use them for more than one."
+    },
+    {
+      "id": "p1-thank-nova",
+      "who": 4,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nova gave Nim a gem. Nim said, \"Thank you!\" to ___.",
+      "opts": [
+        "her",
+        "she",
+        "him"
+      ],
+      "why": [
+        "",
+        "Nova is a girl, so we say her.",
+        "After the word to, we say her, not she."
+      ],
+      "tip": "Use him or her after a word like to, for or with. Use them for more than one."
+    },
+    {
+      "id": "p1-mum-swing",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "At the park, Mom pushed Nim on the swing. Nim said thank you to ___.",
+      "opts": [
+        "her",
+        "she",
+        "him"
+      ],
+      "why": [
+        "",
+        "Mom is a woman, so we say her.",
+        "After the word to, we say her, not she."
+      ],
+      "tip": "Use him or her after a word like to, for or with. Use them for more than one."
+    },
+    {
+      "id": "p1-cookies",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nim and Hale like cookies. Mom gave ___ two cookies.",
+      "opts": [
+        "them",
+        "they",
+        "him"
+      ],
+      "why": [
+        "",
+        "Mom gave cookies to two kids. After gave, we say them, not they.",
+        "Nim and Hale are two kids. Him is only for one boy."
+      ],
+      "tip": "Use him or her after a word like to, for or with. Use them for more than one."
+    },
+    {
+      "id": "p1-his",
+      "who": 0,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Baron has a pickaxe. It is ___ pickaxe.",
+      "opts": [
+        "his",
+        "her",
+        "their"
+      ],
+      "why": [
+        "",
+        "Baron is a boy, so we say his.",
+        "Their is for more than one. Baron is only one boy."
+      ],
+      "tip": "His is for a boy. Her is for a girl. Their is for more than one."
+    },
+    {
+      "id": "p1-her",
+      "who": 1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Hale has a red hat. It is ___ hat.",
+      "opts": [
+        "her",
+        "his",
+        "their"
+      ],
+      "why": [
+        "",
+        "Hale is a girl, so we say her.",
+        "Their is for more than one. Hale is only one girl."
+      ],
+      "tip": "His is for a boy. Her is for a girl. Their is for more than one."
+    },
+    {
+      "id": "p1-my",
+      "who": -1,
+      "grade": 1,
+      "skill": "pronoun",
+      "text": "Nim says, \"This is ___ bag. It is mine.\"",
+      "opts": [
+        "my",
+        "me",
+        "I"
+      ],
+      "why": [
+        "",
+        "We say my before a thing that belongs to us, like my bag.",
+        "Nim is talking about his own bag. I and me do not go before a thing."
+      ],
+      "tip": "Use my before a thing that is mine."
+    },
+    {
+      "id": "p2-fort",
+      "who": -1,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Nim and Baron built a fort. It is ___ fort.",
+      "opts": [
+        "their",
+        "his",
+        "them"
+      ],
+      "why": [
+        "",
+        "Nim and Baron are two boys. His is for only one boy.",
+        "Them does not go before a thing. We say their."
+      ],
+      "tip": "His is for a boy. Her is for a girl. Their is for more than one."
+    },
+    {
+      "id": "p2-us",
+      "who": -1,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Hale and I ate lunch. The teacher gave ___ some stickers.",
+      "opts": [
+        "us",
+        "we",
+        "them"
+      ],
+      "why": [
+        "",
+        "After the word gave, we say us, not we.",
+        "The teacher gave stickers to Hale and me. Them would mean other kids."
+      ],
+      "tip": "Use us for me and another person. Use them for other people."
+    },
+    {
+      "id": "p2-baron-me",
+      "who": -1,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Mom said, \"Sit with Baron and ___ at the park.\"",
+      "opts": [
+        "me",
+        "I",
+        "my"
+      ],
+      "why": [
+        "",
+        "After the word with, we say me. I starts a sentence.",
+        "Mom is talking about Nim himself, so she says me. My goes before a thing."
+      ],
+      "tip": "Use I to start a sentence about me. Use me after words like to, for and with."
+    },
+    {
+      "id": "p2-you",
+      "who": 0,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Baron says to Nim, \"I will help ___ dig.\"",
+      "opts": [
+        "you",
+        "I",
+        "he"
+      ],
+      "why": [
+        "",
+        "Baron is talking to Nim, so Baron says you.",
+        "Baron is already the one helping. Nim is the one who is being helped, so we say you."
+      ],
+      "tip": "Use you for the person I am talking to."
+    },
+    {
+      "id": "p2-lost-hat",
+      "who": 1,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Hale lost her hat, so Baron helped ___ look for it.",
+      "opts": [
+        "her",
+        "she",
+        "him"
+      ],
+      "why": [
+        "",
+        "After the word helped, we say her.",
+        "Hale is a girl, so we say her, not him."
+      ],
+      "tip": "Use him or her after a word like to, for or with. Use them for more than one."
+    },
+    {
+      "id": "p2-nova-grog",
+      "who": -1,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Nova and Grog watched the stars. Nim gave ___ a warm blanket.",
+      "opts": [
+        "them",
+        "they",
+        "him"
+      ],
+      "why": [
+        "",
+        "Nova and Grog are two friends. After gave, we say them.",
+        "There are two friends. Him is only for one boy."
+      ],
+      "tip": "Use him or her after a word like to, for or with. Use them for more than one."
+    },
+    {
+      "id": "p2-ask-teacher",
+      "who": -1,
+      "grade": 2,
+      "skill": "pronoun",
+      "text": "Nim asked his teacher, \"Can ___ go to the bathroom?\"",
+      "opts": [
+        "I",
+        "me",
+        "my"
+      ],
+      "why": [
+        "",
+        "We say I at the start of a question about myself.",
+        "The word me comes after words like to or for. My goes before a thing."
+      ],
+      "tip": "Use I to start a sentence about me. Use me after words like to, for and with."
+    },
+    {
+      "id": "pr1-in",
+      "who": -1,
+      "grade": 1,
+      "skill": "prep",
+      "text": "The gem is inside the box. The gem is ___ the box.",
+      "opts": [
+        "in",
+        "on",
+        "under"
+      ],
+      "why": [
+        "",
+        "On means on the top. The gem is inside the box.",
+        "Under means below. The gem is inside the box."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-on",
+      "who": -1,
+      "grade": 1,
+      "skill": "prep",
+      "text": "The cup sits on top of the table. The cup is ___ the table.",
+      "opts": [
+        "on",
+        "under",
+        "in"
+      ],
+      "why": [
+        "",
+        "Under means below. The cup sits on top.",
+        "In means inside. The cup sits on top of the table."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-under",
+      "who": -1,
+      "grade": 1,
+      "skill": "prep",
+      "text": "The cat hid below the bed, close to the floor. The cat is ___ the bed.",
+      "opts": [
+        "under",
+        "on",
+        "in"
+      ],
+      "why": [
+        "",
+        "On means on the top. The cat is below the bed.",
+        "In means inside. The cat is below the bed."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-behind",
+      "who": 5,
+      "grade": 1,
+      "skill": "prep",
+      "text": "Grog hid at the back of the big rock, out of sight. Grog is ___ the rock.",
+      "opts": [
+        "behind",
+        "in front of",
+        "on"
+      ],
+      "why": [
+        "",
+        "In front of means at the front. Grog is at the back of the rock.",
+        "On means on the top. Grog is at the back of the rock."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-front",
+      "who": 1,
+      "grade": 1,
+      "skill": "prep",
+      "text": "Hale is first in line. Nim is after her. Hale is ___ Nim.",
+      "opts": [
+        "in front of",
+        "behind",
+        "under"
+      ],
+      "why": [
+        "",
+        "Behind means at the back. Hale is first, so she is at the front.",
+        "Under means below. They are standing in a line."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-next",
+      "who": 0,
+      "grade": 1,
+      "skill": "prep",
+      "text": "Baron sits right beside Nim. Their shoulders touch. Baron is ___ Nim.",
+      "opts": [
+        "next to",
+        "between",
+        "under"
+      ],
+      "why": [
+        "",
+        "Between needs two things, one on each side. Baron is just beside Nim.",
+        "Under means below. They are sitting side by side."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-between",
+      "who": 1,
+      "grade": 1,
+      "skill": "prep",
+      "text": "Baron is on the left. Nim is on the right. Hale stands in the middle. Hale is ___ Baron and Nim.",
+      "opts": [
+        "between",
+        "behind",
+        "on"
+      ],
+      "why": [
+        "",
+        "Behind means at the back. Hale is in the middle of the two boys.",
+        "On means on the top. Hale stands in the middle."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr1-above",
+      "who": -1,
+      "grade": 1,
+      "skill": "prep",
+      "text": "The bird flew high up over the tree. It did not touch the tree. The bird is ___ the tree.",
+      "opts": [
+        "above",
+        "under",
+        "in"
+      ],
+      "why": [
+        "",
+        "Under means below. The bird is high up over the tree.",
+        "In means inside. The bird is up in the air over the tree."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr2-between",
+      "who": -1,
+      "grade": 2,
+      "skill": "prep",
+      "text": "The shop is on the left. The hut is on the right. The museum is in the middle. The museum is ___ the shop and the hut.",
+      "opts": [
+        "between",
+        "behind",
+        "above"
+      ],
+      "why": [
+        "",
+        "Behind means at the back. The museum is in the middle.",
+        "Above means higher up. The museum is on the same ground, in the middle."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr2-below",
+      "who": 4,
+      "grade": 2,
+      "skill": "prep",
+      "text": "The moon is high in the sky. The rocket is far down on the ground. The rocket is ___ the moon.",
+      "opts": [
+        "below",
+        "above",
+        "next to"
+      ],
+      "why": [
+        "",
+        "Above means higher. The moon is high in the sky, and the rocket is down low.",
+        "Next to means close beside. The rocket is far down, not beside the moon."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr2-cave",
+      "who": -1,
+      "grade": 2,
+      "skill": "prep",
+      "text": "A bat hangs from the cave roof. The cave floor is far below. The bat is ___ the floor.",
+      "opts": [
+        "above",
+        "under",
+        "in"
+      ],
+      "why": [
+        "",
+        "Under means below. The bat hangs from the roof, high over the floor.",
+        "In means inside. The bat is up in the air over the floor."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "pr2-lunch",
+      "who": -1,
+      "grade": 2,
+      "skill": "prep",
+      "text": "At lunch, Baron is first in line and Nim is third. Hale is second. Hale is ___ Baron and Nim.",
+      "opts": [
+        "between",
+        "behind",
+        "in front of"
+      ],
+      "why": [
+        "",
+        "Behind means at the back. Hale is in the middle of the line.",
+        "Baron and Nim are on both sides of Hale, so she is between them."
+      ],
+      "tip": "Position words tell where something is, like in, on, under, behind, next to and between."
+    },
+    {
+      "id": "bw1-nim-is",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Right now Nim ___ in the pit.",
+      "opts": [
+        "is",
+        "are",
+        "were"
+      ],
+      "why": [
+        "",
+        "Are is for more than one. Nim is only one boy.",
+        "Were tells about before. The word now tells us it is right now."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-two-are",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Right now Baron and Hale ___ at the museum.",
+      "opts": [
+        "are",
+        "is",
+        "was"
+      ],
+      "why": [
+        "",
+        "Is is for one. There are two kids.",
+        "Was tells about before. The word now tells us it is right now."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-grog-was",
+      "who": 5,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Yesterday Grog ___ at the park.",
+      "opts": [
+        "was",
+        "were",
+        "is"
+      ],
+      "why": [
+        "",
+        "Were is for more than one. Grog is only one alien.",
+        "Is tells about right now. The word yesterday tells us it already happened."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-bats-were",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Yesterday the bats ___ in the cave.",
+      "opts": [
+        "were",
+        "was",
+        "are"
+      ],
+      "why": [
+        "",
+        "Was is for one. There were many bats.",
+        "Are tells about right now. The word yesterday tells us it already happened."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-gem-is",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Look! One gold gem ___ in the chest.",
+      "opts": [
+        "is",
+        "are",
+        "were"
+      ],
+      "why": [
+        "",
+        "Are is for more than one. The story says one gem.",
+        "Were tells about before. The word look tells us it is right now."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-gems-are",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Look! Two gold gems ___ in the chest.",
+      "opts": [
+        "are",
+        "is",
+        "was"
+      ],
+      "why": [
+        "",
+        "Is is for one. The story says two gems.",
+        "Was tells about before. The word look tells us it is right now."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-i-was",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Last night I ___ so tired.",
+      "opts": [
+        "was",
+        "were",
+        "am"
+      ],
+      "why": [
+        "",
+        "We say were for more than one, or for you. For me, we say was.",
+        "Am tells about right now. The words last night tell us it already happened."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw1-i-am",
+      "who": -1,
+      "grade": 1,
+      "skill": "bewas",
+      "text": "Right now I ___ happy.",
+      "opts": [
+        "am",
+        "is",
+        "are"
+      ],
+      "why": [
+        "",
+        "We do not say is after I. We say I am.",
+        "We do not say are after I. We say I am."
+      ],
+      "tip": "Say I am for me, right now. Say I was for me, before."
+    },
+    {
+      "id": "bw2-were",
+      "who": -1,
+      "grade": 2,
+      "skill": "bewas",
+      "text": "Yesterday Jon and Nova ___ at the beach.",
+      "opts": [
+        "were",
+        "was",
+        "are"
+      ],
+      "why": [
+        "",
+        "Was is for one. Jon and Nova are two people.",
+        "Are tells about right now. The word yesterday tells us it already happened."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw2-you",
+      "who": -1,
+      "grade": 2,
+      "skill": "bewas",
+      "text": "Nim, you ___ a good friend to Grog yesterday.",
+      "opts": [
+        "were",
+        "was",
+        "are"
+      ],
+      "why": [
+        "",
+        "Was is for one other person. For you, we say were.",
+        "Are tells about right now. The word yesterday tells us it already happened."
+      ],
+      "tip": "Say you were for before. Say you are for right now."
+    },
+    {
+      "id": "bw2-we",
+      "who": -1,
+      "grade": 2,
+      "skill": "bewas",
+      "text": "Nim and I ___ at the park last week.",
+      "opts": [
+        "were",
+        "was",
+        "are"
+      ],
+      "why": [
+        "",
+        "Was is for one. Nim and I are two people, so we say were.",
+        "Are tells about right now. The words last week tell us it already happened."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "bw2-pit",
+      "who": -1,
+      "grade": 2,
+      "skill": "bewas",
+      "text": "Yesterday the pit ___ cold, but today it is warm.",
+      "opts": [
+        "was",
+        "were",
+        "is"
+      ],
+      "why": [
+        "",
+        "Were is for more than one. The pit is only one place.",
+        "Is tells about right now. The word yesterday tells us it already happened."
+      ],
+      "tip": "Was is for one. Were is for more than one. Use is and are for right now."
+    },
+    {
+      "id": "ng1-grog",
+      "who": 5,
+      "grade": 1,
+      "skill": "neg",
+      "text": "Grog is shy. Grog does ___ like loud noise.",
+      "opts": [
+        "not",
+        "always",
+        "so"
+      ],
+      "why": [
+        "",
+        "Always means every time. Grog is shy and does not like noise.",
+        "So does not fit in this sentence. We need a word that means no."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-shop",
+      "who": -1,
+      "grade": 1,
+      "skill": "neg",
+      "text": "The shop is closed. Nim can ___ buy a pickaxe now.",
+      "opts": [
+        "not",
+        "also",
+        "very"
+      ],
+      "why": [
+        "",
+        "Also means as well. The shop is closed, so he can not buy anything.",
+        "Very does not fit in this sentence. We need a word that means no."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-nocoal",
+      "who": 0,
+      "grade": 1,
+      "skill": "neg",
+      "text": "Baron has no coal. Baron has ___ coal in his bag.",
+      "opts": [
+        "no",
+        "some",
+        "lots of"
+      ],
+      "why": [
+        "",
+        "Some means a little. The story says Baron has no coal.",
+        "Lots of means a big pile. The story says Baron has no coal."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-peas",
+      "who": 1,
+      "grade": 1,
+      "skill": "neg",
+      "text": "Hale hates peas. Hale ___ eats her peas.",
+      "opts": [
+        "never",
+        "always",
+        "often"
+      ],
+      "why": [
+        "",
+        "Always means every time. Hale hates peas, so that is not true.",
+        "Often means a lot of the time. Hale hates peas, so she does not eat them."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-empty",
+      "who": -1,
+      "grade": 1,
+      "skill": "neg",
+      "text": "The bag is empty. There is ___ gold in the bag.",
+      "opts": [
+        "no",
+        "lots of",
+        "some"
+      ],
+      "why": [
+        "",
+        "Lots of means a big pile. The story says the bag is empty.",
+        "Some means a little. The story says the bag is empty."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-jon",
+      "who": 2,
+      "grade": 1,
+      "skill": "neg",
+      "text": "Jon can swim, but Jon can ___ fly.",
+      "opts": [
+        "not",
+        "also",
+        "always"
+      ],
+      "why": [
+        "",
+        "Also means as well. The sentence says but, so Jon can not do it.",
+        "Always means every time. The word but tells us Jon can not fly."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-toy",
+      "who": -1,
+      "grade": 1,
+      "skill": "neg",
+      "text": "The rattle-bones is only a toy, so it is ___ scary.",
+      "opts": [
+        "not",
+        "very",
+        "always"
+      ],
+      "why": [
+        "",
+        "Very means a lot. A toy is not scary.",
+        "Always means every time. A toy is not scary."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng1-rain",
+      "who": -1,
+      "grade": 1,
+      "skill": "neg",
+      "text": "It is raining hard, so we can ___ play outside.",
+      "opts": [
+        "not",
+        "also",
+        "always"
+      ],
+      "why": [
+        "",
+        "Also means as well. It is raining, so we can not play outside.",
+        "Always means every time. It is raining now, so we can not play outside."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng2-first",
+      "who": -1,
+      "grade": 2,
+      "skill": "neg",
+      "text": "This is Nim's first time on the moon. He has ___ been here before.",
+      "opts": [
+        "never",
+        "always",
+        "often"
+      ],
+      "why": [
+        "",
+        "Always means every time. This is his first time.",
+        "Often means a lot of times. This is his first time."
+      ],
+      "tip": "Not and never mean no. No means zero. Always means every time."
+    },
+    {
+      "id": "ng2-nobody",
+      "who": -1,
+      "grade": 2,
+      "skill": "neg",
+      "text": "The museum was empty. ___ was inside.",
+      "opts": [
+        "Nobody",
+        "Everybody",
+        "Somebody"
+      ],
+      "why": [
+        "",
+        "Everybody means all the people. The museum was empty.",
+        "Somebody means one person. The museum was empty."
+      ],
+      "tip": "Nobody means no person."
+    },
+    {
+      "id": "ng2-some",
+      "who": -1,
+      "grade": 2,
+      "skill": "neg",
+      "text": "The bag has no gems, but it has ___ coal.",
+      "opts": [
+        "some",
+        "no",
+        "never"
+      ],
+      "why": [
+        "",
+        "No means zero. The word but tells us there is coal.",
+        "Never does not fit before coal. We need a word that means a little."
+      ],
+      "tip": "No means zero. Some means a little."
+    },
+    {
+      "id": "ng2-either",
+      "who": -1,
+      "grade": 2,
+      "skill": "neg",
+      "text": "Baron can not lift the big rock. Nim can not lift it, ___.",
+      "opts": [
+        "either",
+        "too",
+        "so"
+      ],
+      "why": [
+        "",
+        "Too is for things that are the same and yes. Both boys can not lift it, so we say either.",
+        "So does not fit at the end of this sentence. Both boys can not do it, so we say either."
+      ],
+      "tip": "After a not sentence, we say either."
+    }
+  ];
+  var mathWords = [
+    {
+      "id": "bats",
+      "grade": 1,
+      "op": "+",
+      "text": "{a} bats fly into the pit. Then {b} more bats fly in.",
+      "ask": "How many bats are there now?",
+      "min": 2
+    },
+    {
+      "id": "gems",
+      "grade": 1,
+      "op": "+",
+      "text": "Nim has {a} gems in his bag. Hale puts {b} more gems in.",
+      "ask": "How many gems are in the bag now?",
+      "min": 2
+    },
+    {
+      "id": "bones",
+      "grade": 1,
+      "op": "+",
+      "text": "The museum has {a} bones. Grog finds {b} more bones.",
+      "ask": "How many bones does the museum have now?",
+      "min": 2
+    },
+    {
+      "id": "coal",
+      "grade": 1,
+      "op": "+",
+      "text": "Baron digs {a} stacks of coal. Then he digs {b} more stacks.",
+      "ask": "How many stacks of coal did Baron dig in all?",
+      "min": 2
+    },
+    {
+      "id": "pies",
+      "grade": 1,
+      "op": "+",
+      "text": "Jon eats {a} fish pies at lunch. He eats {b} fish pies at dinner.",
+      "ask": "How many fish pies did Jon eat in all?",
+      "min": 2
+    },
+    {
+      "id": "stickers",
+      "grade": 1,
+      "op": "+",
+      "text": "Nim has {a} stickers at school. His teacher gives him {b} more stickers.",
+      "ask": "How many stickers does Nim have now?",
+      "min": 2
+    },
+    {
+      "id": "apples",
+      "grade": 1,
+      "op": "+",
+      "text": "There are {a} apples in the red bowl and {b} apples in the green bowl.",
+      "ask": "How many apples are there in all?",
+      "min": 2
+    },
+    {
+      "id": "balloons",
+      "grade": 1,
+      "op": "+",
+      "text": "Hale has {a} balloons at her birthday party. Baron brings {b} more balloons.",
+      "ask": "How many balloons are there now?",
+      "min": 2
+    },
+    {
+      "id": "batsaway",
+      "grade": 1,
+      "op": "-",
+      "text": "There are {a} bats in the cave. Then {b} bats fly away.",
+      "ask": "How many bats are left?",
+      "min": 2
+    },
+    {
+      "id": "gemsgive",
+      "grade": 1,
+      "op": "-",
+      "text": "Nim has {a} gems. He gives {b} gems to Nova.",
+      "ask": "How many gems does Nim have left?",
+      "min": 2
+    },
+    {
+      "id": "cookies",
+      "grade": 1,
+      "op": "-",
+      "text": "Hale has {a} cookies. She eats {b} cookies.",
+      "ask": "How many cookies does Hale have left?",
+      "min": 2
+    },
+    {
+      "id": "wrengems",
+      "grade": 1,
+      "op": "-",
+      "text": "Wren has {a} gems. A bat takes {b} gems.",
+      "ask": "How many gems does Wren have left?",
+      "min": 2
+    },
+    {
+      "id": "fish",
+      "grade": 1,
+      "op": "-",
+      "text": "Jon sees {a} fish in the sea. Then {b} fish swim away.",
+      "ask": "How many fish are left?"
+    },
+    {
+      "id": "birds",
+      "grade": 1,
+      "op": "-",
+      "text": "There are {a} birds in the tree. Then {b} birds fly away.",
+      "ask": "How many birds are still in the tree?",
+      "min": 2
+    },
+    {
+      "id": "bus",
+      "grade": 1,
+      "op": "-",
+      "text": "There are {a} kids on the bus. Then {b} kids get off at the park.",
+      "ask": "How many kids are still on the bus?",
+      "min": 2
+    },
+    {
+      "id": "rocks",
+      "grade": 1,
+      "op": "-",
+      "text": "Baron has {a} rocks in his bag. He drops {b} rocks in the pit.",
+      "ask": "How many rocks are still in his bag?",
+      "min": 2
+    },
+    {
+      "id": "fossils",
+      "grade": 2,
+      "op": "+",
+      "text": "On Monday the museum has {a} fossils. On Tuesday {b} more fossils come in.",
+      "ask": "How many fossils are in the museum now?",
+      "min": 2
+    },
+    {
+      "id": "moonrocks",
+      "grade": 2,
+      "op": "+",
+      "text": "Nova has {a} moon rocks in one bag and {b} moon rocks in another bag.",
+      "ask": "How many moon rocks does Nova have in all?",
+      "min": 2
+    },
+    {
+      "id": "visitors",
+      "grade": 2,
+      "op": "+",
+      "text": "On Saturday {a} people visit the museum. On Sunday {b} people visit the museum.",
+      "ask": "How many people visited on both days?",
+      "min": 2
+    },
+    {
+      "id": "shells",
+      "grade": 2,
+      "op": "+",
+      "text": "Jon has {a} shells. Then he finds {b} more shells at the beach.",
+      "ask": "How many shells does Jon have now?",
+      "min": 2
+    },
+    {
+      "id": "morebaron",
+      "grade": 2,
+      "op": "-",
+      "text": "Baron has {a} gems. Nim has {b} gems.",
+      "ask": "How many more gems does Baron have than Nim?",
+      "min": 2
+    },
+    {
+      "id": "fewerhale",
+      "grade": 2,
+      "op": "-",
+      "text": "Baron has {a} stickers. Hale has {b} stickers.",
+      "ask": "How many fewer stickers does Hale have than Baron?",
+      "min": 2
+    },
+    {
+      "id": "shop",
+      "grade": 2,
+      "op": "-",
+      "text": "The shop has {a} pickaxes. The shop sells {b} pickaxes today.",
+      "ask": "How many pickaxes are left in the shop?",
+      "min": 2
+    },
+    {
+      "id": "park",
+      "grade": 2,
+      "op": "-",
+      "text": "There are {a} children at the park. Then {b} children go home for lunch.",
+      "ask": "How many children are still at the park?",
+      "min": 2
+    },
+    {
+      "id": "coalmore",
+      "grade": 2,
+      "op": "-",
+      "text": "Grog digs {a} stacks of coal. Wren digs {b} stacks of coal.",
+      "ask": "How many more stacks did Grog dig than Wren?",
+      "min": 2
+    }
+  ];
+  var storiesAdd = [
+    {
+      "id": "sadfriend",
+      "who": 1,
+      "title": "When a friend is sad",
+      "pages": [
+        "Sometimes a friend is sad. I can notice it by looking at their face. Their mouth might turn down, and their eyes might look wet.",
+        "I can also listen to their voice. A sad voice is often quiet and slow.",
+        "Sometimes a friend is sad because they lost a game, or because they miss someone. I might not know why.",
+        "When I see a sad friend, I can stop and look at them. Noticing is the first step.",
+        "I can say, \"Are you okay?\" That is a kind thing to ask. It shows I care.",
+        "I can stay close and sit with them. I do not have to fix it. A friend can just be there.",
+        "If I do not know what to do, I can get a grown-up to help.",
+        "My friend might feel a little better because I noticed. That makes me feel good too."
+      ]
+    },
+    {
+      "id": "bigsmall",
+      "who": 4,
+      "title": "Big problems and small problems",
+      "pages": [
+        "Problems come in sizes. Some are small. Some are medium. Some are big.",
+        "A small problem is a broken crayon, or losing a game. It can bother me, but it will pass soon.",
+        "A medium problem is a lost lunch box, or a scraped knee. I might need a little help.",
+        "A big problem is when someone is badly hurt, or there is a fire. For a big problem, I get a grown-up right away.",
+        "My feelings can feel big, even about a small problem. That is okay. Feelings can be big.",
+        "It helps to ask myself, \"Is this small, medium or big?\" Most of my problems are small.",
+        "For a small problem, I can take a deep breath and try again. I do not need a big reaction.",
+        "Grown-ups are glad when I match my reaction to the size of the problem."
+      ]
+    },
+    {
+      "id": "askbreak",
+      "who": 2,
+      "title": "Asking for a break",
+      "pages": [
+        "Sometimes school or the pit gets too loud, too busy, or too hard. My body might feel tight or wiggly.",
+        "That is a sign that my brain needs a rest. It is okay to need a rest. Lots of people need breaks.",
+        "I can ask for a break. I can say, \"I need a break, please.\" That is a good, clear way to ask.",
+        "A break can be a quiet spot, a drink of water, or a few slow breaths. It is usually short.",
+        "Grown-ups are usually glad when I ask. It helps me stay calm and do my best work.",
+        "It is better to ask for a break than to shout or run away. Asking keeps everyone safe and calm.",
+        "When my break is over, I go back and try again. I feel more ready."
+      ]
+    },
+    {
+      "id": "firedrill",
+      "who": 5,
+      "title": "A fire drill at school",
+      "pages": [
+        "Sometimes my school has a fire drill. A fire drill is practice. There is no fire.",
+        "A loud bell rings. It might hurt my ears. I can cover my ears if I need to.",
+        "Everybody stops what they are doing. The teacher says, \"Line up, please.\"",
+        "We walk in a line to the door and go outside. We walk and do not run. We stay with our class.",
+        "We stand in a safe place outside, and the teacher counts everyone.",
+        "When the drill is over, a grown-up tells us it is okay to go back in. The bell stops.",
+        "Fire drills help everyone learn what to do if there is a real fire. Practice keeps us safe.",
+        "I can listen to the teacher and walk with my class. I can do a fire drill."
+      ]
+    },
+    {
+      "id": "newfood",
+      "who": 3,
+      "title": "Trying a new food",
+      "pages": [
+        "Sometimes there is a food on my plate that I have not tried. It might look different, smell different or feel different.",
+        "Lots of kids feel unsure about new food. Wren says the jungle has fruits that look very strange.",
+        "A new food does not have to be a big deal. I can take a very tiny bite, just a little one.",
+        "I might like it. I might not like it. Both are okay. My tongue is allowed to have its own opinion.",
+        "If I do not like it, I can say, \"No, thank you.\" I do not have to say it is yucky.",
+        "Tasting one tiny bite is brave. Grown-ups are usually proud when I try.",
+        "I do not have to eat it all. I can try again another day, because tastes can change."
+      ]
+    },
+    {
+      "id": "space",
+      "who": 0,
+      "title": "Personal space",
+      "pages": [
+        "Everybody has an invisible bubble around them. It is called personal space.",
+        "I can find my bubble by stretching out my arms. The space where my hands can reach is about the size of my bubble.",
+        "Sometimes a person stands too close, inside my bubble. It might feel itchy, crowded or loud.",
+        "Sometimes I stand too close to somebody else. I might not notice at first.",
+        "Most people like about one arm's length of space when they talk. That is an easy rule.",
+        "If someone is too close, I can take a small step back. I can say, \"Please give me some space.\"",
+        "If I am too close, I can step back and say, \"Sorry.\" Then my friend feels comfortable.",
+        "Giving space shows respect. People often feel happy when I respect their bubble."
+      ]
+    }
+  ];
+  var skillNamesAdd0 = {
+    "pronoun": "Pronouns (he, she, they, I, me)",
+    "prep": "Position words",
+    "bewas": "is, are, was, were",
+    "neg": "Not and never",
+    "place": "Tens and ones",
+    "time": "Telling time",
+    "story": "Story problems",
+    "grammar": "Grammar"
+  };
+
+
+  var wh = [
+    // who
+    { id: 'who-read', who: -1, grade: 1, skill: 'who',
+      text: 'At school, Ms. Lee read a story. Sam drew a picture. Mia fed the fish.',
+      ask: 'Who read a story?',
+      opts: ['Ms. Lee', 'Sam', 'Mia'],
+      why: ['', 'Sam drew a picture. Ms. Lee is the one who read the story.', 'Mia fed the fish. Ms. Lee read the story.'] },
+    { id: 'who-bag', who: 1, grade: 1, skill: 'who',
+      text: 'Baron found a gold gem. Hale carried the bag. Nim held the ladder.',
+      ask: 'Who carried the bag?',
+      opts: ['Hale', 'Baron', 'Nim'],
+      why: ['', 'Baron found the gem. Hale is the one who carried the bag.', 'Nim held the ladder. Hale carried the bag.'] },
+    { id: 'who-table', who: -1, grade: 1, skill: 'who',
+      text: 'Dad made pancakes. Mom set the table. Grandma sat by the window.',
+      ask: 'Who set the table?',
+      opts: ['Mom', 'Dad', 'Grandma'],
+      why: ['', 'Dad made the pancakes. Mom set the table.', 'Grandma sat by the window. Mom set the table.'] },
+    { id: 'who-lamp', who: 4, grade: 1, skill: 'who',
+      text: 'Jon brought a map. Nova brought a lamp. Grog brought a snack.',
+      ask: 'Who brought a lamp?',
+      opts: ['Nova', 'Jon', 'Grog'],
+      why: ['', 'Jon brought the map. Nova brought the lamp.', 'Grog brought the snack. Nova brought the lamp.'] },
+    { id: 'who-slide', who: -1, grade: 1, skill: 'who',
+      text: 'At the park, Ben pushed the swing. Lily slid down the slide. A dog ran by.',
+      ask: 'Who slid down the slide?',
+      opts: ['Lily', 'Ben', 'The dog'],
+      why: ['', 'Ben pushed the swing. Lily slid down the slide.', 'The dog ran by. Lily is the one who slid down the slide.'] },
+    { id: 'who-sticker', who: -1, grade: 1, skill: 'who',
+      text: 'Dr. Kim looked in Tom\'s ears. The nurse gave Tom a sticker.',
+      ask: 'Who gave Tom a sticker?',
+      opts: ['The nurse', 'Dr. Kim', 'Tom'],
+      why: ['', 'Dr. Kim looked in his ears. The nurse gave the sticker.', 'Tom got the sticker. The nurse gave it to him.'] },
+    { id: 'who-vine', who: 3, grade: 1, skill: 'who',
+      text: 'Wren climbed a vine. Nim held the rope. A bat flew by.',
+      ask: 'Who climbed a vine?',
+      opts: ['Wren', 'Nim', 'The bat'],
+      why: ['', 'Nim held the rope. Wren climbed the vine.', 'The bat flew by. Wren climbed the vine.'] },
+    { id: 'who-book', who: -1, grade: 1, skill: 'who',
+      text: 'Dad read a book at bedtime. Nim picked the book. Hale brought her bear.',
+      ask: 'Who picked the book?',
+      opts: ['Nim', 'Dad', 'Hale'],
+      why: ['', 'Dad read the book. Nim picked it.', 'Hale brought her bear. Nim picked the book.'] },
+    { id: 'who-line', who: -1, grade: 2, skill: 'who',
+      text: 'Mr. Cruz said the bus would be late. Priya told the class to line up. Leo held the door.',
+      ask: 'Who told the class to line up?',
+      opts: ['Priya', 'Mr. Cruz', 'Leo'],
+      why: ['', 'Mr. Cruz said the bus would be late. Priya told the class to line up.', 'Leo held the door. Priya told the class to line up.'] },
+    { id: 'who-first', who: 3, grade: 2, skill: 'who',
+      text: 'Nova checked the air tank. Jon packed the ropes. Grog said the cave was too loud, so Wren went first.',
+      ask: 'Who went first into the cave?',
+      opts: ['Wren', 'Grog', 'Jon'],
+      why: ['', 'Grog said the cave was too loud. Wren is the one who went first.', 'Jon packed the ropes. Wren went first.'] },
+    { id: 'who-fish', who: -1, grade: 2, skill: 'who',
+      text: 'Grandpa taught Nim to fish. Aunt Rose cooked the fish. Baron washed the dishes.',
+      ask: 'Who taught Nim to fish?',
+      opts: ['Grandpa', 'Aunt Rose', 'Baron'],
+      why: ['', 'Aunt Rose cooked the fish. Grandpa taught Nim.', 'Baron washed the dishes. Grandpa taught Nim to fish.'] },
+    // what
+    { id: 'what-took', who: -1, grade: 1, skill: 'what',
+      text: 'Mia put on her coat. Then she took her lunch box. She ran to the bus.',
+      ask: 'What did Mia take?',
+      opts: ['Her lunch box', 'Her coat', 'The bus'],
+      why: ['', 'Mia put on her coat. She took her lunch box.', 'Mia ran to the bus. She took her lunch box.'] },
+    { id: 'what-found', who: -1, grade: 1, skill: 'what',
+      text: 'Nim dug a hole in the pit. He found a shiny gold gem.',
+      ask: 'What did Nim find?',
+      opts: ['A shiny gold gem', 'A hole', 'A bat'],
+      why: ['', 'The hole is what Nim dug. He found a gem.', 'The story does not say a bat. Nim found a gem.'] },
+    { id: 'what-lost', who: 0, grade: 1, skill: 'what',
+      text: 'Baron lost his helmet. He looked under the ladder. The helmet was in his bag.',
+      ask: 'What did Baron lose?',
+      opts: ['His helmet', 'His bag', 'His ladder'],
+      why: ['', 'The helmet was in his bag. Baron lost the helmet.', 'Baron looked under the ladder. What he lost was the helmet.'] },
+    { id: 'what-candles', who: -1, grade: 1, skill: 'what',
+      text: 'Tom had a birthday party. His friends sang a song. He blew out the candles.',
+      ask: 'What did Tom blow out?',
+      opts: ['The candles', 'A song', 'A party'],
+      why: ['', 'His friends sang the song. Tom blew out the candles.', 'The party is what Tom had. He blew out the candles.'] },
+    { id: 'what-cookie', who: -1, grade: 1, skill: 'what',
+      text: 'At lunch, Ava ate an apple. She drank milk. She saved her cookie.',
+      ask: 'What did Ava save?',
+      opts: ['Her cookie', 'Her apple', 'Her milk'],
+      why: ['', 'Ava ate the apple. She saved her cookie.', 'Ava drank the milk. She saved her cookie.'] },
+    { id: 'what-snail', who: 1, grade: 1, skill: 'what',
+      text: 'Hale held a small snail. She named it Pip. She gave it a leaf.',
+      ask: 'What did Hale give the snail?',
+      opts: ['A leaf', 'A name', 'A pickaxe'],
+      why: ['', 'Pip is the snail\'s name. What Hale gave it was a leaf.', 'The story does not say Hale gave it a pickaxe. She gave it a leaf.'] },
+    { id: 'what-umbrella', who: -1, grade: 1, skill: 'what',
+      text: 'It rained at the park. Sam put up his umbrella. Mom held a big towel.',
+      ask: 'What did Sam put up?',
+      opts: ['His umbrella', 'A big towel', 'The rain'],
+      why: ['', 'Mom held the towel. Sam put up his umbrella.', 'The rain fell by itself. Sam put up his umbrella.'] },
+    { id: 'what-opened', who: 4, grade: 2, skill: 'what',
+      text: 'Nova pressed the red button on the rocket. A light blinked, and a door slid open. Grog stepped inside.',
+      ask: 'What slid open?',
+      opts: ['A door', 'A light', 'The red button'],
+      why: ['', 'The light blinked. The door is what slid open.', 'Nova pressed the button. The door slid open.'] },
+    { id: 'what-left', who: -1, grade: 2, skill: 'what',
+      text: 'After school, Leo cleaned his desk. He packed his folder and his pencil case. He left his water bottle on the shelf.',
+      ask: 'What did Leo leave on the shelf?',
+      opts: ['His water bottle', 'His folder', 'His pencil case'],
+      why: ['', 'Leo packed his folder. He left the water bottle.', 'Leo packed his pencil case. He left the water bottle.'] },
+    { id: 'what-brush', who: 2, grade: 2, skill: 'what',
+      text: 'Jon found a long bone under the sand. He cleaned it with a soft brush. Then he carried it to the museum.',
+      ask: 'What did Jon use to clean the bone?',
+      opts: ['A soft brush', 'The sand', 'A pickaxe'],
+      why: ['', 'The bone was under the sand. Jon used a soft brush to clean it.', 'The story does not say Jon used a pickaxe. He used a soft brush.'] },
+    // where
+    { id: 'where-helmet', who: -1, grade: 1, skill: 'where',
+      text: 'Nim hung his helmet on a hook by the door. His boots were under the bench.',
+      ask: 'Where was the helmet?',
+      opts: ['On a hook by the door', 'Under the bench', 'In the pit'],
+      why: ['', 'The boots were under the bench. The helmet was on a hook.', 'The story says the helmet was by the door.'] },
+    { id: 'where-bat', who: -1, grade: 1, skill: 'where',
+      text: 'A bat flew over the pit and sat on the ladder. Baron stood by the shop.',
+      ask: 'Where did the bat sit?',
+      opts: ['On the ladder', 'By the shop', 'Over the pit'],
+      why: ['', 'Baron stood by the shop. The bat sat on the ladder.', 'The bat flew over the pit. Then it sat on the ladder.'] },
+    { id: 'where-book', who: -1, grade: 1, skill: 'where',
+      text: 'Sam looked for a book about whales. He found it on the red shelf. Then he sat on the rug.',
+      ask: 'Where did Sam find the book?',
+      opts: ['On the red shelf', 'On the rug', 'In his bag'],
+      why: ['', 'Sam sat on the rug later. He found the book on the red shelf.', 'The story says he found it on the shelf.'] },
+    { id: 'where-jar', who: 1, grade: 1, skill: 'where',
+      text: 'Mom kept the cookies in a jar. The jar was on the high shelf. Hale could not reach it.',
+      ask: 'Where was the jar?',
+      opts: ['On the high shelf', 'Under the table', 'In Hale\'s hand'],
+      why: ['', 'The story says the jar was high up.', 'Hale could not reach it. The jar was on the high shelf.'] },
+    { id: 'where-zoe', who: -1, grade: 1, skill: 'where',
+      text: 'Mia sat on the bus next to the window. Her friend Zoe sat behind her.',
+      ask: 'Where did Zoe sit?',
+      opts: ['Behind Mia', 'Next to the window', 'In front of Mia'],
+      why: ['', 'Mia sat next to the window. Zoe sat behind her.', 'The story says Zoe sat behind Mia.'] },
+    { id: 'where-shell', who: 2, grade: 1, skill: 'where',
+      text: 'Jon dug in the ocean world. He found a shell by a big rock. Nova waited at the ladder.',
+      ask: 'Where did Jon find the shell?',
+      opts: ['By a big rock', 'At the ladder', 'On the moon'],
+      why: ['', 'Nova waited at the ladder. Jon found the shell by a big rock.', 'The story says Jon dug in the ocean world. The shell was by a big rock.'] },
+    { id: 'where-duck', who: -1, grade: 1, skill: 'where',
+      text: 'Dad and Nim ate lunch at the park. They sat on a bench. A duck sat by the pond.',
+      ask: 'Where did the duck sit?',
+      opts: ['By the pond', 'On the bench', 'In the car'],
+      why: ['', 'Dad and Nim sat on the bench. The duck sat by the pond.', 'The story does not mention a car. The duck sat by the pond.'] },
+    { id: 'where-skeleton', who: 4, grade: 2, skill: 'where',
+      text: 'The museum has a new skeleton. The sign says it is in the east hall, past the dinosaur room. Nova waits at the front desk.',
+      ask: 'Where is the new skeleton?',
+      opts: ['In the east hall', 'At the front desk', 'In the dinosaur room'],
+      why: ['', 'Nova waits at the front desk. The skeleton is in the east hall.', 'The hall is past the dinosaur room. The skeleton is in the east hall.'] },
+    { id: 'where-coat', who: -1, grade: 2, skill: 'where',
+      text: 'The class lined up outside the gym. Ms. Cruz said to put coats in the cubby. Leo\'s coat was on the floor by the sink.',
+      ask: 'Where was Leo\'s coat?',
+      opts: ['On the floor by the sink', 'In the cubby', 'Outside the gym'],
+      why: ['', 'Ms. Cruz said coats go in the cubby, but Leo\'s was by the sink.', 'The class lined up outside the gym. Leo\'s coat was on the floor.'] },
+    { id: 'where-hide', who: 5, grade: 2, skill: 'where',
+      text: 'Grog hid from the loud drill. He went past the ladder and behind the big crate in the corner of the hut.',
+      ask: 'Where did Grog hide?',
+      opts: ['Behind the big crate', 'Past the ladder', 'Next to the drill'],
+      why: ['', 'Grog went past the ladder, then behind the crate.', 'Grog hid from the drill. He hid behind the big crate.'] },
+    // when
+    { id: 'when-breakfast', who: -1, grade: 1, skill: 'when',
+      text: 'Mia wakes up at seven. She eats breakfast at eight. She gets on the bus at nine.',
+      ask: 'When does Mia eat breakfast?',
+      opts: ['At eight', 'At seven', 'At nine'],
+      why: ['', 'Mia wakes up at seven. She eats breakfast at eight.', 'Mia gets on the bus at nine. She eats breakfast at eight.'] },
+    { id: 'when-pit', who: -1, grade: 1, skill: 'when',
+      text: 'On Monday, Nim went to school. On Tuesday, he went to the pit. On Wednesday, he went to the park.',
+      ask: 'When did Nim go to the pit?',
+      opts: ['On Tuesday', 'On Monday', 'On Wednesday'],
+      why: ['', 'Nim went to school on Monday. He went to the pit on Tuesday.', 'Nim went to the park on Wednesday. The pit was on Tuesday.'] },
+    { id: 'when-nap', who: 1, grade: 1, skill: 'when',
+      text: 'Hale takes a nap after lunch. She plays with her snail before dinner.',
+      ask: 'When does Hale take a nap?',
+      opts: ['After lunch', 'Before dinner', 'In the morning'],
+      why: ['', 'Hale plays with her snail before dinner. Her nap is after lunch.', 'The story does not say morning. Hale naps after lunch.'] },
+    { id: 'when-music', who: -1, grade: 1, skill: 'when',
+      text: 'The class has art in the morning. They have lunch at noon. They have music in the afternoon.',
+      ask: 'When does the class have music?',
+      opts: ['In the afternoon', 'In the morning', 'At noon'],
+      why: ['', 'Art is in the morning. Music is in the afternoon.', 'Lunch is at noon. Music comes in the afternoon.'] },
+    { id: 'when-cake', who: -1, grade: 1, skill: 'when',
+      text: 'Tom\'s party starts at two. Cake is at three. Everyone goes home at four.',
+      ask: 'When is the cake?',
+      opts: ['At three', 'At two', 'At four'],
+      why: ['', 'The party starts at two. The cake is at three.', 'Everyone goes home at four. The cake is at three.'] },
+    { id: 'when-stars', who: -1, grade: 1, skill: 'when',
+      text: 'The shop opens in the morning. The miner digs all day. At night, the stars come out over the plaza.',
+      ask: 'When do the stars come out?',
+      opts: ['At night', 'In the morning', 'All day'],
+      why: ['', 'The shop opens in the morning. Stars come out at night.', 'The miner digs all day. The stars come out at night.'] },
+    { id: 'when-story', who: -1, grade: 1, skill: 'when',
+      text: 'Nim brushes his teeth after dinner. Then he puts on pajamas. At eight, Mom reads a book.',
+      ask: 'When does Mom read a book?',
+      opts: ['At eight', 'After dinner', 'In the morning'],
+      why: ['', 'Nim brushes his teeth after dinner. Mom reads at eight.', 'The story does not say morning. Mom reads at eight.'] },
+    { id: 'when-school', who: -1, grade: 2, skill: 'when',
+      text: 'The bus comes at 7:30. It stops at the school at 8:00. School starts at 8:15, but Leo is early.',
+      ask: 'When does school start?',
+      opts: ['At 8:15', 'At 8:00', 'At 7:30'],
+      why: ['', 'The bus stops at the school at 8:00. School starts at 8:15.', 'The bus comes at 7:30. School starts at 8:15.'] },
+    { id: 'when-visit', who: 4, grade: 2, skill: 'when',
+      text: 'Last winter, Nova went to the moon. This summer, she came home. Next spring, she will visit the museum.',
+      ask: 'When will Nova visit the museum?',
+      opts: ['Next spring', 'Last winter', 'This summer'],
+      why: ['', 'Last winter Nova went to the moon. She will visit the museum next spring.', 'Nova came home this summer. The visit is next spring.'] },
+    { id: 'when-tide', who: 2, grade: 2, skill: 'when',
+      text: 'Jon only digs when the tide is low. At high tide, he cleans his tools. He rests at sunset.',
+      ask: 'When does Jon dig?',
+      opts: ['When the tide is low', 'At high tide', 'At sunset'],
+      why: ['', 'At high tide Jon cleans his tools. He digs when the tide is low.', 'Jon rests at sunset. He digs when the tide is low.'] },
+    // why
+    { id: 'why-coat', who: 1, grade: 1, skill: 'why',
+      text: 'Hale put on her coat because it was cold. Then she went to the park.',
+      ask: 'Why did Hale put on her coat?',
+      opts: ['Because it was cold', 'Because she went to the park', 'Because she was hungry'],
+      why: ['', 'She went to the park after the coat. The story says it was cold.', 'The story does not say Hale was hungry. It was cold.'] },
+    { id: 'why-lamp', who: 0, grade: 1, skill: 'why',
+      text: 'Nim turned on his lamp because the pit was dark. Baron looked at the gems.',
+      ask: 'Why did Nim turn on his lamp?',
+      opts: ['Because the pit was dark', 'Because Baron looked at the gems', 'Because it was lunch'],
+      why: ['', 'Baron looked at the gems. Nim needed light because the pit was dark.', 'The story does not say it was lunch. The pit was dark.'] },
+    { id: 'why-sad', who: -1, grade: 1, skill: 'why',
+      text: 'Sam was sad. His ice cream fell on the ground. Mom gave him a hug.',
+      ask: 'Why was Sam sad?',
+      opts: ['His ice cream fell', 'Mom gave him a hug', 'He went home'],
+      why: ['', 'Mom gave him a hug to help. Sam was sad because the ice cream fell.', 'The story does not say he went home. His ice cream fell.'] },
+    { id: 'why-wash', who: -1, grade: 1, skill: 'why',
+      text: 'Mia washed her hands because they were sticky. Then she ate her snack.',
+      ask: 'Why did Mia wash her hands?',
+      opts: ['They were sticky', 'She ate her snack', 'It was raining'],
+      why: ['', 'She ate her snack after. She washed because they were sticky.', 'The story does not say it rained. Her hands were sticky.'] },
+    { id: 'why-shout', who: 1, grade: 1, skill: 'why',
+      text: 'A bat grabbed Hale\'s gem, so she shouted. Jon waved his arms to shoo it.',
+      ask: 'Why did Hale shout?',
+      opts: ['A bat grabbed her gem', 'Jon waved his arms', 'She was sleepy'],
+      why: ['', 'Jon waved his arms after. Hale shouted because the bat grabbed her gem.', 'The story does not say Hale was sleepy. The bat grabbed her gem.'] },
+    { id: 'why-ears', who: 5, grade: 1, skill: 'why',
+      text: 'Grog covered his ears. The drill was very loud. Nova turned it off.',
+      ask: 'Why did Grog cover his ears?',
+      opts: ['The drill was loud', 'Nova turned it off', 'He was hungry'],
+      why: ['', 'Nova turned the drill off to help. Grog covered his ears because it was loud.', 'The story does not say Grog was hungry. The drill was loud.'] },
+    { id: 'why-run', who: -1, grade: 1, skill: 'why',
+      text: 'Leo ran to the bus stop because he was late. His mom waved goodbye.',
+      ask: 'Why did Leo run?',
+      opts: ['He was late', 'His mom waved', 'It was lunch time'],
+      why: ['', 'His mom waved goodbye. Leo ran because he was late.', 'The story does not say it was lunch time. He was late.'] },
+    { id: 'why-cry', who: -1, grade: 1, skill: 'why',
+      text: 'Tom cried at the doctor. The shot hurt a little. Then he got a sticker.',
+      ask: 'Why did Tom cry?',
+      opts: ['The shot hurt', 'He got a sticker', 'Mom went away'],
+      why: ['', 'He got a sticker after. He cried because the shot hurt.', 'The story does not say Mom went away. The shot hurt.'] },
+    { id: 'why-air', who: 4, grade: 2, skill: 'why',
+      text: 'Nova checked her air tank two times before her walk on the moon. She knew she could not breathe up there without it.',
+      ask: 'Why did Nova check her air tank?',
+      opts: ['She needs it to breathe', 'The walk was far', 'The tank was shiny'],
+      why: ['', 'The story does not say how far. She needs air to breathe.', 'The story does not talk about shiny. She checked it so she could breathe.'] },
+    { id: 'why-paper', who: -1, grade: 2, skill: 'why',
+      text: 'Ben put his glass fish in a box with soft paper. The bus ride would be bumpy.',
+      ask: 'Why did Ben use soft paper?',
+      opts: ['So the glass would not break', 'So the box looked pretty', 'So the bus would go fast'],
+      why: ['', 'The paper is for keeping the glass safe, not for looks.', 'The ride is bumpy. Soft paper keeps the glass from breaking.'] },
+    { id: 'why-quiet', who: 1, grade: 2, skill: 'why',
+      text: 'Hale gave Grog a quiet game. Grog likes soft sounds, and the drill had been loud all day.',
+      ask: 'Why did Hale give Grog a quiet game?',
+      opts: ['Grog likes soft sounds', 'Hale wanted to win', 'The drill was Hale\'s'],
+      why: ['', 'The story says nothing about winning. Grog likes soft sounds.', 'The drill had been loud. Hale chose a quiet game because Grog likes soft sounds.'] },
+  ];
+
+  var seq = [
+    // first
+    { id: 'first-helmet', who: 0, grade: 1, skill: 'first',
+      text: 'Nim put on his helmet. Then he turned on his lamp. Last, he climbed down the ladder.',
+      ask: 'What happened first?',
+      opts: ['Nim put on his helmet', 'Nim turned on his lamp', 'Nim climbed down the ladder'],
+      why: ['', 'The lamp came after the helmet. The first thing was the helmet.', 'Climbing down was last. The helmet came first.'] },
+    { id: 'first-bus', who: -1, grade: 1, skill: 'first',
+      text: 'Mia woke up. Then she ate breakfast. Next, she got on the bus.',
+      ask: 'What happened first?',
+      opts: ['Mia woke up', 'Mia ate breakfast', 'Mia got on the bus'],
+      why: ['', 'Breakfast came after waking up. Waking up was first.', 'The bus came last. Mia woke up first.'] },
+    { id: 'first-balloon', who: 1, grade: 1, skill: 'first',
+      text: 'First, Tom blew up a balloon. Then he tied it. Last, he gave it to Hale.',
+      ask: 'What happened first?',
+      opts: ['Tom blew up a balloon', 'Tom tied the balloon', 'Tom gave it to Hale'],
+      why: ['', 'Tying came after blowing it up.', 'Giving it to Hale was last. Blowing it up was first.'] },
+    { id: 'first-bone', who: 0, grade: 1, skill: 'first',
+      text: 'First, Baron dug a block. Next, he found a bone. Then he took it to the museum.',
+      ask: 'What happened first?',
+      opts: ['Baron dug a block', 'Baron found a bone', 'Baron took it to the museum'],
+      why: ['', 'He found the bone after he dug the block.', 'The museum was last. Digging the block was first.'] },
+    { id: 'first-rug', who: -1, grade: 1, skill: 'first',
+      text: 'First, we sit on the rug. Then Ms. Lee reads a story. After that, we draw.',
+      ask: 'What happened first?',
+      opts: ['We sit on the rug', 'Ms. Lee reads a story', 'We draw'],
+      why: ['', 'The story came after sitting on the rug.', 'Drawing came last. Sitting on the rug came first.'] },
+    { id: 'first-flower', who: 1, grade: 1, skill: 'first',
+      text: 'Hale picked a flower. Then she smelled it. Last, she gave it to Mom.',
+      ask: 'What happened first?',
+      opts: ['Hale picked a flower', 'Hale smelled the flower', 'Hale gave it to Mom'],
+      why: ['', 'Hale smelled it after she picked it.', 'She gave it to Mom last. Picking it was first.'] },
+    { id: 'first-bath', who: -1, grade: 1, skill: 'first',
+      text: 'Nim took a bath. Next, he put on pajamas. Then he heard a story.',
+      ask: 'What happened first?',
+      opts: ['Nim took a bath', 'Nim put on pajamas', 'Nim heard a story'],
+      why: ['', 'The pajamas came after the bath.', 'The story was last. The bath came first.'] },
+    { id: 'first-cave', who: 2, grade: 1, skill: 'first',
+      text: 'First, Jon swam to the cave. Next, he lit his lamp. Then he found a shell.',
+      ask: 'What happened first?',
+      opts: ['Jon swam to the cave', 'Jon lit his lamp', 'Jon found a shell'],
+      why: ['', 'He lit his lamp after he got to the cave.', 'Finding the shell was last. Swimming to the cave was first.'] },
+    { id: 'first-map', who: 4, grade: 2, skill: 'first',
+      text: 'Nova planted a flag after she landed. She checked the map before she landed. She ate a snack last.',
+      ask: 'What happened first?',
+      opts: ['Nova checked the map', 'Nova planted a flag', 'Nova ate a snack'],
+      why: ['', 'The flag came after she landed. She checked the map before she landed.', 'The snack was last. Checking the map happened first.'] },
+    { id: 'first-shoes', who: -1, grade: 2, skill: 'first',
+      text: 'Leo put on his shoes after he ate breakfast. Before breakfast, he brushed his teeth. Then he left for school.',
+      ask: 'What happened first?',
+      opts: ['Leo brushed his teeth', 'Leo put on his shoes', 'Leo ate breakfast'],
+      why: ['', 'Shoes came after breakfast, and teeth came before breakfast.', 'Breakfast came after teeth. Brushing teeth was first.'] },
+    { id: 'first-vine', who: 3, grade: 2, skill: 'first',
+      text: 'Wren climbed the vine after Grog tied the rope. Before that, Baron cut the vine down from the tree.',
+      ask: 'What happened first?',
+      opts: ['Baron cut the vine', 'Grog tied the rope', 'Wren climbed the vine'],
+      why: ['', 'Grog tied the rope after Baron cut the vine.', 'Wren climbed after the rope was tied. Baron cut the vine first.'] },
+    // next
+    { id: 'next-lamp', who: 0, grade: 1, skill: 'next',
+      text: 'Nim put on his helmet. Next, he turned on his lamp. Then he climbed down the ladder.',
+      ask: 'What did Nim do after he put on his helmet?',
+      opts: ['He turned on his lamp', 'He climbed down the ladder', 'He ate lunch'],
+      why: ['', 'Climbing down came after the lamp.', 'The story does not say he ate lunch. He turned on his lamp next.'] },
+    { id: 'next-lunch', who: -1, grade: 1, skill: 'next',
+      text: 'Mia ate lunch. Then she played outside. After that, she went to class.',
+      ask: 'What did Mia do after lunch?',
+      opts: ['She played outside', 'She went to class', 'She rode the bus'],
+      why: ['', 'Going to class came after playing outside.', 'The story does not say she rode the bus. She played outside.'] },
+    { id: 'next-show', who: 1, grade: 1, skill: 'next',
+      text: 'Hale dug up a bone. Then she showed it to Baron. Last, they put it in the bag.',
+      ask: 'What did Hale do after she dug up the bone?',
+      opts: ['She showed it to Baron', 'She put it in the bag', 'She went to bed'],
+      why: ['', 'The bag was last. She showed Baron first.', 'The story does not say she went to bed. She showed it to Baron.'] },
+    { id: 'next-cake', who: -1, grade: 1, skill: 'next',
+      text: 'Tom blew out the candles. Next, Mom cut the cake. Then everyone ate.',
+      ask: 'What happened after Tom blew out the candles?',
+      opts: ['Mom cut the cake', 'Everyone ate', 'Tom sang a song'],
+      why: ['', 'Everyone ate after the cake was cut.', 'The story does not say Tom sang. Mom cut the cake next.'] },
+    { id: 'next-class', who: -1, grade: 1, skill: 'next',
+      text: 'The bus stopped at the school. The kids got off. Then they ran to class.',
+      ask: 'What did the kids do after the bus stopped?',
+      opts: ['They got off', 'They ran to class', 'They drove away'],
+      why: ['', 'They ran to class after they got off.', 'The bus stopped, and the kids got off.'] },
+    { id: 'next-chest', who: 2, grade: 1, skill: 'next',
+      text: 'Jon opened a chest. Next, he saw a gold gem. Then he put it in his bag.',
+      ask: 'What happened after Jon opened the chest?',
+      opts: ['He saw a gold gem', 'He put it in his bag', 'He closed the chest'],
+      why: ['', 'The bag came after he saw the gem.', 'The story does not say he closed it. He saw a gem.'] },
+    { id: 'next-toast', who: -1, grade: 1, skill: 'next',
+      text: 'Dad put bread in the toaster. Then the toast popped up. Next, Dad put on jam.',
+      ask: 'What did Dad do after the toast popped up?',
+      opts: ['He put on jam', 'He put bread in the toaster', 'He washed the plate'],
+      why: ['', 'The bread went in before the toast popped up.', 'The story does not say he washed a plate. He put on jam.'] },
+    { id: 'next-star', who: 4, grade: 1, skill: 'next',
+      text: 'Nova looked through the telescope. Next, she saw a star. Then she told Grog.',
+      ask: 'What did Nova do after she looked through the telescope?',
+      opts: ['She saw a star', 'She told Grog', 'She went to sleep'],
+      why: ['', 'She told Grog after she saw the star.', 'The story does not say she slept. She saw a star next.'] },
+    { id: 'next-stage', who: 1, grade: 2, skill: 'next',
+      text: 'Before the show, Hale tied her shoes. After she tied her shoes, she walked on stage. Then she sang.',
+      ask: 'What did Hale do right after she tied her shoes?',
+      opts: ['She walked on stage', 'She sang', 'She went home'],
+      why: ['', 'She sang after she walked on stage.', 'The story does not say she went home. She walked on stage.'] },
+    { id: 'next-sorry', who: 0, grade: 2, skill: 'next',
+      text: 'Baron tooted, and then everyone laughed. After the laugh, Baron said sorry to Jon. Later, they all had lunch.',
+      ask: 'What happened right after everyone laughed?',
+      opts: ['Baron said sorry to Jon', 'Baron tooted', 'They all had lunch'],
+      why: ['', 'The toot came before the laugh.', 'Lunch came later. Right after the laugh, Baron said sorry.'] },
+    { id: 'next-dog', who: -1, grade: 2, skill: 'next',
+      text: 'Ava packed her bag. Before she left, she hugged her dog. After she left, the bus came.',
+      ask: 'What did Ava do right after she packed her bag?',
+      opts: ['She hugged her dog', 'She got on the bus', 'She packed her bag again'],
+      why: ['', 'The bus came after she left.', 'She already packed it. Next she hugged her dog.'] },
+    { id: 'next-map', who: 3, grade: 2, skill: 'next',
+      text: 'Wren found a map. Then Wren and Nim read it together. After that, they found the hidden room.',
+      ask: 'What happened after they read the map?',
+      opts: ['They found the hidden room', 'Wren found a map', 'They went home'],
+      why: ['', 'Wren found the map before they read it.', 'The story does not say they went home. They found the hidden room.'] },
+    // last
+    { id: 'last-ladder', who: 0, grade: 1, skill: 'last',
+      text: 'Nim put on his helmet. Then he turned on his lamp. Last, he climbed down the ladder.',
+      ask: 'What happened last?',
+      opts: ['Nim climbed down the ladder', 'Nim put on his helmet', 'Nim turned on his lamp'],
+      why: ['', 'The helmet came first.', 'The lamp came in the middle. Climbing down was last.'] },
+    { id: 'last-sun', who: -1, grade: 1, skill: 'last',
+      text: 'First, Mia drew a sun. Next, she drew a tree. Last, she drew a bird.',
+      ask: 'What happened last?',
+      opts: ['Mia drew a bird', 'Mia drew a sun', 'Mia drew a tree'],
+      why: ['', 'The sun was first. The bird was last.', 'The tree was next. The bird was last.'] },
+    { id: 'last-coat', who: 1, grade: 1, skill: 'last',
+      text: 'Hale put on her coat. Then she put on her hat. Last, she went to the park.',
+      ask: 'What happened last?',
+      opts: ['Hale went to the park', 'Hale put on her coat', 'Hale put on her hat'],
+      why: ['', 'The coat came first.', 'The hat came second. Going to the park was last.'] },
+    { id: 'last-museum', who: 0, grade: 1, skill: 'last',
+      text: 'Baron dug a block. He found a bone. Then he took it to the museum.',
+      ask: 'What happened last?',
+      opts: ['Baron took the bone to the museum', 'Baron dug a block', 'Baron found a bone'],
+      why: ['', 'Digging the block came first.', 'Finding the bone came second. Going to the museum was last.'] },
+    { id: 'last-tub', who: -1, grade: 1, skill: 'last',
+      text: 'First, Mom filled the tub. Next, Tom got in. Then Tom washed his hair. Last, Tom dried off.',
+      ask: 'What happened last?',
+      opts: ['Tom dried off', 'Tom washed his hair', 'Mom filled the tub'],
+      why: ['', 'Washing hair came before drying off.', 'Filling the tub was first. Drying off was last.'] },
+    { id: 'last-candles', who: -1, grade: 1, skill: 'last',
+      text: 'The guests sang a song. Tom blew out the candles. Then everyone ate cake.',
+      ask: 'What happened last?',
+      opts: ['Everyone ate cake', 'The guests sang a song', 'Tom blew out the candles'],
+      why: ['', 'The song came first.', 'Blowing out the candles came second. Eating cake was last.'] },
+    { id: 'last-shell', who: 2, grade: 1, skill: 'last',
+      text: 'Jon dug in the ocean world. He found a shell. Last, he gave it to Hale.',
+      ask: 'What happened last?',
+      opts: ['Jon gave the shell to Hale', 'Jon dug in the ocean world', 'Jon found a shell'],
+      why: ['', 'Digging came first.', 'Finding the shell came second. Giving it to Hale was last.'] },
+    { id: 'last-gym', who: -1, grade: 1, skill: 'last',
+      text: 'We lined up. We walked to the gym. Then we played a game.',
+      ask: 'What happened last?',
+      opts: ['We played a game', 'We lined up', 'We walked to the gym'],
+      why: ['', 'Lining up came first.', 'Walking to the gym came second. The game was last.'] },
+    { id: 'last-flag', who: 4, grade: 2, skill: 'last',
+      text: 'Nova took a photo after she planted the flag. She flew home after she took the photo. She planted the flag after she landed.',
+      ask: 'What happened last?',
+      opts: ['Nova flew home', 'Nova took a photo', 'Nova planted the flag'],
+      why: ['', 'The photo came before flying home.', 'The flag came before the photo. Flying home was last.'] },
+    { id: 'last-book', who: -1, grade: 2, skill: 'last',
+      text: 'Leo ate dinner after he washed his hands. He washed his hands after he came inside. He read a book after dinner.',
+      ask: 'What happened last?',
+      opts: ['Leo read a book', 'Leo ate dinner', 'Leo washed his hands'],
+      why: ['', 'Dinner came before the book.', 'Washing hands came before dinner. Reading was last.'] },
+    { id: 'last-rope', who: 2, grade: 2, skill: 'last',
+      text: 'Before the ladder came down, Jon tied the rope. After the rope was tied, Grog climbed. When Grog got to the top, Jon cheered.',
+      ask: 'What happened last?',
+      opts: ['Jon cheered', 'Grog climbed', 'Jon tied the rope'],
+      why: ['', 'Grog climbed before he got to the top.', 'Jon tied the rope first. Cheering came when Grog got to the top.'] },
+    // steps
+    { id: 'steps-wash', who: -1, grade: 1, skill: 'steps',
+      text: 'To wash your hands: first, turn on the water. Next, put soap on your hands. Then rub your hands for twenty seconds.',
+      ask: 'What step comes next?',
+      opts: ['Rinse off the soap', 'Turn on the water', 'Dry your hands'],
+      why: ['', 'Turning on the water is the first step.', 'You dry your hands after the soap is rinsed off.'] },
+    { id: 'steps-bed', who: -1, grade: 1, skill: 'steps',
+      text: 'Getting ready for bed: first, Nim takes a bath. Then he puts on pajamas. Then he brushes his teeth.',
+      ask: 'What step comes next?',
+      opts: ['Mom reads a story', 'Take a bath', 'Put on pajamas'],
+      why: ['', 'The bath was already done at the start.', 'Nim already put on his pajamas. The story comes next.'] },
+    { id: 'steps-sandwich', who: -1, grade: 1, skill: 'steps',
+      text: 'Making a sandwich: get two pieces of bread. Put peanut butter on one piece. Next, put jelly on the other piece.',
+      ask: 'What step comes next?',
+      opts: ['Put the two pieces together', 'Eat the sandwich', 'Get two pieces of bread'],
+      why: ['', 'You eat the sandwich after the pieces are together.', 'Getting the bread was the first step.'] },
+    { id: 'steps-dig', who: 0, grade: 1, skill: 'steps',
+      text: 'Getting ready to dig: Nim puts on his helmet. Then he turns on his lamp. Next, he picks up his pickaxe.',
+      ask: 'What step comes next?',
+      opts: ['Climb down the ladder', 'Put on the helmet', 'Dig a block'],
+      why: ['', 'The helmet was the first step.', 'Nim has to climb down the ladder before he can dig.'] },
+    { id: 'steps-teeth', who: -1, grade: 1, skill: 'steps',
+      text: 'Brushing teeth: put toothpaste on the brush. Brush the front teeth. Then brush the back teeth.',
+      ask: 'What step comes next?',
+      opts: ['Spit and rinse', 'Put toothpaste on the brush', 'Brush the front teeth'],
+      why: ['', 'The toothpaste goes on at the start.', 'The front teeth are already brushed. Spit and rinse comes next.'] },
+    { id: 'steps-school', who: -1, grade: 1, skill: 'steps',
+      text: 'Getting ready for school: Mia eats breakfast. Then she brushes her teeth. Next, she puts on her coat.',
+      ask: 'What step comes next?',
+      opts: ['Get on the bus', 'Eat breakfast', 'Brush her teeth'],
+      why: ['', 'Eating breakfast came first.', 'Brushing teeth came second. The bus comes after the coat.'] },
+    { id: 'steps-street', who: -1, grade: 1, skill: 'steps',
+      text: 'Crossing the street: stop at the curb. Then look both ways.',
+      ask: 'What step comes next?',
+      opts: ['Walk across when it is clear', 'Stop at the curb', 'Look both ways'],
+      why: ['', 'Stopping at the curb is the first step.', 'Looking both ways is already done. Walking across comes next.'] },
+    { id: 'steps-seed', who: 1, grade: 1, skill: 'steps',
+      text: 'Planting a seed: Hale digs a small hole. Then she puts in the seed. Next, she covers it with dirt.',
+      ask: 'What step comes next?',
+      opts: ['Water the seed', 'Dig a small hole', 'Put in the seed'],
+      why: ['', 'Digging the hole is the first step.', 'Putting in the seed came second. Watering comes after the dirt.'] },
+    { id: 'steps-bone', who: 0, grade: 1, skill: 'steps',
+      text: 'Taking a bone to the museum: Nim picks up the bone. Then he climbs the ladder home.',
+      ask: 'What step comes next?',
+      opts: ['Walk to the museum plinth', 'Pick up the bone', 'Climb the ladder home'],
+      why: ['', 'Picking up the bone was the first step.', 'Nim already climbed the ladder. Next he walks to the plinth.'] },
+    { id: 'steps-cereal', who: -1, grade: 1, skill: 'steps',
+      text: 'Making cereal: get a bowl. Pour in the cereal. Next, pour in the milk.',
+      ask: 'What step comes next?',
+      opts: ['Eat with a spoon', 'Get a bowl', 'Pour in the cereal'],
+      why: ['', 'Getting a bowl is the first step.', 'Pouring in the cereal came second. Eating comes after the milk.'] },
+    { id: 'steps-spill', who: -1, grade: 2, skill: 'steps',
+      text: 'Cleaning a spill: get a towel. Wipe up the spill. Next, put the wet towel in the laundry basket.',
+      ask: 'What step comes last?',
+      opts: ['Wash your hands', 'Get a towel', 'Wipe up the spill'],
+      why: ['', 'Getting a towel is the first step.', 'Wiping the spill is the middle step. Washing your hands comes after the towel goes away.'] },
+    { id: 'steps-toast', who: -1, grade: 2, skill: 'steps',
+      text: 'Making toast: put the bread in the toaster. Push the lever down. Then wait for it to pop up.',
+      ask: 'What step comes next?',
+      opts: ['Take out the toast', 'Put the bread in the toaster', 'Spread on the jam'],
+      why: ['', 'The bread goes in at the start.', 'You take the toast out before you spread jam.'] },
+    { id: 'steps-rope', who: 2, grade: 2, skill: 'steps',
+      text: 'Before a big dig, the team checks the lamp. Then they check the air. Then they tie the rope.',
+      ask: 'What step comes after they tie the rope?',
+      opts: ['Climb down', 'Check the lamp', 'Check the air'],
+      why: ['', 'The lamp is checked at the start.', 'The air was already checked. After the rope, they climb down.'] },
+    { id: 'steps-library', who: -1, grade: 2, skill: 'steps',
+      text: 'Borrowing a library book: find a book you like. Take it to the desk. Show your library card.',
+      ask: 'What step comes next?',
+      opts: ['The librarian scans the book', 'Find a book you like', 'Take the book home'],
+      why: ['', 'Finding the book is the first step.', 'You take the book home after it is scanned.'] },
+  ];
+
+  var skillNamesAdd1 = {
+    'who': 'Who questions',
+    'what': 'What questions',
+    'where': 'Where questions',
+    'when': 'When questions',
+    'why': 'Why questions',
+    'first': 'What happened first',
+    'next': 'What happened next',
+    'last': 'What happened last',
+    'steps': 'Steps in order'
+  };
+
+
+  var feel = [
+    // emotion
+    { id: 'e-bday', who: 1, grade: 1, skill: 'emotion',
+      text: 'Hale gets a new teddy on her birthday. She hugs it and giggles.',
+      ask: 'How might Hale feel?',
+      opts: ['Happy', 'Mad', 'Tired'],
+      why: ['', 'Mad people frown or stomp. Hale hugs the teddy and giggles.', 'Tired people yawn. Hale is giggling.'] },
+    { id: 'e-ball', who: 0, grade: 1, skill: 'emotion',
+      text: 'At the park, Baron\'s ball rolls into the pond. It floats far away.',
+      ask: 'How might Baron feel?',
+      opts: ['Sad', 'Proud', 'Excited'],
+      why: ['', 'Proud is for something you did well. Baron lost his ball.', 'Excited is for something fun that is coming. Baron lost his ball.'] },
+    { id: 'e-thunder', who: 1, grade: 1, skill: 'emotion',
+      text: 'It is bedtime. Loud thunder booms. Hale pulls the blanket up to her chin.',
+      ask: 'How might Hale feel?',
+      opts: ['Scared', 'Silly', 'Proud'],
+      why: ['', 'Silly means laughing and playing. Hale is hiding under a blanket.', 'Proud is for doing something well. The thunder is loud and Hale hides.'] },
+    { id: 'e-cookie', who: 0, grade: 1, skill: 'emotion',
+      text: 'Nim has a big cookie. Baron wanted one, but they are all gone.',
+      ask: 'How might Baron feel?',
+      opts: ['Sad', 'Happy', 'Proud'],
+      why: ['', 'Nim might feel happy, but the question is about Baron. Baron has no cookie.', 'Proud is for doing something well. Baron has no cookie.'] },
+    { id: 'e-star', who: 4, grade: 1, skill: 'emotion',
+      text: 'Nova gets a gold star on her spelling test. She smiles and stands tall.',
+      ask: 'How might Nova feel?',
+      opts: ['Proud', 'Sad', 'Scared'],
+      why: ['', 'Sad faces look down. Nova smiles and stands tall.', 'Scared people hide or freeze. Nova is standing tall and smiling.'] },
+    { id: 'e-goldblock', who: 2, grade: 1, skill: 'emotion',
+      text: 'Jon digs and finds a huge gold block. His eyes get big and he cheers.',
+      ask: 'How might Jon feel?',
+      opts: ['Excited', 'Bored', 'Mad'],
+      why: ['', 'Bored people look sleepy and slow. Jon cheers.', 'Mad people frown or stomp. Jon is cheering.'] },
+    { id: 'e-antennas', who: 5, grade: 1, skill: 'emotion',
+      text: 'Grog\'s friend has gone into the pit. It has been a long time. Grog keeps looking at the ladder.',
+      ask: 'How might Grog feel?',
+      opts: ['Worried', 'Silly', 'Proud'],
+      why: ['', 'Silly is laughing and playing. Grog keeps watching the ladder.', 'Proud is for doing something well. Grog is waiting for a friend.'] },
+    { id: 'e-bus', who: -1, grade: 1, skill: 'emotion',
+      text: 'Nim waits at the bus stop. The bus is late. There is nothing to do.',
+      ask: 'How might Nim feel?',
+      opts: ['Bored', 'Excited', 'Proud'],
+      why: ['', 'Excited is for something fun. Nim is just waiting.', 'Proud is for doing something well. Nim is only waiting.'] },
+    { id: 'e-jack', who: 0, grade: 1, skill: 'emotion',
+      text: 'Baron opens a chest. A toy clown pops out with a boing!',
+      ask: 'How might Baron feel?',
+      opts: ['Surprised', 'Sleepy', 'Sad'],
+      why: ['', 'Sleepy people yawn. Baron just saw something pop out.', 'Sad people look down. A pop-up toy is a quick surprise.'] },
+    { id: 'e-yawn', who: 4, grade: 1, skill: 'emotion',
+      text: 'Nova dug all day. Her eyes feel heavy and she yawns again and again.',
+      ask: 'How might Nova feel?',
+      opts: ['Tired', 'Excited', 'Mad'],
+      why: ['', 'Excited people feel full of energy. Nova is yawning.', 'Mad people frown. Nova yawns because her eyes are heavy.'] },
+    { id: 'e-tower', who: 1, grade: 1, skill: 'emotion',
+      text: 'Someone knocks over Hale\'s block tower on purpose. Hale frowns and balls her fists.',
+      ask: 'How might Hale feel?',
+      opts: ['Mad', 'Happy', 'Proud'],
+      why: ['', 'Happy people smile. Hale is frowning.', 'Proud is for doing something well. Hale\'s tower was knocked down.'] },
+    { id: 'e-slide', who: -1, grade: 1, skill: 'emotion',
+      text: 'Nim climbs the big slide at the park. His heart beats fast. He is smiling and bouncing on his toes.',
+      ask: 'How might Nim feel?',
+      opts: ['Excited', 'Scared', 'Sad'],
+      why: ['', 'Scared people often do not smile. Nim is smiling and bouncing, so he is excited.', 'Sad people look down. Nim is smiling.'] },
+    { id: 'e-balloon', who: 5, grade: 1, skill: 'emotion',
+      text: 'At a party, Hale pops a balloon with a BANG. Grog covers his ears and squeezes his eyes shut.',
+      ask: 'How might Grog feel?',
+      opts: ['Scared', 'Happy', 'Proud'],
+      why: ['', 'Hale might feel happy, but the question is about Grog. Grog covers his ears.', 'Proud is for doing something well. Grog is covering his ears because of the bang.'] },
+    { id: 'e-frus', who: -1, grade: 2, skill: 'emotion',
+      text: 'Nim builds a tower. It falls down. He builds it again. It falls down a third time.',
+      ask: 'How might Nim feel?',
+      opts: ['Frustrated', 'Proud', 'Calm'],
+      why: ['', 'Proud is for doing something well. The tower keeps falling.', 'Calm is peaceful. Three falls in a row can feel frustrating.'] },
+    { id: 'e-puzzle', who: 3, grade: 2, skill: 'emotion',
+      text: 'Wren works on a hard puzzle chest for a long time. At last it clicks open.',
+      ask: 'How might Wren feel?',
+      opts: ['Proud', 'Lonely', 'Embarrassed'],
+      why: ['', 'Lonely is for being alone and wanting friends. The puzzle chest opened.', 'Embarrassed is for feeling silly in front of others. Wren finished a hard puzzle.'] },
+    { id: 'e-laugh', who: 0, grade: 2, skill: 'emotion',
+      text: 'In class, Baron says a wrong answer out loud. A few kids laugh. His face turns red.',
+      ask: 'How might Baron feel?',
+      opts: ['Embarrassed', 'Excited', 'Calm'],
+      why: ['', 'Excited is for something fun coming. His red face shows something else.', 'Calm is peaceful. A red face after people laugh can mean embarrassed.'] },
+    { id: 'e-rain', who: 1, grade: 2, skill: 'emotion',
+      text: 'Hale was so excited to go to the park today. Then it rains all day and the trip is cancelled.',
+      ask: 'How might Hale feel?',
+      opts: ['Disappointed', 'Proud', 'Excited'],
+      why: ['', 'Proud is for doing something well. The trip was cancelled.', 'Hale was excited before the rain. Now the plan is gone.'] },
+    { id: 'e-read', who: -1, grade: 2, skill: 'emotion',
+      text: 'Tomorrow Nim has to read aloud in front of the whole class. He keeps thinking about it tonight.',
+      ask: 'How might Nim feel?',
+      opts: ['Nervous', 'Bored', 'Proud'],
+      why: ['', 'Bored is for having nothing to do. Nim keeps thinking about tomorrow.', 'Proud is for after you did something well. Nim has not read yet.'] },
+    { id: 'e-lastcookie', who: 5, grade: 2, skill: 'emotion',
+      text: 'Nova gets the very last cookie. Grog wanted it too. Grog looks at the cookie and goes quiet.',
+      ask: 'How might Grog feel?',
+      opts: ['Jealous', 'Proud', 'Excited'],
+      why: ['', 'Proud is for something you did well. Grog did not get the cookie.', 'Excited is for something fun coming. Grog went quiet looking at Nova\'s cookie.'] },
+    { id: 'e-newkid', who: -1, grade: 2, skill: 'emotion',
+      text: 'Nim is new at school. At recess everybody is playing, and nobody has asked him to join.',
+      ask: 'How might Nim feel?',
+      opts: ['Lonely', 'Proud', 'Silly'],
+      why: ['', 'Proud is for doing well. Nim is standing by himself.', 'Silly is playing and laughing. Nobody has asked Nim to play.'] },
+    { id: 'e-pond', who: 4, grade: 2, skill: 'emotion',
+      text: 'Nova sits by the quiet pond. She breathes slowly and watches the water ripple.',
+      ask: 'How might Nova feel?',
+      opts: ['Calm', 'Mad', 'Scared'],
+      why: ['', 'Mad people frown or stomp. Nova is breathing slowly.', 'Scared people hide or freeze. Nova is sitting quietly by the pond.'] },
+    // size
+    { id: 'z-crayon', who: 1, grade: 1, skill: 'size',
+      text: 'Hale\'s red crayon snaps in half while she is drawing.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A small problem', 'A medium problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'A broken crayon can be fixed quickly. A medium problem needs a grown-up and some time.', 'A broken crayon is not dangerous. A big problem is when someone is badly hurt or in danger.'],
+      tip: 'A small problem can be fixed quickly, by yourself.' },
+    { id: 'z-tag', who: 0, grade: 1, skill: 'size',
+      text: 'Baron loses a game of tag at the park.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A small problem', 'A medium problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'Losing a game can be fixed quickly. A medium problem needs a grown-up and some time.', 'Losing a game is not dangerous. A big problem is when someone is badly hurt or in danger.'],
+      tip: 'A small problem can be fixed quickly, by yourself.' },
+    { id: 'z-wait', who: -1, grade: 1, skill: 'size',
+      text: 'Nim has to wait his turn on the swing.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A small problem', 'A medium problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'Waiting a turn can be fixed quickly. A medium problem needs a grown-up and some time.', 'Waiting a turn is not dangerous. A big problem is when someone is badly hurt or in danger.'],
+      tip: 'A small problem can be fixed quickly, by yourself.' },
+    { id: 'z-lunchbox', who: -1, grade: 1, skill: 'size',
+      text: 'Nim cannot find his lunch box. It is almost lunch time.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A medium problem', 'A small problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'A lost lunch box needs more than a quick fix. A small problem can be fixed fast, by yourself.', 'A lost lunch box can be fixed with a grown-up\'s help. A big problem is about danger or someone badly hurt.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'z-knee', who: 1, grade: 1, skill: 'size',
+      text: 'Hale falls and scrapes her knee. It stings and a little blood shows.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A medium problem', 'A small problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'A scraped knee needs more than a quick fix. A small problem can be fixed fast, by yourself.', 'A scraped knee can be fixed with a grown-up\'s help. A big problem is about danger or someone badly hurt.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'z-bus', who: -1, grade: 1, skill: 'size',
+      text: 'Nim misses the bus, and a grown-up has to find another ride.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A medium problem', 'A small problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'A missed bus needs more than a quick fix. A small problem can be fixed fast, by yourself.', 'A missed bus can be fixed with a grown-up\'s help. A big problem is about danger or someone badly hurt.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'z-fire', who: 4, grade: 1, skill: 'size',
+      text: 'The fire alarm rings and there is real smoke in the hall.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A big problem', 'A small problem', 'A medium problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'Smoke and a fire alarm is about staying safe. A small problem is a quick fix, like a broken crayon.', 'Smoke and a fire alarm needs a grown-up right now. A medium problem can wait a little while.'],
+      tip: 'A big problem is about danger or someone badly hurt. Get a grown-up right away.' },
+    { id: 'z-ladder', who: 0, grade: 1, skill: 'size',
+      text: 'Baron falls off the ladder in the pit and cannot get up. He is crying hard.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A big problem', 'A small problem', 'A medium problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'Someone badly hurt is about staying safe. A small problem is a quick fix, like a broken crayon.', 'Someone badly hurt needs a grown-up right now. A medium problem can wait a little while.'],
+      tip: 'A big problem is about danger or someone badly hurt. Get a grown-up right away.' },
+    { id: 'z-pickstuck', who: 3, grade: 2, skill: 'size',
+      text: 'Wren\'s pickaxe gets stuck in a block. It is still there when Wren pulls again.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A small problem', 'A medium problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'A stuck pickaxe can be fixed quickly. A medium problem needs a grown-up and some time.', 'A stuck pickaxe is not dangerous. A big problem is when someone is badly hurt or in danger.'],
+      tip: 'A small problem can be fixed quickly, by yourself.' },
+    { id: 'z-bag', who: -1, grade: 2, skill: 'size',
+      text: 'Nim cannot find his school bag, and his lunch and homework are inside.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A medium problem', 'A small problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'A lost bag needs more than a quick fix. A small problem can be fixed fast, by yourself.', 'A lost bag can be fixed with a grown-up\'s help. A big problem is about danger or someone badly hurt.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'z-lost', who: -1, grade: 2, skill: 'size',
+      text: 'Nim loses his grown-up in a huge, busy shop. He cannot see them anywhere.',
+      ask: 'Is this a small problem, a medium problem or a big problem?',
+      opts: ['A big problem', 'A small problem', 'A medium problem'], show: ['A small problem', 'A medium problem', 'A big problem'],
+      why: ['', 'Being lost in a big shop is about staying safe. A small problem is a quick fix, like a broken crayon.', 'Being lost in a big shop needs a grown-up right now. A medium problem can wait a little while.'],
+      tip: 'A big problem is about danger or someone badly hurt. Get a grown-up right away.' },
+    // react
+    { id: 'r-crayon', who: 1, grade: 1, skill: 'react',
+      text: 'Hale\'s crayon snaps in half. It is a small problem.',
+      ask: 'Which reaction fits a small problem?',
+      opts: ['Take a breath and get another crayon.', 'Scream and cry for a long time.', 'Throw the whole box across the room.'],
+      why: ['', 'A small problem is quick to fix. Crying for a long time is a very big reaction.', 'The crayon broke, but a small problem does not need a throw. Throwing could hurt someone.'],
+      tip: 'Match the reaction to the size of the problem.' },
+    { id: 'r-tag', who: 0, grade: 1, skill: 'react',
+      text: 'Baron loses a game of tag. It is a small problem.',
+      ask: 'Which reaction fits?',
+      opts: ['Say "Good game!" and ask to play again.', 'Say the game was unfair and quit.', 'Hide under the table for the rest of the day.'],
+      why: ['', 'It is okay to feel sad. But quitting is a big reaction to a small problem.', 'Baron can feel sad and still join in again. Hiding all day is bigger than the problem.'],
+      tip: 'Match the reaction to the size of the problem.' },
+    { id: 'r-knee', who: 1, grade: 1, skill: 'react',
+      text: 'Hale scrapes her knee. It stings and bleeds a little. It is a medium problem.',
+      ask: 'Which reaction fits a medium problem?',
+      opts: ['Tell a grown-up and get a bandage.', 'Scream that her leg is broken and refuse help.', 'Keep running as if nothing happened.'],
+      why: ['', 'The scrape is not a broken leg. A grown-up can help with a bandage.', 'A bleeding knee needs a bandage. A grown-up can help.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'r-fire', who: 4, grade: 1, skill: 'react',
+      text: 'The fire alarm rings and there is smoke in the hall. It is a big problem.',
+      ask: 'Which reaction fits a big problem?',
+      opts: ['Walk out calmly and find a grown-up.', 'Stay and finish the drawing.', 'Run and push everyone out of the way.'],
+      why: ['', 'Smoke means danger. A big problem needs you to act now.', 'Pushing can hurt people. Walking fast and calm keeps everyone safe.'],
+      tip: 'A big problem needs a grown-up right away.' },
+    { id: 'r-lunch', who: -1, grade: 1, skill: 'react',
+      text: 'Nim cannot find his lunch box. It is a medium problem.',
+      ask: 'Which reaction fits?',
+      opts: ['Ask a grown-up to help look for it.', 'Yell and kick the wall.', 'Say nothing and go hungry all day.'],
+      why: ['', 'Kicking the wall does not help find the lunch box. A grown-up can help.', 'A grown-up can help. If you say nothing, nobody knows you need help.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'r-pick', who: 3, grade: 1, skill: 'react',
+      text: 'Wren\'s pickaxe is stuck in a block. It is a small problem.',
+      ask: 'Which reaction fits?',
+      opts: ['Wiggle it and try again.', 'Throw the pickaxe into the pit.', 'Shout that digging is the worst thing ever.'],
+      why: ['', 'A stuck pick is a small problem. Throwing the pickaxe could hurt someone.', 'It is okay to feel cross. A wiggle can fix this small problem.'],
+      tip: 'Match the reaction to the size of the problem.' },
+    { id: 'r-ladder', who: 0, grade: 1, skill: 'react',
+      text: 'Baron falls off the ladder in the pit and cannot get up. It is a big problem.',
+      ask: 'What should Nim do?',
+      opts: ['Shout for a grown-up to come right now.', 'Say "It is fine" and walk away.', 'Wait quietly and hope Baron gets up.'],
+      why: ['', 'Baron is hurt, so it is not fine. A grown-up needs to know now.', 'Waiting is too slow for a big problem. A grown-up can help Baron.'],
+      tip: 'A big problem needs a grown-up right away.' },
+    { id: 'r-line', who: -1, grade: 2, skill: 'react',
+      text: 'The lunch line is very long. Nim is hungry. It is a small problem.',
+      ask: 'Which reaction fits?',
+      opts: ['Take slow breaths and wait his turn.', 'Push to the front of the line.', 'Leave and say he will never eat lunch again.'],
+      why: ['', 'Pushing can hurt people and it is not fair. Waiting is a small thing to do.', 'The line is only a small problem. A big reaction like never eating is too large.'],
+      tip: 'Match the reaction to the size of the problem.' },
+    { id: 'r-toy', who: 1, grade: 2, skill: 'react',
+      text: 'A boy breaks Hale\'s toy by accident. It is a medium problem.',
+      ask: 'Which reaction fits?',
+      opts: ['Say calmly it was hers and ask a grown-up to help.', 'Hit the boy.', 'Say nothing and never talk to him again.'],
+      why: ['', 'Hitting hurts. It is okay to feel sad, but a grown-up can help.', 'Hale can tell the boy how she feels. Never talking again is a big reaction.'],
+      tip: 'A medium problem needs a grown-up and a little time.' },
+    { id: 'r-fall', who: -1, grade: 2, skill: 'react',
+      text: 'A classmate falls off the climbing frame. He cannot get up and his arm hurts a lot. It is a big problem.',
+      ask: 'Which reaction fits?',
+      opts: ['Get a teacher right away.', 'Keep playing. It is not your job.', 'Stare and giggle.'],
+      why: ['', 'Someone is hurt, so a grown-up needs to know. Playing on could make it worse.', 'Giggling does not help when someone is hurt. A teacher can help him.'],
+      tip: 'A big problem needs a grown-up right away.' },
+    // calm
+    { id: 'c-mad', who: -1, grade: 1, skill: 'calm',
+      text: 'Nim feels very mad because his tower fell down.',
+      ask: 'What helps Nim calm down?',
+      opts: ['Take three slow breaths.', 'Yell at Baron.', 'Kick the door.'],
+      why: ['', 'It is okay to be mad. Yelling can hurt feelings, and breaths help your body calm down.', 'It is okay to be mad. Kicking can hurt, so a breath is a safer choice.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-worry', who: 1, grade: 1, skill: 'calm',
+      text: 'Hale feels worried before the show. Her hands are shaky.',
+      ask: 'What helps Hale calm down?',
+      opts: ['Squeeze her hands and let go slowly.', 'Run away and hide forever.', 'Hold her breath.'],
+      why: ['', 'It is okay to feel worried. Hiding forever means missing the fun, but squeezing helps.', 'Holding your breath makes shaky feelings stronger. A slow squeeze helps.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-loud', who: 5, grade: 1, skill: 'calm',
+      text: 'The party music is very loud. Grog feels like his head will burst.',
+      ask: 'What helps Grog calm down?',
+      opts: ['Ask for a break in a quiet spot.', 'Stay in the loud room and say nothing.', 'Ask them to turn the music even louder.'],
+      why: ['', 'Grog can ask for what he needs. If he says nothing, nobody knows.', 'Louder music would feel worse. A quiet spot helps.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-count', who: 0, grade: 1, skill: 'calm',
+      text: 'Baron feels mad because his sandwich fell on the floor.',
+      ask: 'What helps Baron calm down?',
+      opts: ['Count to ten slowly.', 'Throw the rest of his lunch.', 'Say mean words to the person next to him.'],
+      why: ['', 'It is okay to be mad. Throwing food makes a mess. Counting helps.', 'It is okay to be mad. Mean words can hurt a friend. Counting helps your body calm.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-water', who: 4, grade: 1, skill: 'calm',
+      text: 'Nova ran a long way. Now she feels hot and cross.',
+      ask: 'What helps Nova calm down?',
+      opts: ['Get a drink of water and sit down.', 'Keep running faster.', 'Snap at everyone she sees.'],
+      why: ['', 'Running more keeps her hot. A drink and a sit help her body.', 'It is okay to feel cross. Snapping can hurt others, and water helps.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-teddy', who: 1, grade: 1, skill: 'calm',
+      text: 'It is bedtime. Hale feels scared of the dark.',
+      ask: 'What helps Hale calm down?',
+      opts: ['Hug her teddy and breathe slowly.', 'Jump on the bed and shout.', 'Stare at the dark corner all night.'],
+      why: ['', 'Shouting can wake the whole house. A teddy hug feels safe.', 'Staring keeps the scary feeling going. A hug and slow breaths help.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-puzzle', who: 2, grade: 1, skill: 'calm',
+      text: 'Jon cannot solve the chest puzzle. He feels frustrated.',
+      ask: 'What helps Jon calm down?',
+      opts: ['Take a break and a deep breath, then try again.', 'Bang the chest hard with his pickaxe.', 'Say, "I am bad at puzzles."'],
+      why: ['', 'It is okay to feel frustrated. Banging can break things. A break helps.', 'Everyone finds puzzles hard sometimes. A break and a breath help.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-noise', who: -1, grade: 1, skill: 'calm',
+      text: 'The classroom is noisy and Nim\'s head hurts.',
+      ask: 'What helps Nim calm down?',
+      opts: ['Go to the quiet corner.', 'Shout louder than everyone.', 'Hit the table.'],
+      why: ['', 'Shouting adds more noise. A quiet corner gives his head a rest.', 'Hitting does not stop the noise. A quiet corner helps.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-self', who: 3, grade: 2, skill: 'calm',
+      text: 'Wren is nervous before swinging across the big vine.',
+      ask: 'What can Wren think?',
+      opts: ['"I can try. I can ask for help."', '"I always mess up."', '"I will never be brave."'],
+      why: ['', 'Those words make worry feel bigger. Kind words help.', 'Wren is brave. Kind words help when nervous.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-senses', who: 4, grade: 2, skill: 'calm',
+      text: 'Nova\'s mind is racing and her heart is thumping.',
+      ask: 'Which helps her calm down?',
+      opts: ['Name five things she can see.', 'Think about everything that could go wrong.', 'Tell herself to hurry up.'],
+      why: ['', 'More worry thoughts keep her racing. Looking around grounds her.', 'Hurrying makes the thumping stronger. Looking around helps.'],
+      tip: 'All feelings are okay. We choose what we do next.' },
+    { id: 'c-friend', who: -1, grade: 2, skill: 'calm',
+      text: 'Nim feels shaky and cross. A friend is sitting near him.',
+      ask: 'What can Nim do that helps?',
+      opts: ['Tell his friend, "I need to take deep breaths."', 'Push the friend away.', 'Snap at the friend.'],
+      why: ['', 'It is okay to feel cross. Pushing can hurt a friend. Telling helps both of you.', 'It is okay to feel cross. Snapping can hurt a friend. Telling helps.'],
+      tip: 'All feelings are okay. We choose what we do next.' }
+  ];
+
+  var vocab = [
+    // category
+    { id: 'category-fruit', who: 1, grade: 1, skill: 'category',
+      text: 'Look at these words: apple, hammer, shoe.',
+      ask: 'Which one is a fruit?',
+      opts: ['apple', 'hammer', 'shoe'],
+      why: ['', 'A hammer is a tool. A fruit is food that grows on a plant.', 'A shoe is something we wear. A fruit is food that grows on a plant.'],
+      tip: 'A group name tells what a set of things has in common.' },
+    { id: 'category-dug', who: 2, grade: 1, skill: 'category',
+      text: 'Look at these words: coal, copper, iron, gold, crystal.',
+      ask: 'Which word names all of these?',
+      opts: ['Things we dig up', 'Things we eat', 'Things we wear'],
+      why: ['', 'We do not eat coal or iron. These all come out of the ground.', 'We do not wear coal or iron. These all come out of the ground.'] },
+    { id: 'category-animal', who: -1, grade: 1, skill: 'category',
+      text: 'Look at these words: dog, spoon, cloud.',
+      ask: 'Which one is an animal?',
+      opts: ['dog', 'spoon', 'cloud'],
+      why: ['', 'A spoon is for eating. An animal is alive, like a dog.', 'A cloud is in the sky. An animal is alive, like a dog.'] },
+    { id: 'category-clothes', who: 1, grade: 1, skill: 'category',
+      text: 'Look at these words: hat, socks, coat.',
+      ask: 'Which word names all of these?',
+      opts: ['Clothes', 'Animals', 'Food'],
+      why: ['', 'A hat is not an animal. You wear a hat, socks and a coat.', 'You do not eat a hat. You wear a hat, socks and a coat.'] },
+    { id: 'category-fly', who: 0, grade: 1, skill: 'category',
+      text: 'Look at these words: bat, bird, bee.',
+      ask: 'Which word names all of these?',
+      opts: ['Things that fly', 'Things that swim', 'Things that grow in the ground'],
+      why: ['', 'A bat, bird and bee have wings. They do not swim.', 'Bats, birds and bees do not grow in the ground. They fly.'] },
+    { id: 'category-ride', who: -1, grade: 1, skill: 'category',
+      text: 'Look at these words: bus, bike, boat.',
+      ask: 'Which word names all of these?',
+      opts: ['Things we ride in or on', 'Things we eat', 'Places to sleep'],
+      why: ['', 'We do not eat a bus or a boat. We ride in or on them.', 'A bus and a bike are not beds. We ride in or on them.'] },
+    { id: 'category-draw', who: -1, grade: 1, skill: 'category',
+      text: 'Look at these words: pencil, crayon, marker.',
+      ask: 'Which word names all of these?',
+      opts: ['Things to draw with', 'Things to eat', 'Things to wear'],
+      why: ['', 'We do not eat a crayon. We draw with a pencil, a crayon and a marker.', 'We do not wear a marker. We draw with a pencil, a crayon and a marker.'] },
+    { id: 'category-place', who: -1, grade: 1, skill: 'category',
+      text: 'Look at these words: park, sock, ball.',
+      ask: 'Which one is a place?',
+      opts: ['park', 'sock', 'ball'],
+      why: ['', 'A sock is something we wear. A place is somewhere we go, like a park.', 'A ball is a toy. A place is somewhere we go, like a park.'] },
+    { id: 'category-dino', who: 2, grade: 2, skill: 'category',
+      text: 'Look at these words: triceratops, T. rex, stegosaurus.',
+      ask: 'Which word names all of these?',
+      opts: ['Dinosaurs', 'Birds', 'Insects'],
+      why: ['', 'A T. rex is not a bird. All three are big animals from long ago.', 'These are big, not tiny like insects. They are all dinosaurs.'] },
+    { id: 'category-rooms', who: -1, grade: 2, skill: 'category',
+      text: 'Look at these words: kitchen, bedroom, bathroom.',
+      ask: 'Which word names all of these?',
+      opts: ['Rooms in a house', 'Parts of the body', 'Kinds of weather'],
+      why: ['', 'A kitchen is a room, not a body part.', 'A kitchen is not weather. These are all places inside a house.'] },
+    { id: 'category-weather', who: 4, grade: 2, skill: 'category',
+      text: 'Look at these words: rain, snow, wind.',
+      ask: 'Which word names all of these?',
+      opts: ['Weather', 'Months', 'Sports'],
+      why: ['', 'Rain is not a month. These are all things the sky does.', 'You do not play rain. These are all kinds of weather.'] },
+    // odd
+    { id: 'odd-fruit', who: 1, grade: 1, skill: 'odd',
+      text: 'Look at these words: apple, banana, hammer.',
+      ask: 'Which word does not belong?',
+      opts: ['hammer', 'apple', 'banana'],
+      why: ['', 'An apple is a fruit, and so is a banana. They go together.', 'A banana is a fruit, and so is an apple. They go together.'],
+      tip: 'The odd one is the one that is not in the group.' },
+    { id: 'odd-pets', who: -1, grade: 1, skill: 'odd',
+      text: 'Look at these words: dog, cat, chair.',
+      ask: 'Which word does not belong?',
+      opts: ['chair', 'dog', 'cat'],
+      why: ['', 'A dog is an animal, like a cat. They go together.', 'A cat is an animal, like a dog. They go together.'] },
+    { id: 'odd-colour', who: -1, grade: 1, skill: 'odd',
+      text: 'Look at these words: red, blue, bus.',
+      ask: 'Which word does not belong?',
+      opts: ['bus', 'red', 'blue'],
+      why: ['', 'Red is a colour, like blue. They go together.', 'Blue is a colour, like red. They go together.'] },
+    { id: 'odd-clothes', who: 1, grade: 1, skill: 'odd',
+      text: 'Look at these words: shirt, pants, carrot.',
+      ask: 'Which word does not belong?',
+      opts: ['carrot', 'shirt', 'pants'],
+      why: ['', 'A shirt is something you wear, like pants. They go together.', 'Pants are clothes, like a shirt. They go together.'] },
+    { id: 'odd-dug', who: 2, grade: 1, skill: 'odd',
+      text: 'Look at these words: coal, gold, spoon.',
+      ask: 'Which word does not belong?',
+      opts: ['spoon', 'coal', 'gold'],
+      why: ['', 'Coal is dug from the ground, like gold. They go together.', 'Gold is dug from the ground, like coal. They go together.'] },
+    { id: 'odd-fly', who: 0, grade: 1, skill: 'odd',
+      text: 'Look at these words: bat, owl, rock.',
+      ask: 'Which word does not belong?',
+      opts: ['rock', 'bat', 'owl'],
+      why: ['', 'A bat can fly, like an owl. They go together.', 'An owl can fly, like a bat. They go together.'] },
+    { id: 'odd-ride', who: -1, grade: 1, skill: 'odd',
+      text: 'Look at these words: car, bus, pillow.',
+      ask: 'Which word does not belong?',
+      opts: ['pillow', 'car', 'bus'],
+      why: ['', 'A car is something we ride in, like a bus. They go together.', 'A bus is something we ride in, like a car. They go together.'] },
+    { id: 'odd-eat', who: -1, grade: 1, skill: 'odd',
+      text: 'Look at these words: spoon, fork, sock.',
+      ask: 'Which word does not belong?',
+      opts: ['sock', 'spoon', 'fork'],
+      why: ['', 'A spoon is for eating, like a fork. They go together.', 'A fork is for eating, like a spoon. They go together.'] },
+    { id: 'odd-dino', who: 2, grade: 2, skill: 'odd',
+      text: 'Look at these words: triceratops, stegosaurus, mammoth.',
+      ask: 'Which word does not belong?',
+      opts: ['mammoth', 'triceratops', 'stegosaurus'],
+      why: ['', 'A triceratops is a dinosaur, like a stegosaurus. A mammoth was a furry elephant cousin.', 'A stegosaurus is a dinosaur, like a triceratops. A mammoth was a furry elephant cousin.'] },
+    { id: 'odd-days', who: -1, grade: 2, skill: 'odd',
+      text: 'Look at these words: Tuesday, Friday, July.',
+      ask: 'Which word does not belong?',
+      opts: ['July', 'Tuesday', 'Friday'],
+      why: ['', 'Tuesday is a day of the week, like Friday. They go together.', 'Friday is a day of the week, like Tuesday. They go together.'] },
+    { id: 'odd-insect', who: 0, grade: 2, skill: 'odd',
+      text: 'Look at these words: bee, ant, spider.',
+      ask: 'Which word does not belong?',
+      opts: ['spider', 'bee', 'ant'],
+      why: ['', 'A bee is an insect with six legs, like an ant.', 'An ant is an insect with six legs, like a bee. A spider has eight legs.'] },
+    // opposite
+    { id: 'opposite-hot', who: 1, grade: 1, skill: 'opposite',
+      text: 'Hale touches the ice. It is not hot.',
+      ask: 'What is the opposite of hot?',
+      opts: ['cold', 'warm', 'big'],
+      why: ['', 'Warm is a little like hot. The opposite is the very different one.', 'Big is about size, not heat. The opposite of hot is cold.'],
+      tip: 'Opposites are words that mean very different things.' },
+    { id: 'opposite-updown', who: -1, grade: 1, skill: 'opposite',
+      text: 'The miner climbs up the ladder.',
+      ask: 'What is the opposite of up?',
+      opts: ['down', 'over', 'high'],
+      why: ['', 'Over is a place, not the opposite of up. Down is the other way.', 'High is like up, not the opposite. The other way is down.'] },
+    { id: 'opposite-bigsmall', who: 2, grade: 1, skill: 'opposite',
+      text: 'Jon is very big.',
+      ask: 'What is the opposite of big?',
+      opts: ['small', 'large', 'tall'],
+      why: ['', 'Large means big, so it is not the opposite. Small is the opposite.', 'Tall is about height. The opposite of big is small.'] },
+    { id: 'opposite-fullempty', who: -1, grade: 1, skill: 'opposite',
+      text: 'The bag has nothing in it.',
+      ask: 'What is the opposite of full?',
+      opts: ['empty', 'heavy', 'round'],
+      why: ['', 'A bag with nothing in it is not heavy. Empty is the opposite of full.', 'Round is a shape. The opposite of full is empty.'] },
+    { id: 'opposite-fastslow', who: 4, grade: 1, skill: 'opposite',
+      text: 'The turtle is not fast.',
+      ask: 'What is the opposite of fast?',
+      opts: ['slow', 'quick', 'loud'],
+      why: ['', 'Quick means fast, so it is not the opposite. Slow is the opposite.', 'Loud is about sound. The opposite of fast is slow.'] },
+    { id: 'opposite-daynight', who: -1, grade: 1, skill: 'opposite',
+      text: 'It is bedtime and the sky is dark.',
+      ask: 'What is the opposite of night?',
+      opts: ['day', 'dark', 'moon'],
+      why: ['', 'Dark is like night. The opposite of night is day.', 'The moon is in the night sky. The opposite is day.'] },
+    { id: 'opposite-wetdry', who: -1, grade: 1, skill: 'opposite',
+      text: 'The towel is not wet.',
+      ask: 'What is the opposite of wet?',
+      opts: ['dry', 'soft', 'wavy'],
+      why: ['', 'Soft is how it feels. Dry is the opposite of wet.', 'Wavy is a shape. The opposite of wet is dry.'] },
+    { id: 'opposite-loud', who: 5, grade: 1, skill: 'opposite',
+      text: 'Grog likes it when it is not loud.',
+      ask: 'What is the opposite of loud?',
+      opts: ['quiet', 'noisy', 'sad'],
+      why: ['', 'Noisy means loud. The opposite is quiet.', 'Sad is a feeling. The opposite of loud is quiet.'] },
+    { id: 'opposite-always', who: -1, grade: 2, skill: 'opposite',
+      text: 'Baron says he will never eat peas. Nim says he will the other way, every time.',
+      ask: 'What is the opposite of never?',
+      opts: ['always', 'sometimes', 'later'],
+      why: ['', 'Sometimes is in the middle. The opposite of never is always.', 'Later is about time. Never has the opposite always.'] },
+    { id: 'opposite-brave', who: 3, grade: 2, skill: 'opposite',
+      text: 'Wren is not scared of the dark cave.',
+      ask: 'What is the opposite of brave?',
+      opts: ['scared', 'strong', 'funny'],
+      why: ['', 'Strong is about muscles, not feelings. The opposite of brave is scared.', 'Funny is not the opposite. A person who is not brave is scared.'] },
+    { id: 'opposite-pushpull', who: -1, grade: 2, skill: 'opposite',
+      text: 'Nim pushes the door to open it.',
+      ask: 'What is the opposite of push?',
+      opts: ['pull', 'pass', 'peek'],
+      why: ['', 'Pass is giving. Pushing the door is moving it away, and the opposite is pull.', 'Peek is looking. The opposite of push is pull.'] },
+    // same
+    { id: 'same-big', who: 2, grade: 1, skill: 'same',
+      text: 'The whale is very big.',
+      ask: 'Which word means the same as big?',
+      opts: ['large', 'tiny', 'slow'],
+      why: ['', 'Tiny is the opposite of big. Large means the same.', 'Slow is about speed, not size. Large means the same as big.'],
+      tip: 'A word that means the same is called a synonym.' },
+    { id: 'same-small', who: -1, grade: 1, skill: 'same',
+      text: 'Hale holds a little frog.',
+      ask: 'Which word means the same as little?',
+      opts: ['small', 'loud', 'hot'],
+      why: ['', 'Loud is about sound. Small means the same as little.', 'Hot is about warmth. Small means the same as little.'] },
+    { id: 'same-happy', who: 1, grade: 1, skill: 'same',
+      text: 'Hale is glad about her new teddy.',
+      ask: 'Which word means the same as glad?',
+      opts: ['happy', 'sad', 'tired'],
+      why: ['', 'Sad is the opposite of glad. Happy means the same.', 'Tired is a different feeling. Happy means the same as glad.'] },
+    { id: 'same-fast', who: 4, grade: 1, skill: 'same',
+      text: 'Nova is a quick runner.',
+      ask: 'Which word means the same as quick?',
+      opts: ['fast', 'slow', 'wet'],
+      why: ['', 'Slow is the opposite of quick. Fast means the same.', 'Wet is not about speed. Fast means the same as quick.'] },
+    { id: 'same-start', who: 0, grade: 1, skill: 'same',
+      text: 'Baron will begin to dig.',
+      ask: 'Which word means the same as begin?',
+      opts: ['start', 'stop', 'sleep'],
+      why: ['', 'Stop is the opposite of begin. Start means the same.', 'Sleep is not about beginning. Start means the same as begin.'] },
+    { id: 'same-tired', who: -1, grade: 1, skill: 'same',
+      text: 'Nim feels sleepy after school.',
+      ask: 'Which word means the same as sleepy?',
+      opts: ['tired', 'excited', 'angry'],
+      why: ['', 'Excited is full of energy. Tired means the same as sleepy.', 'Angry is a different feeling. Tired means the same as sleepy.'] },
+    { id: 'same-mad', who: 1, grade: 1, skill: 'same',
+      text: 'Hale is angry about her tower.',
+      ask: 'Which word means the same as angry?',
+      opts: ['mad', 'glad', 'silly'],
+      why: ['', 'Glad is a happy feeling. Mad means the same as angry.', 'Silly is a playful feeling. Mad means the same as angry.'] },
+    { id: 'same-shut', who: -1, grade: 1, skill: 'same',
+      text: 'Please shut the door.',
+      ask: 'Which word means the same as shut?',
+      opts: ['close', 'open', 'paint'],
+      why: ['', 'Open is the opposite of shut. Close means the same.', 'Paint is something else you can do to a door. Close means the same as shut.'] },
+    { id: 'same-huge', who: 2, grade: 2, skill: 'same',
+      text: 'The Glorp moon is enormous.',
+      ask: 'Which word means the same as enormous?',
+      opts: ['huge', 'tiny', 'quiet'],
+      why: ['', 'Tiny is the opposite of enormous. Huge means the same.', 'Quiet is about sound, not size. Huge means the same as enormous.'] },
+    { id: 'same-gift', who: -1, grade: 2, skill: 'same',
+      text: 'Nim gives Baron a present.',
+      ask: 'Which word means the same as present here?',
+      opts: ['gift', 'now', 'near'],
+      why: ['', 'Now is another meaning of present. Here, it is something you give.', 'Near is not about giving. A gift is something you give.'] },
+    { id: 'same-finish', who: 3, grade: 2, skill: 'same',
+      text: 'Wren will complete the puzzle.',
+      ask: 'Which word means the same as complete?',
+      opts: ['finish', 'break', 'hide'],
+      why: ['', 'Break is not the same as finish. To complete is to finish.', 'Hide is not the same. To complete is to finish.'] },
+    // multi
+    { id: 'multi-bat1', who: 0, grade: 2, skill: 'multi',
+      text: 'A bat flew out of the dark cave.',
+      ask: 'What does bat mean here?',
+      opts: ['An animal with wings', 'A stick for hitting a ball', 'A kind of hat'],
+      why: ['', 'A stick for hitting a ball is another meaning of bat. A cave points to the animal.', 'A hat is not a bat. The cave and flying point to the animal.'],
+      tip: 'Many words have more than one meaning. The rest of the sentence is the clue.' },
+    { id: 'multi-bat2', who: 0, grade: 2, skill: 'multi',
+      text: 'Baron hit the ball with a bat.',
+      ask: 'What does bat mean here?',
+      opts: ['A stick for hitting a ball', 'An animal with wings', 'A kind of sock'],
+      why: ['', 'An animal with wings is another meaning of bat. Hitting a ball points to the stick.', 'A sock is not a bat. Hitting a ball points to the stick.'] },
+    { id: 'multi-bark', who: 3, grade: 2, skill: 'multi',
+      text: 'Wren peeled the bark off the tree.',
+      ask: 'What does bark mean here?',
+      opts: ['The outside of a tree', 'The sound a dog makes', 'A kind of boat'],
+      why: ['', 'A dog\'s bark is a sound. A tree points to the outside of a tree.', 'Bark is not a boat. A tree points to its outside.'] },
+    { id: 'multi-bark2', who: -1, grade: 2, skill: 'multi',
+      text: 'The dog gave a loud bark at the door.',
+      ask: 'What does bark mean here?',
+      opts: ['The sound a dog makes', 'The outside of a tree', 'A kind of cake'],
+      why: ['', 'The outside of a tree is another meaning of bark. A dog and a loud noise point to the sound.', 'Bark is not a cake. A dog and a loud noise point to the sound.'] },
+    { id: 'multi-ring1', who: 1, grade: 2, skill: 'multi',
+      text: 'Hale put a gold ring on her finger.',
+      ask: 'What does ring mean here?',
+      opts: ['A circle you wear on a finger', 'To make a bell sound', 'A kind of boat'],
+      why: ['', 'To make a bell sound is another meaning of ring. Finger points to jewellery.', 'A ring is not a boat. Finger points to jewellery.'] },
+    { id: 'multi-ring2', who: -1, grade: 2, skill: 'multi',
+      text: 'The phone will ring soon.',
+      ask: 'What does ring mean here?',
+      opts: ['To make a bell sound', 'A circle you wear on a finger', 'A round building'],
+      why: ['', 'A circle you wear is another meaning of ring. A phone points to a sound.', 'A building does not go with a phone. A phone makes a sound.'] },
+    { id: 'multi-park1', who: -1, grade: 2, skill: 'multi',
+      text: 'We play on the swings at the park.',
+      ask: 'What does park mean here?',
+      opts: ['A grassy place to play', 'To stop a car and leave it', 'A small bird'],
+      why: ['', 'To stop a car is another meaning of park. Swings point to a place to play.', 'A bird does not go with swings. Swings point to a place to play.'] },
+    { id: 'multi-park2', who: 2, grade: 2, skill: 'multi',
+      text: 'Jon will park the cart by the door.',
+      ask: 'What does park mean here?',
+      opts: ['To stop a cart and leave it', 'A grassy place to play', 'To run fast'],
+      why: ['', 'A grassy place is another meaning of park. Jon puts the cart by the door.', 'Park does not mean running. Putting a cart by the door means to leave it.'] },
+    { id: 'multi-light1', who: 4, grade: 2, skill: 'multi',
+      text: 'Nova switched on the light.',
+      ask: 'What does light mean here?',
+      opts: ['Something that makes things bright', 'Not heavy', 'A kind of food'],
+      why: ['', 'Not heavy is another meaning of light. Switched on points to a lamp.', 'Light here is not food. Switched on points to a lamp.'] },
+    { id: 'multi-light2', who: -1, grade: 2, skill: 'multi',
+      text: 'The bag is light, so Nim can lift it with one hand.',
+      ask: 'What does light mean here?',
+      opts: ['Not heavy', 'Something that makes things bright', 'Very loud'],
+      why: ['', 'Something bright is another meaning of light. Lifting with one hand points to not heavy.', 'Loud does not go with lifting. Lifting with one hand points to not heavy.'] },
+    { id: 'multi-rock1', who: -1, grade: 2, skill: 'multi',
+      text: 'Nim found a shiny rock in the pit.',
+      ask: 'What does rock mean here?',
+      opts: ['A hard piece of stone', 'To move back and forth gently', 'A kind of song'],
+      why: ['', 'To move back and forth is another meaning of rock. Found in the pit points to a stone.', 'A song does not go with a pit. Found in the pit points to a stone.'] },
+    { id: 'multi-rock2', who: 1, grade: 2, skill: 'multi',
+      text: 'Hale will rock her doll to sleep.',
+      ask: 'What does rock mean here?',
+      opts: ['To move back and forth gently', 'A hard piece of stone', 'To throw'],
+      why: ['', 'A hard stone is another meaning of rock. Sleep points to moving gently.', 'To throw would not help a doll sleep. Sleep points to moving gently.'] },
+    { id: 'multi-fly1', who: -1, grade: 2, skill: 'multi',
+      text: 'There is a fly on my sandwich.',
+      ask: 'What does fly mean here?',
+      opts: ['A small insect', 'To move through the air', 'A fast car'],
+      why: ['', 'To move through the air is another meaning of fly. On my sandwich points to an insect.', 'A fast car is not a fly. On my sandwich points to an insect.'] },
+    { id: 'multi-fly2', who: 0, grade: 2, skill: 'multi',
+      text: 'Bats fly out of the cave at night.',
+      ask: 'What does fly mean here?',
+      opts: ['To move through the air', 'A small insect', 'A kind of shoe'],
+      why: ['', 'A small insect is another meaning of fly. Out of the cave points to moving in the air.', 'A shoe does not go with a cave. Out of the cave points to moving in the air.'] },
+    { id: 'multi-duck', who: 3, grade: 2, skill: 'multi',
+      text: 'Duck! A branch is coming at your head.',
+      ask: 'What does duck mean here?',
+      opts: ['Bend down quickly', 'A bird that swims', 'A kind of boat'],
+      why: ['', 'A bird is another meaning of duck. A branch at your head points to bending down.', 'A boat does not go with a branch. A branch at your head points to bending down.'] }
+  ];
+
+  var skillNamesAdd2 = {
+    emotion: 'How others feel',
+    size: 'Size of the problem',
+    react: 'Reactions that fit',
+    calm: 'Ways to calm down',
+    category: 'Word groups',
+    odd: 'Which does not belong',
+    opposite: 'Opposites',
+    same: 'Same meaning',
+    multi: 'Words with two meanings'
+  };
+
+
+  stories = stories.concat(storiesAdd);
+
   var skillNames = {
     greeting: 'Greetings',
     topic: 'Staying on topic',
@@ -684,8 +3283,11 @@ var DTWLessons = (function () {
     predict: 'Predicting what happens next',
     verb: 'Irregular past tense',
     plural: 'Irregular plurals',
+    talk: 'Talking with friends',
     math: 'Math facts'
   };
+  [skillNamesAdd0, skillNamesAdd1, skillNamesAdd2].forEach(function (o) { Object.keys(o).forEach(function (k) { if (!skillNames[k]) skillNames[k] = o[k]; }); });
+  skillNames.feel = skillNames.feel || 'Feelings'; skillNames.wh = skillNames.wh || 'Who, what, where, when, why'; skillNames.seq = skillNames.seq || 'Order of events'; skillNames.vocab = skillNames.vocab || 'Word meanings';
 
-  return { verbs: verbs, plurals: plurals, talk: talk, read: read, stories: stories, skillNames: skillNames };
+  return { verbs: verbs, plurals: plurals, grammar: grammar, talk: talk, feel: feel, read: read, wh: wh, seq: seq, vocab: vocab, mathWords: mathWords, stories: stories, skillNames: skillNames };
 })();

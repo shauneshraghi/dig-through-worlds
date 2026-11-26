@@ -397,7 +397,10 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #lockBoard .lpic canvas { display:block; width:60px; height:69px; image-rendering:pixelated; }
 #lockBoard .lqt { margin:0; color:#fff; font-size:22px; line-height:1.25; text-shadow:0 2px 0 #0008; }
 #lockBoard .lq.math .lqt { font-size:36px; letter-spacing:1px; }
-#lockBoard .lq.talk .lqt, #lockBoard .lq.read .lqt { font-size:18px; text-align:left; }
+#lockBoard .lq.scene .lqt { font-size:18px; text-align:left; line-height:1.3; }
+#lockBoard .lq.math.scene .lqt { font-size:20px; letter-spacing:0; }
+#lockBoard .clock { display:block; width:150px; height:150px; margin:6px auto 0; }
+@media (max-height:640px) { #lockBoard .clock { width:110px; height:110px; } #lockBoard .lq.scene .lqt { font-size:16px; } #lockBoard .lopts.long .lo { min-height:40px; padding:6px 10px; font-size:16px; } }
 #lockBoard .blank { display:inline-block; min-width:2.2em; border-bottom:3px solid var(--gold); color:transparent; }
 #lockBoard .lopts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; width:100%; margin-top:10px; }
 #lockBoard .lopts.long { grid-template-columns:1fr; }
@@ -409,6 +412,11 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #lockBoard .ltip { margin:8px 0 0; min-height:1.3em; color:#ffe08a; font-size:16px; line-height:1.3; opacity:0; transition:opacity .2s; }
 #lockBoard .ltip.on { opacity:1; }
 /* stories and the grown-ups' page */
+#tabBody .lrow { display:flex; align-items:stretch; gap:6px; margin-bottom:8px; }
+#tabBody .lrow .row { margin-bottom:0; flex:1; min-width:0; }
+#tabBody .lrow .focus { flex:none; width:44px; border:2px solid #ffffff22; border-radius:12px; background:#1a1430; color:#ffffff40; font:inherit; font-size:22px; font-weight:700; cursor:pointer; }
+#tabBody .lrow .focus.on { background:var(--gold); border-color:var(--gold); color:#3a2510; }
+#tabBody .lrow .focus:disabled { opacity:.4; cursor:default; }
 #tabBody .row.story .ic canvas { width:40px; height:46px; image-rendering:pixelated; }
 #tabBody .seg { display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px; }
 #tabBody .seg .btn { flex:1 1 0; }

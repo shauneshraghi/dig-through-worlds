@@ -2,6 +2,12 @@
 
 Settled by the user; treat them as decided and do not re-ask. Rebalance against the two-bot playthrough test (see `AGENTS.md`, Commands).
 
+## Learning chests widened to a grade 1 curriculum, 2026-11-26
+
+- Five subjects join the first five, from the grade 1 standards and the usual speech-language and autism goals: grammar (pronouns including I/me, position words, is/was, not), feelings (how others feel from the situation, size of the problem, a reaction that fits, ways to calm down), WH questions about a short scene, order of events (first, next, last, steps of a routine) and word meanings (groups, odd one out, opposites, same meaning, two-meaning words at grade 2). Math adds tens and ones, biggest number, clocks and word problems. Six more social stories. `docs/learning-curriculum.md` maps all of it to the standards and sources.
+- Ten subjects would dilute the IEP goals, so a grown-up can star subjects as Focus (asked about 3 times as often); past-tense verbs, talking with friends and what happens next start starred.
+- About half the items are set in everyday life (school, home, park) rather than the game, for carry-over. Calm-down items never offer another good strategy as a wrong answer, and big-problem scenes are kept mild. The small/medium/big answers keep that order on screen.
+
 ## Learning chests, stories and backup, 2026-11-26
 
 - The player (Nim's real-life counterpart) is a strong first-grade reader whose speech-language goals are irregular past-tense verbs, social stories and pragmatic language; his SLP's take-home work adds reading comprehension (what will happen next), expected vs unexpected behaviour and greeting others. Learning content follows those goals first; math facts are included too.
