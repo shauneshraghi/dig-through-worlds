@@ -94,6 +94,15 @@ stopping stimming, hiding feelings for others' comfort).
 subjects three times (verb and talk by default). Prediction (`read`) is also an IEP goal; consider adding it to the
 focus, and turning off subjects the school already covers well.
 
+## Added after the first review
+
+The first four gaps below were filled on 2026-11-26: `tense` items in the verb subject (time words, regular -ed,
+-ied and doubled consonants, against over-regularised forms; L.1.1e), `think` items in the read subject (what a
+character wants, false belief and who knows what, who is telling the story, two characters thinking differently;
+RL.1.3, RL.1.6), `cause` items in grammar (because, so, but; L.1.1g, L.1.6) and more `repair` items in talk (asking
+to clear up confusion; SL.1.1c, SL.1.3). Tense and think sit in starred (Focus) subjects, beside the IEP goals they
+extend. The list is kept as written for reference.
+
 ## Grade 1 targets not yet covered, by value for this child
 
 1. **Tense contrast and regular -ed** (L.1.1e: "Yesterday I walked; today I walk; tomorrow I will walk"). Extends the
