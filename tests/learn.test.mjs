@@ -12,7 +12,8 @@ const FIX = {
     { id: 'dig', base: 'dig', past: 'dug', wrong: ['digged', 'dig'], text: 'Nim ___ a hole.', grade: 1 },
     { id: 'see', base: 'see', past: 'saw', wrong: ['seed', 'see'], text: 'I ___ a bat.', grade: 1 },
     { id: 'find', base: 'find', past: 'found', wrong: ['finded', 'find'], text: 'Hale ___ a bone.', grade: 1 },
-    { id: 'teach', base: 'teach', past: 'taught', wrong: ['teached', 'teach'], text: 'Nova ___ me.', grade: 2 }
+    { id: 'teach', base: 'teach', past: 'taught', wrong: ['teached', 'teach'], text: 'Nova ___ me.', grade: 2 },
+    { id: 't-walk', grade: 1, skill: 'tense', who: 1, text: 'Yesterday Hale ___ to the park.', opts: ['walked', 'walks', 'will walk'], why: ['', 'Yesterday is over.', 'Will is for later.'], tip: 'Yesterday tells us it already happened.' }
   ],
   plurals: [
     { id: 'tooth', one: 'tooth', many: 'teeth', wrong: ['tooths', 'teeths'], text: 'Sharp ___.', grade: 1 },
@@ -388,8 +389,9 @@ test('the real lesson file deals well-formed questions in every subject', { skip
   }
   // every list that is present is checked generically; lists not written yet are skipped
   const FRIENDS = 6;
-  for (const subj of ['talk', 'read', 'grammar', 'feel', 'wh', 'seq', 'vocab']) {
-    const list = L[subj]; if (!list) continue;
+  const vids = L.verbs.map(v => v.id); assert.equal(new Set(vids).size, vids.length, 'unique verb ids');
+  for (const subj of ['talk', 'read', 'grammar', 'feel', 'wh', 'seq', 'vocab', 'tense']) {
+    const list = subj === 'tense' ? L.verbs.filter(v => v.opts) : L[subj]; if (!list || (subj === 'tense' && !list.length)) continue;
     assert.ok(Array.isArray(list) && list.length > 0, subj);
     const ids = new Set();
     list.forEach(it => {
@@ -397,13 +399,13 @@ test('the real lesson file deals well-formed questions in every subject', { skip
       assert.ok(it.id && !ids.has(it.id), 'unique id ' + w); ids.add(it.id);
       assert.ok(it.grade === 1 || it.grade === 2, 'grade ' + w);
       assert.ok(it.text && typeof it.text === 'string', 'text ' + w);
-      assert.ok(subj === 'grammar' || it.ask, 'ask ' + w);
+      assert.ok(subj === 'grammar' || subj === 'tense' || it.ask, 'ask ' + w);
       assert.ok(Array.isArray(it.opts) && it.opts.length === 3 && new Set(it.opts).size === 3 && it.opts.every(o => typeof o === 'string' && o), 'three different opts ' + w);
       if (it.why) { assert.equal(it.why.length, 3, 'why ' + w); assert.equal(it.why[0], '', 'why[0] ' + w); }
       if (it.show) assert.deepEqual([...it.show].sort(), [...it.opts].sort(), 'show ' + w);
       assert.ok(it.who == null || (Number.isInteger(it.who) && it.who >= -1 && it.who < FRIENDS), 'who ' + w);
       assert.ok(L.skillNames[it.skill], 'named skill ' + it.skill + ' in ' + w);
-      if (subj === 'grammar') assert.equal(it.text.split('___').length, 2, 'one blank ' + w);
+      if (subj === 'grammar' || subj === 'tense') assert.equal(it.text.split('___').length, 2, 'one blank ' + w);
     });
   }
   (L.mathWords || []).forEach(m => {
@@ -423,4 +425,18 @@ test('an item with a show order keeps its answers in that order, with the why li
     assert.equal(q.answer, 'small problem');
     assert.equal(q.why[1], 'It can be fixed fast.'); assert.equal(q.why[2], 'A crayon is small.');
   }
+});
+
+test('a verb item with its own choices is asked as a tense question, with its skill, why and tip', () => {
+  const s = D.newState(4); D.learnSet(s, { grade: 1 });
+  const used = ['verb:go', 'verb:dig', 'verb:see', 'verb:find'];
+  const q = D._learnPick(s, 'verb', used);
+  assert.equal(q.id, 'verb:t-walk');
+  assert.equal(q.skill, 'tense'); assert.equal(q.answer, 'walked');
+  assert.deepEqual([...q.opts].sort(), ['walked', 'walks', 'will walk']);
+  assert.equal(q.why[q.opts.indexOf('will walk')], 'Will is for later.');
+  assert.equal(q.tip, 'Yesterday tells us it already happened.');
+  s.learn.items['verb:t-walk'] = { b: 0, r: 0, m: 1 };
+  const t = D.learnTricky(s).find(x => x.id === 'verb:t-walk');
+  assert.equal(t.text, 'Yesterday Hale walked to the park.');
 });

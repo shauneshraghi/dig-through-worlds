@@ -1463,7 +1463,7 @@ var DTW = (function () {
     if (!pool.length) pool = learnPool(s, subj);
     if (!pool.length) return null;
     var it = pool[weighted(s, pool.map(function (p) { return subj + ':' + p.id; }))], q = { id: subj + ':' + it.id, subj: subj, skill: subj, text: it.text, who: -1 };
-    if (subj === 'verb') { q.answer = it.past; q.opts = [it.past].concat(it.wrong); q.tip = 'Today I ' + it.base + '. Yesterday I ' + it.past + '.'; q.why = [];
+    if (subj === 'verb' && !it.opts) { q.answer = it.past; q.opts = [it.past].concat(it.wrong); q.tip = 'Today I ' + it.base + '. Yesterday I ' + it.past + '.'; q.why = [];
     } else if (subj === 'plural') { q.answer = it.many; q.opts = [it.many].concat(it.wrong); q.tip = 'One ' + it.one + ', two ' + it.many + '.'; q.why = [];
     } else {
       q.skill = it.skill; q.who = it.who == null ? -1 : it.who; q.ask = it.ask || ''; q.answer = it.opts[0];
@@ -1532,7 +1532,7 @@ var DTW = (function () {
       if (subj === 'math') text = mathText(key);
       else {
         var list = L && LEARN_KEY[subj] && L[LEARN_KEY[subj]], f = (list || []).filter(function (x) { return x.id === key; })[0];
-        if (f) text = subj === 'verb' ? f.base + ' → ' + f.past : subj === 'plural' ? f.one + ' → ' + f.many : f.opts && String(f.text).indexOf('___') >= 0 ? f.text.replace('___', f.opts[0]) : f.text;
+        if (f) text = subj === 'verb' && !f.opts ? f.base + ' → ' + f.past : subj === 'plural' ? f.one + ' → ' + f.many : f.opts && String(f.text).indexOf('___') >= 0 ? f.text.replace('___', f.opts[0]) : f.text;
       }
       out.push({ id: id, subj: subj, text: text, r: it.r, m: it.m });
     });
