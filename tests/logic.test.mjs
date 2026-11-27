@@ -1244,7 +1244,7 @@ test('simon: watch the gems, then tap them back in order; a wrong tap replays th
 test('chests hold eight kinds of puzzle and never the same kind twice in a row (learning chests off)', () => {
   const s = digAt(1, 3, 10, 3); D.setAuto(s, false); D.learnSet(s, { mix: 0 });
   const kinds = [];
-  for (let k = 0; k < 40; k++) {
+  for (let k = 0; k < 80; k++) {
     D._setTile(s, 4, 10, 3, T.CHEST); D._teleport(s, 3, 10, 3); D.steer(s, 'e'); run(s, 2);
     if (!s.run.lock) throw new Error('no lock at ' + k + ' after ' + kinds.slice(-3)); kinds.push(s.run.lock.kind); solveLock(s); run(s, 1);
   }
@@ -1254,7 +1254,7 @@ test('chests hold eight kinds of puzzle and never the same kind twice in a row (
 
 test('slide: always a 3×3 board, scrambled by legal moves so it can always be solved, short in early worlds', () => {
   assert.deepEqual([...D.SLIDE_N], [3, 3, 3, 3, 3]);
-  assert.deepEqual([...D.SLIDE_K], [8, 12, 14, 16, 18]);
+  assert.deepEqual([...D.SLIDE_K], [8, 9, 10, 10, 10]); // the last worlds stay short: a 6-year-old takes several times the shortest solution
   const need = [0, 0, 0, 0, 0];
   for (let w = 0; w < 5; w++) for (let k = 0; k < 6; k++) {
     const s = openChest(w, 'slide', 20 * w + k), L = s.run.lock, n = 3;

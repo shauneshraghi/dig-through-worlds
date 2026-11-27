@@ -108,7 +108,7 @@ var DTW = (function () {
   // later worlds); a wrong tap waits ODD_WAIT s. 'path': PATH_N numbered gems on a PATH_GRID x PATH_GRID board, tapped
   // 1, 2, 3...; from world 3 on the numbers show for PATH_PREVIEW s and then hide, and a miss shows them for PATH_RECALL s
   // and starts over.
-  var SLIDE_N = [3, 3, 3, 3, 3], SLIDE_K = [8, 12, 14, 16, 18];
+  var SLIDE_N = [3, 3, 3, 3, 3], SLIDE_K = [8, 9, 10, 10, 10]; // capped at 10: a child takes several times the shortest solution
   var PIPE_N = [3, 4, 4, 4, 4], PIPE_OUTS = [1, 1, 2, 2, 3];
   // 'ice': an ice block on an ICE_N x ICE_N board with ICE_ROCKS rocks; a push (lockTap 0-3, N E S W) slides it until a
   // rock or the edge stops it, and it drops into the hole if it passes over it. The board is dealt so the fewest pushes
