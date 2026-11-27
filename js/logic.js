@@ -1273,15 +1273,17 @@ var DTW = (function () {
   // 'feel' (feelings, the size of a problem, calming down), 'read' (a short scene: what will happen next?), 'wh' (who, what, where, when,
   // why about a scene), 'seq' (what comes first, next, last) and 'vocab' (word groups, opposites, same, two meanings), whose words are in
   // js/lessons.js (DTWLessons), and 'math', made here for the grade (sums and differences, place value, which is biggest, clocks, word problems). A miss shows a tip, waits LEARN_WAIT s and takes that answer out; the question stays.
-  // Each item keeps a box (b, 0 to 4, Leitner style: right first time moves it up, a miss sends it back to 0) and counts
-  // (r, m) in s.learn.items; low boxes are asked more often (LEARN_WEIGHT; items never seen weigh LEARN_NEW). A grown-up
+  // Questions are a cross-off list: each item counts how often it was asked (a, in s.learn.items, set when the question is shown),
+  // and the next question is one of the least asked in its subject, so none repeats until every one has been asked. Math does
+  // the same over the questions it makes. Each item also keeps right and missed counts (r, m) and a box (b, 0 to 4: right first
+  // time moves it up, a miss sends it to 0) for the grown-ups' list of missed questions. A grown-up
   // sets s.learn.mix (the share of chests that are learning chests, LEARN_MIX), the grade and the subjects.
   // The subjects named on the grown-ups page are the child's speech-language goals first (focus: verb and talk, asked LEARN_FOCUS times as often).
   var LEARN_SUBJ = ['verb', 'plural', 'grammar', 'talk', 'feel', 'read', 'wh', 'seq', 'vocab', 'math'];
   var LEARN_ROUNDS = { verb: 3, plural: 3, grammar: 3, talk: 2, feel: 2, read: 2, wh: 2, seq: 2, vocab: 3, math: 3 };
   var LEARN_KEY = { verb: 'verbs', plural: 'plurals', grammar: 'grammar', talk: 'talk', feel: 'feel', read: 'read', wh: 'wh', seq: 'seq', vocab: 'vocab' }; // subject -> DTWLessons list
   var LEARN_FOCUS = 3, FOCUS_DEFAULT = ['verb', 'talk', 'read'];
-  var LEARN_MIX = [0, 0.25, 0.5, 0.75], LEARN_WAIT = 1.2, LEARN_WEIGHT = [8, 4, 2, 1, 0.5], LEARN_NEW = 3, STORY_PAGES = 16, STORY_CHARS = 240;
+  var LEARN_MIX = [0, 0.25, 0.5, 0.75], LEARN_WAIT = 1.2, MATH_TRIES = 80, STORY_PAGES = 16, STORY_CHARS = 240;
   function lessons() { return typeof DTWLessons !== 'undefined' && DTWLessons ? DTWLessons : null; }
   function newLearn() {
     var subj = {}, focus = {};
@@ -1316,11 +1318,23 @@ var DTW = (function () {
     return ks[ks.length - 1];
   }
   function shuffleOpts(s, opts) { for (var j = opts.length - 1; j > 0; j--) { var q = Math.floor(rand(s) * (j + 1)), t = opts[j]; opts[j] = opts[q]; opts[q] = t; } return opts; }
-  function itemWeight(s, id) { var it = learnOf(s).items[id]; return it ? LEARN_WEIGHT[Math.max(0, Math.min(4, it.b | 0))] : LEARN_NEW; }
-  function weighted(s, ids) {
-    var tot = 0, ws = ids.map(function (id) { var w = itemWeight(s, id); tot += w; return w; }), r = rand(s) * tot;
-    for (var k = 0; k < ids.length; k++) { r -= ws[k]; if (r < 0) return k; }
-    return ids.length - 1;
+  function asked(s, id) { var it = learnOf(s).items[id]; return it ? (it.a != null ? it.a : (it.r | 0) + (it.m | 0)) : 0; }
+  function leastAsked(s, ids) { // a random one of the ids asked the fewest times
+    var lo = Infinity, best = [];
+    ids.forEach(function (id) { var a = asked(s, id); if (a < lo) { lo = a; best = [id]; } else if (a === lo) best.push(id); });
+    return best[Math.floor(rand(s) * best.length)];
+  }
+  function learnLeft(s) { // per word subject: questions not yet asked this time round the list, out of all at the grade
+    var out = {};
+    LEARN_SUBJ.forEach(function (k) {
+      if (k === 'math') return;
+      var ids = learnPool(s, k).map(function (it) { return k + ':' + it.id; });
+      if (!ids.length) return;
+      var a = ids.map(function (id) { return asked(s, id); }), lo = Math.min.apply(null, a), hi = Math.max.apply(null, a);
+      // all asked equally often: a fresh list (none asked yet) or one just finished; otherwise the least asked are still to come
+      out[k] = { left: lo === hi ? (lo ? 0 : ids.length) : a.filter(function (x) { return x === lo; }).length, total: ids.length };
+    });
+    return out;
   }
   // ---- math questions: the id is the whole question. '7+5', '12-4', '7+?=10' (arithmetic); 't:4,7' (4 tens, 7 ones),
   // 'h:3,4,7' (hundreds, tens, ones); 'c:47,74,44' (which is the biggest); 'k:3:30' (a clock); 'w:<template>:<a>,<b>' (a word problem
@@ -1452,17 +1466,19 @@ var DTW = (function () {
   // the next question of a subject, avoiding the ids in used
   function learnPick(s, subj, used) {
     if (subj === 'math') {
-      var l = learnOf(s), g = l.grade, missed = Object.keys(l.items).filter(function (id) {
-        return id.indexOf('math:') === 0 && (l.items[id].b | 0) < 2 && used.indexOf(id) < 0 && mathFits(id.slice(5), g);
-      });
-      if (missed.length && rand(s) < 0.5) return mathQ(s, missed[weighted(s, missed)].slice(5));
-      for (var tries = 0; tries < 20; tries++) { var f = mathId(s, g); if (used.indexOf('math:' + f) < 0) return mathQ(s, f); }
-      return mathQ(s, f);
+      var g = learnOf(s).grade, cand = [];
+      for (var tries = 0; tries < MATH_TRIES; tries++) {
+        var f = mathId(s, g);
+        if (used.indexOf('math:' + f) >= 0) continue;
+        if (!asked(s, 'math:' + f)) return mathQ(s, f);
+        cand.push('math:' + f);
+      }
+      return mathQ(s, (cand.length ? leastAsked(s, cand) : 'math:' + f).slice(5));
     }
     var pool = learnPool(s, subj).filter(function (it) { return used.indexOf(subj + ':' + it.id) < 0; });
     if (!pool.length) pool = learnPool(s, subj);
     if (!pool.length) return null;
-    var it = pool[weighted(s, pool.map(function (p) { return subj + ':' + p.id; }))], q = { id: subj + ':' + it.id, subj: subj, skill: subj, text: it.text, who: -1 };
+    var pick = leastAsked(s, pool.map(function (p) { return subj + ':' + p.id; })), it = pool.filter(function (p) { return subj + ':' + p.id === pick; })[0], q = { id: subj + ':' + it.id, subj: subj, skill: subj, text: it.text, who: -1 };
     if (subj === 'verb' && !it.opts) { q.answer = it.past; q.opts = [it.past].concat(it.wrong); q.tip = 'Today I ' + it.base + '. Yesterday I ' + it.past + '.'; q.why = [];
     } else if (subj === 'plural') { q.answer = it.many; q.opts = [it.many].concat(it.wrong); q.tip = 'One ' + it.one + ', two ' + it.many + '.'; q.why = [];
     } else {
@@ -1493,10 +1509,15 @@ var DTW = (function () {
     learnOf(s).last = subj; s.run.lock = L; dealLearn(s, L);
   }
   function dealLearn(s, L) {
-    L.q = learnPick(s, L.subj, L.used); L.used.push(L.q.id); L.miss = false; L.hint = false; L.out = []; L.bad = -1;
+    L.q = learnDeal(s, L.subj, L.used); L.used.push(L.q.id); L.miss = false; L.hint = false; L.out = []; L.bad = -1;
+  }
+  function learnDeal(s, subj, used) { // pick the next question and cross it off
+    var q = learnPick(s, subj, used || []);
+    if (q) { var l = learnOf(s), it = l.items[q.id] || (l.items[q.id] = { b: 0, r: 0, m: 0 }); it.a = asked(s, q.id) + 1; }
+    return q;
   }
   function learnMark(s, q, right) { // a question finished: right first time, or missed on the way
-    var l = learnOf(s), it = l.items[q.id] || (l.items[q.id] = { b: 0, r: 0, m: 0 });
+    var l = learnOf(s), it = l.items[q.id] || (l.items[q.id] = { b: 0, r: 0, m: 0, a: 1 });
     if (right) { it.r++; it.b = Math.min(4, (it.b | 0) + 1); } else { it.m++; it.b = 0; }
     [q.subj].concat(q.skill !== q.subj ? [q.skill] : []).forEach(function (k) { var st = l.stats[k] || (l.stats[k] = { r: 0, m: 0 }); if (right) st.r++; else st.m++; });
     emit(s, { type: 'learned', subj: q.subj, id: q.id, right: right });
@@ -1567,7 +1588,7 @@ var DTW = (function () {
     if (o.grade === 2) l.grade = 2;
     if (typeof o.mix === 'number' && o.mix >= 0 && o.mix < LEARN_MIX.length) l.mix = o.mix | 0;
     if (o.subj && typeof o.subj === 'object') LEARN_SUBJ.forEach(function (k) { if (k in o.subj) l.subj[k] = !!o.subj[k]; });
-    var clean = function (src) { var d = {}; if (src && typeof src === 'object' && !Array.isArray(src)) Object.keys(src).forEach(function (k) { var v = src[k]; if (v && typeof v === 'object') d[k] = { b: Math.max(0, Math.min(4, v.b | 0)), r: v.r | 0, m: v.m | 0 }; }); return d; };
+    var clean = function (src) { var d = {}; if (src && typeof src === 'object' && !Array.isArray(src)) Object.keys(src).forEach(function (k) { var v = src[k]; if (v && typeof v === 'object') { d[k] = { b: Math.max(0, Math.min(4, v.b | 0)), r: v.r | 0, m: v.m | 0 }; if (v.a != null) d[k].a = Math.max(0, v.a | 0); } }); return d; };
     l.items = clean(o.items); l.stats = {};
     var st = clean(o.stats); Object.keys(st).forEach(function (k) { l.stats[k] = { r: st[k].r, m: st[k].m }; });
     if (o.read && typeof o.read === 'object') Object.keys(o.read).forEach(function (k) { l.read[k] = o.read[k] | 0; });
@@ -2236,7 +2257,7 @@ var DTW = (function () {
 
   return {
     LEARN_MIX: LEARN_MIX, LEARN_SUBJ: LEARN_SUBJ, LEARN_FOCUS: LEARN_FOCUS, LEARN_ROUNDS: LEARN_ROUNDS, learnSet: learnSet, learnStats: learnStats, learnTricky: learnTricky, learnSubjects: learnSubjects, storyList: storyList, addStory: addStory, removeStory: removeStory, storyRead: storyRead,
-    _learnPick: learnPick, _learnSubject: learnSubject, _mathEval: mathEval, _mathQ: mathQ, _mathId: mathId, _mathFits: mathFits,
+    _learnPick: learnPick, _learnDeal: learnDeal, learnLeft: learnLeft, _learnSubject: learnSubject, _mathEval: mathEval, _mathQ: mathQ, _mathId: mathId, _mathFits: mathFits,
     MATS: MATS, MAT_PRICE: MAT_PRICE, GEM: GEM, canAfford: canAfford, sellMat: sellMat, buyMat: buyMat, matBuyPrice: matBuyPrice, bank: bank,
     N: N, W: N, DEPTH: DEPTH, idx: idx, DIRS: DIRS, TILE: TILE, WORLDS: WORLDS, UPGRADES: UPGRADES, WORKERS: WORKERS, CREW_UPGRADES: CREW_UPGRADES, maxDiggers: maxDiggers, crewDamage: crewDamage, crewRate: crewRate, O2_MAX: O2_MAX, WALK: WALK, MANUAL_HOLD: MANUAL_HOLD, AUTO_PACE: AUTO_PACE,
     genWorld: genWorld, newState: newState, startDig: startDig, step: step, tap: tap, steer: steer, digAt: digAt, lockTap: lockTap, lockSmash: lockSmash, LOCK_LEVELS: LOCK_LEVELS, SIMON_PADS: SIMON_PADS, SIMON_STEP: SIMON_STEP, SIMON_LEAD: SIMON_LEAD, _lockKind: function (k) { forceKind = k; }, setAuto: setAuto, goHome: goHome, HELPER_RATE: HELPER_RATE,

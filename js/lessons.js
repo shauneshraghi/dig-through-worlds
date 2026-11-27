@@ -82,7 +82,28 @@ var DTWLessons = (function () {
     { id: 'sell', base: 'sell', past: 'sold', wrong: ['selled', 'sell'], text: 'This morning Nim ___ his spare bones.', grade: 2 },
     { id: 'meet', base: 'meet', past: 'met', wrong: ['meeted', 'meeting'], text: 'Last week Nim ___ Wren in the jungle.', grade: 2 },
     { id: 'feed', base: 'feed', past: 'fed', wrong: ['feeded', 'feeding'], text: 'Yesterday Wren ___ the monkeys some fruit.', grade: 2 },
-    { id: 'stick', base: 'stick', past: 'stuck', wrong: ['sticked', 'sticking'], text: 'Then the green goo ___ to Baron\'s boots.', grade: 2 }
+    { id: 'stick', base: 'stick', past: 'stuck', wrong: ['sticked', 'sticking'], text: 'Then the green goo ___ to Baron\'s boots.', grade: 2 },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'put', base: 'put', past: 'put', wrong: ['putted', 'putting'], text: 'Yesterday Nim ___ the coal in his bag.', grade: 1 },
+    { id: 'cut', base: 'cut', past: 'cut', wrong: ['cutted', 'cutting'], text: 'Last night Baron ___ the bread.', grade: 1 },
+    { id: 'hit', base: 'hit', past: 'hit', wrong: ['hitted', 'hitting'], text: 'This morning Nim ___ the rock with his pick.', grade: 1 },
+    { id: 'hurt', base: 'hurt', past: 'hurt', wrong: ['hurted', 'hurting'], text: 'Yesterday Hale ___ her knee, and Nim helped.', grade: 1 },
+    { id: 'shut', base: 'shut', past: 'shut', wrong: ['shutted', 'shutting'], text: 'Last night Nim ___ the door of the hut.', grade: 1 },
+    { id: 'let', base: 'let', past: 'let', wrong: ['letted', 'letting'], text: 'Yesterday Baron ___ Hale hold the pick.', grade: 1 },
+    { id: 'pay', base: 'pay', past: 'paid', wrong: ['payed', 'pays'], text: 'Yesterday Nim ___ coins for a new pick.', grade: 1 },
+    { id: 'fight', base: 'fight', past: 'fought', wrong: ['fighted', 'fighting'], text: 'Yesterday two bats ___ over a shiny gem.', grade: 1 },
+    { id: 'lend', base: 'lend', past: 'lent', wrong: ['lended', 'lends'], text: 'Yesterday Baron ___ Nim his torch.', grade: 1 },
+    { id: 'shoot', base: 'shoot', past: 'shot', wrong: ['shooted', 'shooting'], text: 'This morning Nova ___ a ball into the net.', grade: 1 },
+    { id: 'hang', base: 'hang', past: 'hung', wrong: ['hangs', 'hanging'], text: 'Last night Nim ___ his hat on the hook.', grade: 1 },
+    { id: 'spin', base: 'spin', past: 'spun', wrong: ['spinned', 'spinning'], text: 'Yesterday Hale ___ around and around on the plaza.', grade: 1 },
+    { id: 'lead', base: 'lead', past: 'led', wrong: ['leaded', 'leading'], text: 'This morning Jon ___ the way down the ladder.', grade: 1 },
+    { id: 'go2', base: 'go', past: 'went', wrong: ['goed', 'goes'], text: 'Last night Nim ___ to bed early.', grade: 1 },
+    { id: 'see2', base: 'see', past: 'saw', wrong: ['seed', 'sees'], text: 'Yesterday Hale ___ a bat in the cave.', grade: 1 },
+    { id: 'eat2', base: 'eat', past: 'ate', wrong: ['eated', 'eating'], text: 'This morning Nim ___ an apple for breakfast.', grade: 1 },
+    { id: 'run2', base: 'run', past: 'ran', wrong: ['runned', 'running'], text: 'Yesterday Baron ___ across the plaza.', grade: 1 },
+    { id: 'find2', base: 'find', past: 'found', wrong: ['finded', 'finding'], text: 'Last night Nim ___ a shiny gem in the pit.', grade: 1 },
+    { id: 'take2', base: 'take', past: 'took', wrong: ['taked', 'taking'], text: 'This morning Hale ___ her toy to the museum.', grade: 1 },
+    { id: 'give2', base: 'give', past: 'gave', wrong: ['gived', 'giving'], text: 'Yesterday Nim ___ a gift to Grog.', grade: 1 }
   ];
 
   var plurals = [
@@ -106,7 +127,40 @@ var DTWLessons = (function () {
     { id: 'calf', one: 'calf', many: 'calves', wrong: ['calfs', 'calfes'], text: 'The mammoth had two baby ___.', grade: 2 },
     { id: 'shelf', one: 'shelf', many: 'shelves', wrong: ['shelfs', 'shelfes'], text: 'The shop has three ___ full of tools.', grade: 2 },
     { id: 'life', one: 'life', many: 'lives', wrong: ['lifes', 'lifs'], text: 'People say a cat has nine ___.', grade: 2 },
-    { id: 'elf', one: 'elf', many: 'elves', wrong: ['elfs', 'elfes'], text: 'Hale dressed up as one of the ___.', grade: 2 }
+    { id: 'elf', one: 'elf', many: 'elves', wrong: ['elfs', 'elfes'], text: 'Hale dressed up as one of the ___.', grade: 2 },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'tooth2', one: 'tooth', many: 'teeth', wrong: ['tooths', 'teeths'], text: 'Nim brushed all his ___ before bed.', grade: 1 },
+    { id: 'tooth3', one: 'tooth', many: 'teeth', wrong: ['tooths', 'teeths'], text: 'The big fossil jaw had thirty ___.', grade: 1 },
+    { id: 'tooth4', one: 'tooth', many: 'teeth', wrong: ['tooths', 'teeths'], text: 'Baron lost two ___ and he smiled.', grade: 1 },
+    { id: 'foot2', one: 'foot', many: 'feet', wrong: ['foots', 'feets'], text: 'Nim got mud on both of his ___.', grade: 1 },
+    { id: 'foot3', one: 'foot', many: 'feet', wrong: ['foots', 'feets'], text: 'Jon has two big ___ with webs.', grade: 1 },
+    { id: 'foot4', one: 'foot', many: 'feet', wrong: ['foots', 'feets'], text: 'The big lizard had three toes on each of its ___.', grade: 1 },
+    { id: 'mouse2', one: 'mouse', many: 'mice', wrong: ['mouses', 'mices'], text: 'Two little ___ hid in the hut.', grade: 1 },
+    { id: 'mouse3', one: 'mouse', many: 'mice', wrong: ['mouses', 'mices'], text: 'Hale saw four tiny ___ eat the cheese.', grade: 1 },
+    { id: 'mouse4', one: 'mouse', many: 'mice', wrong: ['mouses', 'mices'], text: 'All the ___ ran away from the bat.', grade: 1 },
+    { id: 'child2', one: 'child', many: 'children', wrong: ['childs', 'childrens'], text: 'Four ___ played on the plaza.', grade: 1 },
+    { id: 'child3', one: 'child', many: 'children', wrong: ['childs', 'childrens'], text: 'The guide told all the ___ about the bones.', grade: 1 },
+    { id: 'child4', one: 'child', many: 'children', wrong: ['childs', 'childrens'], text: 'Nova waved to the ___ in the museum.', grade: 1 },
+    { id: 'man2', one: 'man', many: 'men', wrong: ['mans', 'mens'], text: 'Three ___ sat by the shop.', grade: 1 },
+    { id: 'man3', one: 'man', many: 'men', wrong: ['mans', 'mens'], text: 'Many ___ came to look at the gold.', grade: 1 },
+    { id: 'man4', one: 'man', many: 'men', wrong: ['mans', 'mens'], text: 'Two ___ fixed the old wall.', grade: 1 },
+    { id: 'woman2', one: 'woman', many: 'women', wrong: ['womans', 'womens'], text: 'Three ___ walked into the museum.', grade: 1 },
+    { id: 'woman3', one: 'woman', many: 'women', wrong: ['womans', 'womens'], text: 'Lots of ___ clapped for the miner.', grade: 1 },
+    { id: 'woman4', one: 'woman', many: 'women', wrong: ['womans', 'womens'], text: 'Two ___ sold fruit at the stall.', grade: 1 },
+    { id: 'goose2', one: 'goose', many: 'geese', wrong: ['gooses', 'geeses'], text: 'Six ___ swam in the pond.', grade: 1 },
+    { id: 'goose3', one: 'goose', many: 'geese', wrong: ['gooses', 'geeses'], text: 'Lots of ___ flew over the plaza.', grade: 1 },
+    { id: 'person2', one: 'person', many: 'people', wrong: ['persones', 'peeples'], text: 'Ten ___ waited at the museum door.', grade: 1 },
+    { id: 'person3', one: 'person', many: 'people', wrong: ['persones', 'peeples'], text: 'Lots of ___ liked the new skeleton.', grade: 1 },
+    { id: 'person4', one: 'person', many: 'people', wrong: ['persones', 'peeples'], text: 'Many ___ walked along the path.', grade: 1 },
+    { id: 'fish2', one: 'fish', many: 'fish', wrong: ['fishs', 'fishies'], text: 'Jon saw lots of ___ in the sea.', grade: 1 },
+    { id: 'fish3', one: 'fish', many: 'fish', wrong: ['fishs', 'fishies'], text: 'Three ___ swam past the fossil.', grade: 1 },
+    { id: 'fish4', one: 'fish', many: 'fish', wrong: ['fishs', 'fishies'], text: 'Hale fed all the ___ in the bowl.', grade: 1 },
+    { id: 'sheep2', one: 'sheep', many: 'sheep', wrong: ['sheeps', 'sheepies'], text: 'Five ___ slept in the grass.', grade: 1 },
+    { id: 'sheep3', one: 'sheep', many: 'sheep', wrong: ['sheeps', 'sheepies'], text: 'Baron counted six ___ by the hut.', grade: 1 },
+    { id: 'sheep4', one: 'sheep', many: 'sheep', wrong: ['sheeps', 'sheepies'], text: 'All the ___ ran to the gate.', grade: 1 },
+    { id: 'leaf2', one: 'leaf', many: 'leaves', wrong: ['leafs', 'leafes'], text: 'Lots of green ___ fell from the tree.', grade: 1 },
+    { id: 'leaf3', one: 'leaf', many: 'leaves', wrong: ['leafs', 'leafes'], text: 'Wren picked five ___ for her crown.', grade: 1 },
+    { id: 'leaf4', one: 'leaf', many: 'leaves', wrong: ['leafs', 'leafes'], text: 'Nim swept all the ___ off the path.', grade: 1 }
   ];
 
   var talk = [
@@ -421,7 +475,16 @@ var DTWLessons = (function () {
       text: 'Grog is new on the plaza. Grog stands far away and looks at the ground.',
       ask: 'What could Nim do?',
       opts: ['Smile, give a small wave, and say, "Hi, Grog."', 'Run up close and give Grog a big hug.', 'Say, "Why are you so quiet?"'],
-      why: ['', 'A big hug might surprise Grog. Shy friends often like a little space first.', 'That might make Grog feel worse. A gentle hello helps a shy friend.'] }
+      why: ['', 'A big hug might surprise Grog. Shy friends often like a little space first.', 'That might make Grog feel worse. A gentle hello helps a shy friend.'] },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'n-greet-bye', who: 2, grade: 1, skill: 'greeting', text: 'The day is over. Jon waves and says, "Goodbye, Nim! See you tomorrow!"', ask: 'What could Nim say?', opts: ['Goodbye, Jon! See you tomorrow!', '(Turn around and say nothing.)', 'Why are you leaving?'], why: ['', 'Jon might think you did not hear him. Waving back is kind.', 'Jon said goodbye first. A goodbye back fits better than a question.'] },
+    { id: 'n-topic-dino', who: 0, grade: 1, skill: 'topic', text: 'Baron is telling you about a dinosaur bone he found in the pit.', ask: 'What could Nim say?', opts: ['Wow, what kind of dinosaur was it?', 'My shoes are blue.', 'I want pizza.'], why: ['', 'Baron is talking about bones. Blue shoes is a different topic.', 'Pizza is a different topic. Talk about what Baron is telling you.'] },
+    { id: 'n-turns-game', who: 1, grade: 1, skill: 'turns', text: 'You and Hale are playing a board game. Hale rolls the dice. Now it is your turn.', ask: 'What could Nim do?', opts: ['Roll the dice when Hale is done.', 'Roll the dice again and again.', 'Take the dice and run away.'], why: ['', 'It is a game for two. Rolling again and again is not taking turns.', 'Taking the dice stops the game. Wait for your turn and roll.'] },
+    { id: 'n-help-reach', who: 5, grade: 1, skill: 'help', text: 'Grog cannot reach a book on the high shelf. He looks at you shyly.', ask: 'What could Nim do?', opts: ['Ask, "Can I help you?"', '(Walk away quickly.)', '(Laugh at him.)'], why: ['', 'Grog needs help. Walking away would leave him stuck.', 'Laughing could hurt his feelings. Helping is kind.'] },
+    { id: 'n-feel-lost', who: 1, grade: 1, skill: 'feelings', text: 'Hale lost her teddy at the park. She sniffles and her chin wobbles.', ask: 'What could Nim say?', opts: ['I am sorry. Let us look together.', 'It is only a teddy.', '(Say nothing and play.)'], why: ['', 'To Hale the teddy matters a lot. Saying it is only a teddy can hurt her feelings.', 'Hale is sad. She would feel better if you help her.'] },
+    { id: 'n-polite-pls', who: 3, grade: 1, skill: 'polite', text: 'You want a drink of water. Wren is pouring water from a jug.', ask: 'What could Nim say?', opts: ['Can I have some water, please?', 'Give me that!', '(Grab the jug.)'], why: ['', '"Give me that!" sounds bossy. Saying please is kinder.', 'Grabbing could spill the water. Asking is polite.'] },
+    { id: 'n-sorry-block', who: 0, grade: 1, skill: 'sorry', text: 'You knocked over Baron\'s block tower by accident. Baron looks sad.', ask: 'What could Nim say?', opts: ['I am sorry. Can I help build it again?', 'It was not my tower.', '(Run away.)'], why: ['', 'Saying it was not your tower does not help Baron feel better.', 'Running away leaves Baron with the mess. Saying sorry helps.'] },
+    { id: 'n-exp-line', who: -1, grade: 1, skill: 'expected', text: 'You are in the lunch line at school. Other children are waiting for their food.', ask: 'What is the expected thing to do?', opts: ['Wait for your turn.', 'Push to the front.', 'Sit on the floor.'], why: ['', 'Pushing is unexpected. Others have been waiting and might feel upset.', 'A lunch line is for standing and waiting. Sitting on the floor blocks others.'] }
   ];
 
   // read: what will happen next. opts[0] follows from the clues; why points back to the clue.
@@ -555,7 +618,24 @@ var DTWLessons = (function () {
       text: 'Jon looks all over the pit and says, "Where is my crystal?" Baron sees a sparkle under a rock.',
       ask: 'What will happen next?',
       opts: ['Baron shows Jon where the crystal is.', 'Jon buys a whole new pit.', 'Baron hides the crystal from Jon.'],
-      why: ['', 'Baron just saw the sparkle. Jon is looking. What would a friend do?', 'Baron is Jon\'s friend. Friends usually help each other find things.'] }
+      why: ['', 'Baron just saw the sparkle. Jon is looking. What would a friend do?', 'Baron is Jon\'s friend. Friends usually help each other find things.'] },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'n-rd-ice', who: 1, grade: 1, skill: 'predict', text: 'Hale holds a big ice cream cone in the sun. It is a very hot day.', ask: 'What will happen next?', opts: ['The ice cream will start to melt.', 'The ice cream will turn into a bird.', 'The ice cream will get colder and colder.'], why: ['', 'Ice cream does not turn into a bird. Look at the hot sun.', 'It is hot. Hot sun makes ice cream warmer, not colder.'] },
+    { id: 'n-rd-door', who: 0, grade: 1, skill: 'predict', text: 'Baron pushes the big museum door. It has a sign that says PULL.', ask: 'What will happen next?', opts: ['The door will not open.', 'The door will open by itself.', 'The door will fly away.'], why: ['', 'The sign says PULL. Baron is pushing, so the door stays shut.', 'Doors do not fly. Baron pushed the wrong way.'] },
+    { id: 'n-rd-umbrella', who: -1, grade: 1, skill: 'predict', text: 'Dark clouds fill the sky over the school. Nim forgot his umbrella.', ask: 'What will happen next?', opts: ['Nim will get wet.', 'Nim will get very dry.', 'Nim will see a rainbow right now.'], why: ['', 'Dark clouds bring rain. Without an umbrella Nim will not be dry.', 'A rainbow comes after rain, not before it.'] },
+    { id: 'n-rd-bat', who: 4, grade: 1, skill: 'predict', text: 'A bat swoops down. Nova left her shiny gem on the floor of the pit.', ask: 'What will happen next?', opts: ['The bat will grab the gem.', 'The bat will dig a hole.', 'The bat will read the gem a book.'], why: ['', 'Bats do not dig holes. Bats take shiny things.', 'Bats do not read. A shiny gem on the floor is easy to take.'] },
+    { id: 'n-rd-balloon', who: -1, grade: 1, skill: 'predict', text: 'At the park, Sam blows up a balloon and blows and blows. It gets very big.', ask: 'What will happen next?', opts: ['The balloon will pop.', 'The balloon will shrink.', 'The balloon will turn into water.'], why: ['', 'Blowing makes it bigger, not smaller.', 'Balloons do not turn into water. Too much air makes it pop.'] },
+    { id: 'n-rd-sleep', who: 2, grade: 1, skill: 'predict', text: 'Jon swam all day and dug all night. Now he sits down and his eyes close.', ask: 'What will happen next?', opts: ['Jon will fall asleep.', 'Jon will run a race.', 'Jon will do a loud dance.'], why: ['', 'Jon is too tired to race. His eyes are closed.', 'Jon is too tired to dance. His eyes are closed.'] },
+    { id: 'n-rd-seed', who: 3, grade: 1, skill: 'predict', text: 'Wren plants a seed in the soil. Every day she gives it water and sun.', ask: 'What will happen next?', opts: ['A little plant will grow.', 'The seed will turn into a rock.', 'The seed will bark like a dog.'], why: ['', 'Water and sun help seeds grow. They do not turn them to stone.', 'Seeds do not bark. They grow into plants.'] },
+    { id: 'n-rd-lamp', who: 5, grade: 1, skill: 'predict', text: 'Grog walks into a dark cave. Then he turns on his headlamp.', ask: 'What will happen next?', opts: ['The cave will be bright in front of him.', 'The cave will get darker.', 'The lamp will turn into a snake.'], why: ['', 'A lamp makes light, not darkness. Light helps Grog see.', 'Lamps do not turn into snakes. A lamp lights up the cave.'] },
+    { id: 'n-rd-cake', who: 1, grade: 1, skill: 'predict', text: 'Hale puts her birthday cake on the edge of the table. Her puppy jumps up beside it.', ask: 'What will happen next?', opts: ['The puppy might knock the cake off.', 'The cake will jump up by itself.', 'The puppy will make a new cake.'], why: ['', 'Cakes cannot jump. Look at the puppy.', 'Puppies cannot bake. A jumping puppy might bump the cake.'] },
+    { id: 'n-rd-bus', who: -1, grade: 1, skill: 'predict', text: 'Nim runs to the school bus stop. The bus doors close and the bus starts to go.', ask: 'What will happen next?', opts: ['The bus will drive away.', 'The bus will turn into a boat.', 'The bus will wait for a week.'], why: ['', 'Buses do not turn into boats. The bus is already moving.', 'A bus does not wait a week. The doors are closed and it is going.'] },
+    { id: 'n-rd-museum', who: 4, grade: 1, skill: 'predict', text: 'Nova puts the last bone on the museum plinth. The skeleton is finished.', ask: 'What will happen next?', opts: ['Visitors will come to look.', 'The bones will walk home.', 'The museum will close forever.'], why: ['', 'Bones do not walk. A finished skeleton is something to see.', 'A new skeleton makes the museum better, not closed.'] },
+    { id: 'n-rd-spill', who: 0, grade: 1, skill: 'predict', text: 'Baron trips and his glass of juice tips over on the table.', ask: 'What will happen next?', opts: ['The juice will spill out.', 'The juice will climb back in.', 'The table will drink it all up.'], why: ['', 'Juice cannot climb. When a glass tips, juice runs out.', 'Tables do not drink. The juice will spill on it.'] },
+    { id: 'n-th-puppy', who: 1, grade: 1, skill: 'think', text: 'Hale sits by the door with her coat on. She holds the puppy lead and wags it.', ask: 'What does Hale want?', opts: ['Hale wants to go for a walk.', 'Hale wants to take a bath.', 'Hale wants to eat dinner.'], why: ['', 'Hale has her coat on, not a towel. The clue is the lead.', 'Hale holds the puppy lead, not a fork. Look at the coat and lead.'] },
+    { id: 'n-th-dark', who: 5, grade: 1, skill: 'think', text: 'Grog hears a noise in the cave. He thinks it is a monster. Really, it is only Baron humming.', ask: 'What does Grog think the noise is?', opts: ['A monster', 'Baron humming', 'The wind'], why: ['', 'Baron is really making the noise, but Grog does not know that. Grog thinks it is something else.', 'The story does not say Grog thinks it is the wind. He thinks it is a monster.'] },
+    { id: 'n-th-know', who: 0, grade: 1, skill: 'think', text: 'Baron hides a toy under the bed. Hale was at school and did not see him hide it.', ask: 'Does Hale know where the toy is?', opts: ['No, she did not see.', 'Yes, she saw him.', 'Yes, the toy told her.'], why: ['', 'Hale was at school. She did not see Baron hide it.', 'Toys cannot talk. Hale was not there.'] },
+    { id: 'n-th-who', who: 4, grade: 1, skill: 'think', text: '"I found a moon gem!" said Nova. "It is for the museum," said Nim.', ask: 'Who found the moon gem?', opts: ['Nova', 'Nim', 'The museum'], why: ['', 'Nim talked about the museum. Nova said, "I found a moon gem."', 'The museum is where the gem is going. Nova found it.'] }
   ];
 
   var stories = [
@@ -2374,6 +2454,15 @@ var DTWLessons = (function () {
       ask: 'Why did Hale give Grog a quiet game?',
       opts: ['Grog likes soft sounds', 'Hale wanted to win', 'The drill was Hale\'s'],
       why: ['', 'The story says nothing about winning. Grog likes soft sounds.', 'The drill had been loud. Hale chose a quiet game because Grog likes soft sounds.'] },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'n-who-mom', who: -1, grade: 1, skill: 'who', text: 'At lunch, Dad cut the apples. Nim poured the milk. Hale set out the cups.', ask: 'Who poured the milk?', opts: ['Nim', 'Dad', 'Hale'], why: ['', 'Dad cut the apples. Nim poured the milk.', 'Hale set out the cups. Nim poured the milk.'] },
+    { id: 'n-what-gift', who: 3, grade: 1, skill: 'what', text: 'Wren climbed a tall palm tree. She picked a coconut and dropped it in a basket.', ask: 'What did Wren pick?', opts: ['A coconut', 'A basket', 'A palm tree'], why: ['', 'The basket is where the coconut went. Wren picked a coconut.', 'Wren climbed the tree. She picked a coconut.'] },
+    { id: 'n-what-play', who: -1, grade: 1, skill: 'what', text: 'At recess, Ben kicked a ball. Ana jumped rope. Lee drew with chalk.', ask: 'What did Lee do?', opts: ['Drew with chalk', 'Kicked a ball', 'Jumped rope'], why: ['', 'Ben kicked a ball. Lee drew with chalk.', 'Ana jumped rope. Lee drew with chalk.'] },
+    { id: 'n-where-museum', who: 4, grade: 1, skill: 'where', text: 'Nova put the new bone in the museum. Then she walked to the shop to buy a snack.', ask: 'Where did Nova put the bone?', opts: ['In the museum', 'In the shop', 'In the pit'], why: ['', 'The shop is where she bought a snack. The bone went in the museum.', 'The story does not say the pit. The bone went in the museum.'] },
+    { id: 'n-where-sea', who: 2, grade: 1, skill: 'where', text: 'Jon lives in the sea. Today he sat on a rock by the beach and ate a fish pie.', ask: 'Where did Jon sit today?', opts: ['On a rock by the beach', 'At the bottom of the sea', 'In a tall tree'], why: ['', 'Jon lives in the sea, but today he sat on a rock.', 'The story does not say a tree. He sat on a rock by the beach.'] },
+    { id: 'n-when-night', who: -1, grade: 1, skill: 'when', text: 'Nim eats breakfast in the morning. He goes to school after that. He reads a book at bedtime.', ask: 'When does Nim read a book?', opts: ['At bedtime', 'In the morning', 'At school'], why: ['', 'In the morning Nim eats breakfast. He reads at bedtime.', 'Nim goes to school after breakfast. He reads at bedtime.'] },
+    { id: 'n-when-bat', who: 0, grade: 1, skill: 'when', text: 'The bats sleep all day. At night they wake up and fly out of the cave.', ask: 'When do the bats fly out?', opts: ['At night', 'In the day', 'At lunch'], why: ['', 'The bats sleep in the day. They fly out at night.', 'The story does not say lunch. The bats fly at night.'] },
+    { id: 'n-why-wet', who: -1, grade: 1, skill: 'why', text: 'Mia wore her boots to school because it rained. She jumped in a puddle on the way.', ask: 'Why did Mia wear boots?', opts: ['Because it rained', 'Because she jumped', 'Because it was sunny'], why: ['', 'She jumped in the puddle after she put the boots on. The story says it rained.', 'It was not sunny. It rained.'] }
   ];
 
   var seq = [
@@ -2937,7 +3026,14 @@ var DTWLessons = (function () {
       ask: 'What can Nim do that helps?',
       opts: ['Tell his friend, "I need to take deep breaths."', 'Push the friend away.', 'Snap at the friend.'],
       why: ['', 'It is okay to feel cross. Pushing can hurt a friend. Telling helps both of you.', 'It is okay to feel cross. Snapping can hurt a friend. Telling helps.'],
-      tip: 'All feelings are okay. We choose what we do next.' }
+      tip: 'All feelings are okay. We choose what we do next.' },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'n-e-lost', who: 5, grade: 1, skill: 'emotion', text: 'Grog cannot find the others in the dark cave. He holds his arms tight and his eyes are wide.', ask: 'How might Grog feel?', opts: ['Scared', 'Proud', 'Silly'], why: ['', 'Proud people stand tall and smile. Grog looks worried.', 'Silly people laugh and joke. Grog is holding on tight.'] },
+    { id: 'n-e-win', who: 3, grade: 1, skill: 'emotion', text: 'Wren wins the vine race. She jumps up and cheers with both arms in the air.', ask: 'How might Wren feel?', opts: ['Excited', 'Lonely', 'Sleepy'], why: ['', 'Lonely people feel alone. Wren is cheering.', 'Sleepy people yawn. Wren is jumping up.'] },
+    { id: 'n-z-spill', who: -1, grade: 1, skill: 'size', text: 'Nim spills a little water on the kitchen table.', ask: 'Is this a small problem, a medium problem or a big problem?', opts: ['A small problem', 'A medium problem', 'A big problem'], show: ['A small problem', 'A medium problem', 'A big problem'], why: ['', 'A cloth can wipe it up. A medium problem needs a grown-up and some time.', 'Nobody is hurt or in danger. A big problem is when someone is badly hurt.'], tip: 'A small problem can be fixed quickly, by yourself.' },
+    { id: 'n-z-lost', who: 1, grade: 1, skill: 'size', text: 'Hale is in a very big shop. She cannot find her family anywhere.', ask: 'Is this a small problem, a medium problem or a big problem?', opts: ['A big problem', 'A medium problem', 'A small problem'], show: ['A small problem', 'A medium problem', 'A big problem'], why: ['', 'Being lost is not safe. Hale needs a grown-up right away, so it is a big problem.', 'A small problem can be fixed by yourself. Hale needs a grown-up fast.'], tip: 'A big problem needs a grown-up right away.' },
+    { id: 'n-r-lost-game', who: 0, grade: 1, skill: 'react', text: 'Nim loses a quick card game. It is a small problem.', ask: 'Which reaction fits a small problem?', opts: ['Say, "Good game. Can we play again?"', 'Rip up all the cards.', 'Cry and shout for a long time.'], why: ['', 'Ripping cards is a big reaction. This is a small problem.', 'Shouting a long time is too big. A small problem needs a small reaction.'], tip: 'Match the reaction to the size of the problem.' },
+    { id: 'n-c-wait', who: 2, grade: 1, skill: 'calm', text: 'Nim has to wait a long time in line at the shop. He feels fed up.', ask: 'What helps Nim calm down?', opts: ['Count to ten slowly.', 'Walk out of the line and kick the wall.', 'Shout at the shopkeeper.'], why: ['', 'It is okay to feel fed up. Kicking the wall can hurt, so counting is safer.', 'It is okay to feel fed up. Shouting can hurt feelings, so counting helps.'], tip: 'All feelings are okay. We choose what we do next.' }
   ];
 
   var vocab = [
@@ -3245,7 +3341,26 @@ var DTWLessons = (function () {
       text: 'Duck! A branch is coming at your head.',
       ask: 'What does duck mean here?',
       opts: ['Bend down quickly', 'A bird that swims', 'A kind of boat'],
-      why: ['', 'A bird is another meaning of duck. A branch at your head points to bending down.', 'A boat does not go with a branch. A branch at your head points to bending down.'] }
+      why: ['', 'A bird is another meaning of duck. A branch at your head points to bending down.', 'A boat does not go with a branch. A branch at your head points to bending down.'] },
+    // more first-grade items, so a full game never repeats a question
+    { id: 'n-cat-bird', who: 3, grade: 1, skill: 'category', text: 'Look at these words: parrot, spoon, rock.', ask: 'Which one is a bird?', opts: ['parrot', 'spoon', 'rock'], why: ['', 'A spoon is for eating. A bird has feathers and wings.', 'A rock is a hard stone. A bird has feathers and wings.'], tip: 'A group name tells what a set of things has in common.' },
+    { id: 'n-cat-furniture', who: 1, grade: 1, skill: 'category', text: 'Look at these words: chair, table, bed.', ask: 'What group do they all belong to?', opts: ['Furniture', 'Fruit', 'Animals'], why: ['', 'You cannot eat a chair. Fruit grows on plants.', 'A table is not alive. Animals are alive.'], tip: 'A group name tells what a set of things has in common.' },
+    { id: 'n-cat-gems', who: 0, grade: 1, skill: 'category', text: 'Look at these words: ruby, coal, spade.', ask: 'Which one is a shiny gem?', opts: ['ruby', 'spade', 'coal'], why: ['', 'A spade is a tool for digging. A gem is a shiny stone.', 'Coal is black and dull. A gem is a shiny stone.'], tip: 'A group name tells what a set of things has in common.' },
+    { id: 'n-cat-weather', who: 3, grade: 1, skill: 'category', text: 'Look at these words: rain, snow, wind.', ask: 'What group do they all belong to?', opts: ['Weather', 'Toys', 'Food'], why: ['', 'You cannot play with rain like a toy. These words tell about the sky.', 'You do not eat wind. These words tell about the sky.'], tip: 'A group name tells what a set of things has in common.' },
+    { id: 'n-odd-tools', who: 0, grade: 1, skill: 'odd', text: 'Look at these words: pickaxe, shovel, banana.', ask: 'Which word does not belong?', opts: ['banana', 'pickaxe', 'shovel'], why: ['', 'A pickaxe is a digging tool, and so is a shovel. They go together.', 'A shovel is a digging tool, and so is a pickaxe. They go together.'], tip: 'The odd one is the one that is not in the group.' },
+    { id: 'n-odd-school', who: -1, grade: 1, skill: 'odd', text: 'Look at these words: pencil, crayon, sandwich.', ask: 'Which word does not belong?', opts: ['sandwich', 'pencil', 'crayon'], why: ['', 'A pencil is for drawing or writing, like a crayon. They go together.', 'A crayon is for drawing, like a pencil. They go together.'], tip: 'The odd one is the one that is not in the group.' },
+    { id: 'n-odd-sea', who: 2, grade: 1, skill: 'odd', text: 'Look at these words: fish, whale, camel.', ask: 'Which word does not belong?', opts: ['camel', 'fish', 'whale'], why: ['', 'A fish lives in the sea, like a whale. They go together.', 'A whale lives in the sea, like a fish. They go together.'], tip: 'The odd one is the one that is not in the group.' },
+    { id: 'n-opp-open', who: -1, grade: 1, skill: 'opposite', text: 'Hale shut the box. Then she wanted it the other way.', ask: 'What is the opposite of shut?', opts: ['open', 'close', 'lock'], why: ['', 'Close means the same as shut. We need the opposite.', 'Lock is something you do to a shut box. It is not the opposite.'], tip: 'Opposite words are as different as they can be.' },
+    { id: 'n-opp-soft', who: 1, grade: 1, skill: 'opposite', text: 'Hale hugged her soft teddy. Then she touched a rock.', ask: 'What is the opposite of soft?', opts: ['hard', 'fluffy', 'warm'], why: ['', 'A fluffy teddy is soft. We need the opposite.', 'Warm is about heat, not touch. The opposite of soft is hard.'], tip: 'Opposite words are as different as they can be.' },
+    { id: 'n-opp-front', who: 0, grade: 1, skill: 'opposite', text: 'Baron stood at the front of the line. Nim stood at the other end.', ask: 'What is the opposite of front?', opts: ['back', 'side', 'first'], why: ['', 'Side is a different place, not the opposite. The opposite of front is back.', 'First is the front of a line. We need the opposite.'], tip: 'Opposite words are as different as they can be.' },
+    { id: 'n-opp-asleep', who: -1, grade: 1, skill: 'opposite', text: 'Nim was asleep. Then the bell rang.', ask: 'What is the opposite of asleep?', opts: ['awake', 'tired', 'dreaming'], why: ['', 'Tired people may still be nearly asleep. The opposite of asleep is awake.', 'You dream when you are asleep. We need the opposite.'], tip: 'Opposite words are as different as they can be.' },
+    { id: 'n-same-gift', who: -1, grade: 1, skill: 'same', text: 'Nim gave Hale a gift.', ask: 'Which word means the same as gift?', opts: ['present', 'box', 'card'], why: ['', 'A gift can come in a box, but a box is not the same thing. Present means the same.', 'A card can come with a gift. Present means the same as gift.'] },
+    { id: 'n-same-tiny', who: 5, grade: 1, skill: 'same', text: 'Grog found a tiny pebble.', ask: 'Which word means the same as tiny?', opts: ['little', 'heavy', 'shiny'], why: ['', 'Heavy tells how much it weighs. Little means the same as tiny.', 'Shiny tells how it looks. Little means the same as tiny.'] },
+    { id: 'n-same-glad', who: -1, grade: 1, skill: 'same', text: 'Mom was glad to see Nim.', ask: 'Which word means the same as glad?', opts: ['happy', 'sleepy', 'cross'], why: ['', 'Sleepy is a different feeling. Happy means the same as glad.', 'Cross means a little angry. Happy means the same as glad.'] },
+    { id: 'n-same-hop', who: 3, grade: 1, skill: 'same', text: 'The frog will leap over the log.', ask: 'Which word means the same as leap?', opts: ['jump', 'crawl', 'sit'], why: ['', 'Crawl is slow, low movement. Jump means the same as leap.', 'Sit means to stay still. Jump means the same as leap.'] },
+    { id: 'n-multi-ring', who: -1, grade: 1, skill: 'multi', text: 'The phone began to ring.', ask: 'What does ring mean here?', opts: ['Make a sound', 'A circle of gold', 'A round shape'], why: ['', 'A gold ring is another meaning of ring. A phone makes a sound.', 'A round shape is another meaning of ring. A phone makes a sound.'], tip: 'Many words have more than one meaning. The rest of the sentence is the clue.' },
+    { id: 'n-multi-duck', who: 1, grade: 1, skill: 'multi', text: 'Hale had to duck under the low branch.', ask: 'What does duck mean here?', opts: ['Bend down low', 'A bird that quacks', 'A kind of toy'], why: ['', 'A duck is a bird, but Hale is not a bird. The low branch is the clue.', 'The branch is the clue. Hale bends down, she does not play with a toy.'], tip: 'Many words have more than one meaning. The rest of the sentence is the clue.' },
+    { id: 'n-multi-light', who: 0, grade: 1, skill: 'multi', text: 'The box was light, so Baron carried it with one hand.', ask: 'What does light mean here?', opts: ['Not heavy', 'A lamp that glows', 'Not dark'], why: ['', 'A lamp is another meaning of light. Carrying with one hand is the clue.', 'Not dark is another meaning of light. Carrying with one hand is the clue.'], tip: 'Many words have more than one meaning. The rest of the sentence is the clue.' }
   ];
 
   var skillNamesAdd2 = {

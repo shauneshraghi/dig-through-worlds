@@ -12,7 +12,7 @@ Settled by the user; treat them as decided and do not re-ask. Rebalance against 
 
 - The player (Nim's real-life counterpart) is a strong first-grade reader whose speech-language goals are irregular past-tense verbs, social stories and pragmatic language; his SLP's take-home work adds reading comprehension (what will happen next), expected vs unexpected behaviour and greeting others. Learning content follows those goals first; math facts are included too.
 - Learning goes into the chest puzzles (where the dig already pauses), not new interruptions: by default half the chests are learning chests, settable off, some, half or most on a grown-up page behind a sum. Grade 1 or 2. Smash stays as the way out.
-- A miss is never punished: a tip or a kind why, a short wait, the wrong answer greyed out, same question. Missed items come back more often (Leitner boxes).
+- A miss is never punished: a tip or a kind why, a short wait, the wrong answer greyed out, same question. Questions are never repeated until a subject's whole list has been asked (a cross-off list, the parent's choice, 2026-11-27); missed ones show on the grown-ups page to practise together.
 - Social stories follow Carol Gray's style and are never quizzes or rewarded: they are read from a Stories menu, told by a friend. Grown-ups can write their own (one page per line).
 - Read aloud is not forced (he reads well); with it on, learning questions are read too.
 - No screen-time reminder: the parent manages time.

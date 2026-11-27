@@ -699,9 +699,13 @@
       });
       body.appendChild(el('div', '', tb + '</table>'));
     }
+    // the cross-off list: questions not yet asked in each subject; none repeats until its list is used up
+    var lf = D.learnLeft(S), lk = D.LEARN_SUBJ.filter(function (k) { return lf[k] && S.learn.subj[k]; });
+    if (lk.length) body.appendChild(el('p', 'small', '<b>New questions left</b> (each is asked once before any comes back): ' +
+      lk.map(function (k) { return esc(names[k] || k) + ' ' + lf[k].left + ' of ' + lf[k].total; }).join(', ') + '. Math makes new ones each time.'));
     var tr = D.learnTricky(S).slice(0, 12);
     if (tr.length) {
-      body.appendChild(el('p', 'small', '<b>Still tricky</b> (asked more often until answered right twice):'));
+      body.appendChild(el('p', 'small', '<b>Missed</b> (good ones to practise together):'));
       body.appendChild(el('ul', 'tricky', tr.map(function (t) { return '<li>' + esc(t.text) + ' <span class="small">missed ' + t.m + '</span></li>'; }).join('')));
     }
     // own stories
@@ -880,12 +884,13 @@
       key = 'le|' + L.i + '|' + L.round + '|' + q.id + '|' + L.out.join() + '|' + waiting;
       if (key === lockKey) return;
       var said = !!q.ask || q.opts.some(function (o) { return String(o).length > 14; }), scene = q.text.length > 44;
-      T0 = LOCK_TEXT.learn[L.subj] || ['📖 A learning chest!', '']; hint = (q.ask ? 'Read it, then answer the question.' : q.skill === 'tense' ? 'Which word fits? Look for the time word.' : T0[1]) || 'Tap the answer.';
+      T0 = LOCK_TEXT.learn[L.subj] || ['📖 A learning chest!', '']; var askT = q.clock ? (q.text === 'What time is it?' ? '' : 'What time is it?') : q.ask || (q.skill === 'tense' ? 'Which word fits? Look for the time word.' : L.subj === 'math' ? '' : T0[1]);
+      hint = askT ? 'Read it. Then tap the best answer.' : 'Tap the answer.';
       var newQ = lockKey.indexOf('le|' + L.i + '|' + L.round + '|' + q.id + '|') !== 0;
       var qt = esc(q.text).replace('___', '<span class="blank">' + (L.subj === 'math' ? '' : '___') + '</span>');
       html = '<div class="lq ' + L.subj + (scene ? ' scene' : '') + '">' + (q.who >= 0 ? '<span class="lpic"></span>' : '') + '<p class="lqt">' + qt + '</p></div>';
       if (q.clock) html += clockSvg(q.clock[0], q.clock[1]);
-      if (q.ask) html += '<p class="lask"><b>?</b><span>' + esc(q.ask).replace('___', '<span class="blank">___</span>') + '</span></p>'; // the question sits by the answers, not up in the hint
+      if (askT) html += '<p class="lask"><b>?</b><span>' + esc(askT).replace('___', '<span class="blank">___</span>') + '</span></p>'; // the question sits by the answers, not up in the hint
       html += '<div class="lopts' + (said ? ' long' : '') + '">';
       q.opts.forEach(function (o, j) {
         var out = L.out.indexOf(j) >= 0;

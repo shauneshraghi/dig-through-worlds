@@ -152,13 +152,28 @@ test('a what-happens-next chest reads like a talking one: a scene, the question,
   const st = D.learnStats(s); assert.equal(st.read.r + st.read.m, 2); assert.equal(st.predict.m, 1);
 });
 
-test('missed items come back more often than ones answered right', () => {
+test('a question is crossed off once asked: none comes back until every one in its subject has been asked', () => {
+  const s = D.newState(5), pool = ['go', 'dig', 'see', 'find', 't-walk'].map(x => 'verb:' + x);
+  const seen = [];
+  for (let n = 0; n < pool.length; n++) { const q = D._learnDeal(s, 'verb'); assert.ok(!seen.includes(q.id), 'repeat of ' + q.id); seen.push(q.id); }
+  assert.deepEqual([...seen].sort(), [...pool].sort());
+  assert.deepEqual({ ...D.learnLeft(s).verb }, { left: 0, total: 5 });
+  const again = []; // the list starts over only now, and goes round once more before any third ask
+  for (let n = 0; n < pool.length; n++) again.push(D._learnDeal(s, 'verb').id);
+  assert.deepEqual([...again].sort(), [...pool].sort());
+});
+
+test('a missed question waits its turn like the rest; a question shown and then smashed counts as asked', () => {
   const s = D.newState(5);
   s.learn.items['verb:go'] = { b: 0, r: 0, m: 3 };
-  ['dig', 'see', 'find'].forEach(id => { s.learn.items['verb:' + id] = { b: 4, r: 5, m: 0 }; });
-  let go = 0;
-  for (let n = 0; n < 200; n++) if (D._learnPick(s, 'verb', []).id === 'verb:go') go++;
-  assert.ok(go > 100, 'the missed verb is picked most: ' + go);
+  for (let n = 0; n < 4; n++) assert.notEqual(D._learnDeal(s, 'verb').id, 'verb:go');
+  const c = atChest('plural', 9), id = c.run.lock.q.id; D.lockSmash(c);
+  assert.equal(D.learnLeft(c).plural.left, 2); assert.ok(c.learn.items[id].a >= 1);
+});
+
+test('math questions are crossed off too', () => {
+  const s = D.newState(12), ids = new Set();
+  for (let n = 0; n < 150; n++) { const id = D._learnDeal(s, 'math').id; assert.ok(!ids.has(id), 'repeat ' + id + ' at ' + n); ids.add(id); }
 });
 
 test('first grade gets first-grade items only; second grade gets both', () => {
@@ -230,23 +245,15 @@ test('without word problems the story kind is never asked', () => {
   for (let n = 0; n < 300; n++) assert.notEqual(D0._learnPick(s, 'math', []).skill, 'story');
 });
 
-test('missed math questions of every kind come back in review and show in the grown-ups list as words', () => {
+test('missed math questions of every kind show in the grown-ups list as words', () => {
   const ids = ['7+5', 't:4,7', 'c:47,74,44', 'k:3:30', 'w:bats:4,3', 'w:coins:9,4'];
   ids.forEach(f => {
     const s = D.newState(12); s.learn.items['math:' + f] = { b: 0, r: 0, m: 2 };
-    let n = 0; for (let k = 0; k < 100; k++) if (D._learnPick(s, 'math', []).id === 'math:' + f) n++;
-    assert.ok(n > 20, f + ' picked ' + n);
     const tr = D.learnTricky(s).find(t => t.id === 'math:' + f);
     assert.ok(tr && tr.text.length > 3 && !/undefined|NaN|\{/.test(tr.text), f + ': ' + (tr && tr.text));
   });
-  const s = D.newState(12); s.learn.items['math:h:3,4,7'] = { b: 0, r: 0, m: 2 };
-  for (let k = 0; k < 100; k++) assert.notEqual(D._learnPick(s, 'math', []).id, 'math:h:3,4,7', 'a hundreds item is not asked in first grade');
-});
-
-test('a missed math fact can come back', () => {
-  const s = D.newState(12); s.learn.items['math:7+5'] = { b: 0, r: 0, m: 2 };
-  let n = 0; for (let k = 0; k < 100; k++) if (D._learnPick(s, 'math', []).id === 'math:7+5') n++;
-  assert.ok(n > 20, 'missed fact picked ' + n);
+  const s = D.newState(12);
+  for (let k = 0; k < 100; k++) assert.ok(!/^math:h:/.test(D._learnPick(s, 'math', []).id), 'a hundreds item is not asked in first grade');
   assert.equal(D._mathEval('7+?=10'), 3);
   assert.equal(D._mathEval('45-12'), 33);
 });
@@ -414,6 +421,27 @@ test('the real lesson file deals well-formed questions in every subject', { skip
     assert.ok(m.min == null || m.min >= 1, 'min ' + m.id);
   });
   assert.ok(L.stories.length >= 8);
+});
+
+test('the real lesson file has enough questions that two full playthroughs never repeat one', { skip: !existsSync(REAL) }, () => {
+  const ctx = {}; vm.createContext(ctx);
+  vm.runInContext(readFileSync(REAL, 'utf8') + '\n;this.DTWLessons = DTWLessons;', ctx, { filename: 'js/lessons.js' });
+  vm.runInContext(readFileSync(new URL('../js/logic.js', import.meta.url), 'utf8'), ctx, { filename: 'js/logic.js' });
+  const R = ctx.DTW;
+  // about 12 chests a world, five worlds, played twice (golden bones), three in four learning chests at the highest setting
+  const CHESTS = 90;
+  for (const g of [1, 2]) for (let seed = 1; seed <= 6; seed++) {
+    const s = R.newState(seed); R.learnSet(s, { grade: g });
+    const seen = new Set();
+    for (let c = 0; c < CHESTS; c++) {
+      const subj = R._learnSubject(s); s.learn.last = subj;
+      for (let k = 0; k < R.LEARN_ROUNDS[subj]; k++) {
+        const id = R._learnDeal(s, subj).id;
+        assert.ok(!seen.has(id), 'grade ' + g + ' seed ' + seed + ': ' + id + ' repeats at chest ' + c);
+        seen.add(id);
+      }
+    }
+  }
 });
 
 test('an item with a show order keeps its answers in that order, with the why lines following them', () => {

@@ -61,10 +61,10 @@ supported NCAEP practices (140 and 106 studies). The `why` text never says "wron
 -ed on an irregular verb). For feelings and social items the distractors should be clearly worse, not a second
 defensible answer: a child who reasons well about people must never be marked off for it.
 
-**Missed items return more often.** Each item sits in a Leitner box; a miss sends it back to box 0 and lower boxes are
-drawn more often. Spaced retrieval improves retention and transfer (Kang, 2016); in young children with language
-disorders, repeated spaced retrieval raised word recall and held it a week later (Leonard et al., 2021). Direct trials
-in autistic children are few, so this rests on the general learning literature.
+**No question repeats until its list is used up.** Each subject is a cross-off list: the game asks the least-asked
+item, so a child never sees the same question twice in a full game (the parent's choice; repeats were noticed and
+disliked). This gives up the in-game spaced review of missed items. Spaced retrieval improves retention and transfer
+(Kang, 2016; Leonard et al., 2021), so the grown-ups page lists missed questions to revisit together away from the game.
 
 **Feelings come from situations, not faces.** Autistic children can name basic emotions from situational cues, but
 when face and situation disagree they lean on the face (Tell and Davidson, 2014). Reading the situation is the skill
