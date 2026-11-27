@@ -1244,8 +1244,10 @@ test('simon: watch the gems, then tap them back in order; a wrong tap replays th
 test('chests hold eight kinds of puzzle and never the same kind twice in a row (learning chests off)', () => {
   const s = digAt(1, 3, 10, 3); D.setAuto(s, false); D.learnSet(s, { mix: 0 });
   const kinds = [];
+  const air = s.run.oxygen;
   for (let k = 0; k < 80; k++) {
-    D._setTile(s, 4, 10, 3, T.CHEST); D._teleport(s, 3, 10, 3); D.steer(s, 'e'); run(s, 2);
+    // a long run in the ocean: keep the air topped up and no critter in the way
+    s.run.critters = []; s.run.stun = 0; s.run.oxygen = air; D._setTile(s, 4, 10, 3, T.CHEST); D._teleport(s, 3, 10, 3); D.steer(s, 'e'); run(s, 2);
     if (!s.run.lock) throw new Error('no lock at ' + k + ' after ' + kinds.slice(-3)); kinds.push(s.run.lock.kind); solveLock(s); run(s, 1);
   }
   assert.deepEqual(new Set(kinds), new Set(['pins', 'pairs', 'simon', 'slide', 'pipes', 'odd', 'path', 'ice']));
