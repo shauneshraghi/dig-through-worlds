@@ -402,6 +402,10 @@ canvas { display:block; width:100%; height:100%; image-rendering:pixelated; touc
 #lockBoard .clock { display:block; width:150px; height:150px; margin:6px auto 0; }
 @media (max-height:640px) { #lockBoard .clock { width:110px; height:110px; } #lockBoard .lq.scene .lqt { font-size:16px; } #lockBoard .lopts.long .lo { min-height:40px; padding:6px 10px; font-size:16px; } }
 #lockBoard .blank { display:inline-block; min-width:2.2em; border-bottom:3px solid var(--gold); color:transparent; }
+#lockBoard .lask .blank { border-color:#3a2510; }
+#lockBoard .lask { display:flex; align-items:center; gap:10px; width:100%; box-sizing:border-box; margin:12px 0 0; padding:10px 12px; border-radius:14px; background:linear-gradient(#fff3b0,#ffd45a); border:3px solid #fff8d8; box-shadow:0 0 16px #ffd45a88, 0 4px 0 #a8741a; color:#3a2510; font-size:21px; font-weight:800; line-height:1.25; text-align:left; text-shadow:none; animation:lpop .35s cubic-bezier(.2,1.4,.4,1); }
+#lockBoard .lask b { flex:none; display:flex; align-items:center; justify-content:center; width:34px; height:34px; border-radius:50%; background:#e5483a; color:#fff; font-size:24px; box-shadow:0 2px 0 #0006; }
+@media (max-height:640px) { #lockBoard .lask { font-size:18px; padding:7px 10px; margin-top:8px; } #lockBoard .lask b { width:28px; height:28px; font-size:20px; } }
 #lockBoard .lopts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; width:100%; margin-top:10px; }
 #lockBoard .lopts.long { grid-template-columns:1fr; }
 #lockBoard .lo { min-height:54px; padding:8px 6px; border:0; border-radius:12px; background:#f6ecd4; color:#3a2510; font-size:20px; font-weight:700; box-shadow:0 4px 0 #a88a5a; cursor:pointer; overflow-wrap:anywhere; }

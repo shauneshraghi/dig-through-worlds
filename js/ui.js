@@ -880,11 +880,12 @@
       key = 'le|' + L.i + '|' + L.round + '|' + q.id + '|' + L.out.join() + '|' + waiting;
       if (key === lockKey) return;
       var said = !!q.ask || q.opts.some(function (o) { return String(o).length > 14; }), scene = q.text.length > 44;
-      T0 = LOCK_TEXT.learn[L.subj] || ['📖 A learning chest!', '']; hint = q.ask || (q.skill === 'tense' ? 'Which word fits? Look for the time word.' : T0[1]) || 'Tap the answer.';
+      T0 = LOCK_TEXT.learn[L.subj] || ['📖 A learning chest!', '']; hint = (q.ask ? 'Read it, then answer the question.' : q.skill === 'tense' ? 'Which word fits? Look for the time word.' : T0[1]) || 'Tap the answer.';
       var newQ = lockKey.indexOf('le|' + L.i + '|' + L.round + '|' + q.id + '|') !== 0;
       var qt = esc(q.text).replace('___', '<span class="blank">' + (L.subj === 'math' ? '' : '___') + '</span>');
       html = '<div class="lq ' + L.subj + (scene ? ' scene' : '') + '">' + (q.who >= 0 ? '<span class="lpic"></span>' : '') + '<p class="lqt">' + qt + '</p></div>';
       if (q.clock) html += clockSvg(q.clock[0], q.clock[1]);
+      if (q.ask) html += '<p class="lask"><b>?</b><span>' + esc(q.ask).replace('___', '<span class="blank">___</span>') + '</span></p>'; // the question sits by the answers, not up in the hint
       html += '<div class="lopts' + (said ? ' long' : '') + '">';
       q.opts.forEach(function (o, j) {
         var out = L.out.indexOf(j) >= 0;
